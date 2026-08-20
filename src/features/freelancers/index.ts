@@ -1,0 +1,9 @@
+export { FreelancerTeamManager } from './components/FreelancerTeamManager';
+export { FreelancerDashboardView } from './components/FreelancerDashboardView';
+export { AllFreelancersView } from './components/AllFreelancersView';
+export { ShootAssignmentsView } from './components/ShootAssignmentsView';
+export { ShootCalendarView } from './components/ShootCalendarView';
+export { FreelancerPaymentsView } from './components/FreelancerPaymentsView';
+export { FreelancerAttendanceView } from './components/FreelancerAttendanceView';
+export { FreelancerDataReceivedView } from './components/FreelancerDataReceivedView';
+export { FreelancerReportsView } from './components/FreelancerReportsView';

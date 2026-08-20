@@ -1,0 +1,708 @@
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// ----------------------------------------------------
+// ENUMS
+// ----------------------------------------------------
+
+enum Role {
+  ADMIN
+  MANAGER
+  MEMBER
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  DISABLED
+}
+
+enum SessionStatus {
+  ACTIVE
+  LOGGED_OUT
+  REVOKED
+  EXPIRED
+  AUTO_LOGGED_OUT
+}
+
+enum LogoutReason {
+  MANUAL_LOGOUT
+  INACTIVITY_TIMEOUT
+  ADMIN_LOGOUT
+  SESSION_REVOKED
+  SYSTEM_RESTART
+}
+
+enum TaskStatus {
+  ASSIGNED
+  IN_PROGRESS
+  PAUSED
+  INTERRUPTED
+  COMPLETED
+  CANCELLED
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum TaskCategory {
+  PHOTO_EDITING
+  VIDEO_EDITING
+  ALBUM_DESIGN
+  SHOOT_COVERAGE
+  CLIENT_MEETING
+  DELIVERY_MANAGEMENT
+  ADMIN_TASK
+  OTHER
+}
+
+enum WorkSessionStatus {
+  ACTIVE
+  PAUSED
+  COMPLETED
+  AUTO_LOGGED_OUT
+}
+
+enum WorkSessionEndReason {
+  MANUAL_PAUSE
+  TASK_COMPLETED
+  AUTO_LOGOUT
+  ADMIN_STOP
+  SWITCHED_TASK
+}
+
+enum ActivityType {
+  LOGIN
+  LOGOUT
+  HEARTBEAT
+  WORK_START
+  WORK_PAUSE
+  WORK_RESUME
+  WORK_COMPLETE
+  BREAK_START
+  BREAK_END
+  FILE_UPLOAD
+  PAGE_VIEW
+}
+
+enum BreakStatus {
+  ACTIVE
+  COMPLETED
+  CANCELLED
+}
+
+enum AttendanceStatus {
+  PRESENT
+  HALF_DAY
+  ABSENT
+  ON_LEAVE
+}
+
+enum ProjectStatus {
+  UPCOMING
+  IN_PROGRESS
+  REVIEW
+  DELIVERED
+  COMPLETED
+  CANCELLED
+}
+
+enum LeadStatus {
+  NEW
+  CONTACTED
+  QUALIFIED
+  PROPOSAL_SENT
+  NEGOTIATION
+  WON
+  LOST
+}
+
+enum LeadSource {
+  INSTAGRAM
+  FACEBOOK
+  META_ADS
+  GOOGLE_SEARCH
+  REFERRAL
+  WEBSITE
+  DIRECT_CALL
+  OTHER
+}
+
+enum QuotationStatus {
+  DRAFT
+  SENT
+  ACCEPTED
+  REJECTED
+  EXPIRED
+}
+
+enum InvoiceStatus {
+  DRAFT
+  SENT
+  PARTIALLY_PAID
+  PAID
+  OVERDUE
+  CANCELLED
+}
+
+enum PaymentStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  REFUNDED
+}
+
+enum PaymentMethod {
+  UPI
+  BANK_TRANSFER
+  CREDIT_CARD
+  DEBIT_CARD
+  CASH
+  CHEQUE
+  OTHER
+}
+
+enum FileType {
+  RAW_PHOTOS
+  EDITED_JPG
+  TEASER_VIDEO
+  FULL_VIDEO
+  ALBUM_PDF
+  CONTRACT_PDF
+  INVOICE_PDF
+  QUOTATION_PDF
+  OTHER
+}
+
+enum NotificationType {
+  NEW_TASK
+  TASK_ASSIGNED
+  TASK_PAUSED
+  TASK_COMPLETED
+  INACTIVITY_WARNING
+  AUTO_LOGOUT
+  PAYMENT_RECEIVED
+  LEAD_ASSIGNED
+  SYSTEM_ALERT
+  GENERAL
+}
+
+// ----------------------------------------------------
+// MODELS
+// ----------------------------------------------------
+
+model User {
+  id              String     @id @default(uuid())
+  username        String     @unique
+  employee_code   String     @unique
+  full_name       String
+  email           String     @unique
+  phone           String?
+  password_hash   String
+  role            Role       @default(MEMBER)
+  status          UserStatus @default(ACTIVE)
+  monthly_salary  Float?
+  daily_rate      Float?
+  profile_photo   String?
+  current_task_id String?
+  last_login_at   DateTime?
+  last_activity_at DateTime?
+  created_at      DateTime   @default(now())
+  updated_at      DateTime   @updatedAt
+
+  // Relations
+  sessions             Session[]
+  login_histories      LoginHistory[]
+  assigned_tasks       Task[]               @relation("TaskAssignee")
+  created_tasks        Task[]               @relation("TaskCreator")
+  work_sessions        WorkSession[]
+  breaks               Break[]
+  attendances          Attendance[]
+  activity_logs        ActivityLog[]
+  audit_logs           AuditLog[]
+  notifications        Notification[]
+  created_projects     Project[]            @relation("ProjectCreator")
+  assigned_leads       Lead[]               @relation("LeadAssignee")
+  recorded_payments    Payment[]            @relation("PaymentRecorder")
+  uploaded_files       FileRecord[]         @relation("FileUploader")
+  shoot_leads          Shoot[]              @relation("ShootLead")
+  task_assigned_to_me  TaskAssignment[]     @relation("TaskAssignmentNewUser")
+  task_assigned_from_me TaskAssignment[]    @relation("TaskAssignmentPrevUser")
+  task_actions_by_me   TaskAssignment[]     @relation("TaskAssignmentActor")
+
+  @@index([username])
+  @@index([role])
+  @@index([status])
+}
+
+model Session {
+  id               String        @id @default(uuid())
+  user_id          String
+  user             User          @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  session_token    String        @unique
+  ip_address       String?
+  user_agent       String?       @db.Text
+  browser          String?
+  os               String?
+  device           String?
+  status           SessionStatus @default(ACTIVE)
+  login_at         DateTime      @default(now())
+  last_activity_at DateTime      @default(now())
+  expires_at       DateTime
+  revoked_at       DateTime?
+  revoke_reason    String?
+  created_at       DateTime      @default(now())
+  updated_at       DateTime      @updatedAt
+
+  @@index([user_id])
+  @@index([status])
+  @@index([session_token])
+}
+
+model LoginHistory {
+  id                   String        @id @default(uuid())
+  user_id              String
+  user                 User          @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  session_id           String?
+  ip_address           String?
+  user_agent           String?       @db.Text
+  browser              String?
+  os                   String?
+  device               String?
+  login_at             DateTime      @default(now())
+  logout_at            DateTime?
+  logout_reason        LogoutReason?
+  total_active_minutes Int?          @default(0)
+  created_at           DateTime      @default(now())
+
+  @@index([user_id])
+  @@index([login_at])
+}
+
+model Client {
+  id         String   @id @default(uuid())
+  name       String
+  phone      String
+  email      String?
+  address    String?  @db.Text
+  notes      String?  @db.Text
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  // Relations
+  projects   Project[]
+  tasks      Task[]
+  leads      Lead[]
+  quotations Quotation[]
+  invoices   Invoice[]
+  payments   Payment[]
+  files      FileRecord[]
+
+  @@index([name])
+  @@index([phone])
+}
+
+model Project {
+  id           String        @id @default(uuid())
+  project_name String
+  client_id    String
+  client       Client        @relation(fields: [client_id], references: [id], onDelete: Cascade)
+  status       ProjectStatus @default(UPCOMING)
+  budget       Float         @default(0)
+  start_date   DateTime?
+  due_date     DateTime?
+  created_by   String?
+  creator      User?         @relation("ProjectCreator", fields: [created_by], references: [id], onDelete: SetNull)
+  created_at   DateTime      @default(now())
+  updated_at   DateTime      @updatedAt
+
+  // Relations
+  tasks                  Task[]
+  quotations             Quotation[]
+  invoices               Invoice[]
+  payments               Payment[]
+  shoots                 Shoot[]
+  deliveries             Delivery[]
+  files                  FileRecord[]
+  freelancer_assignments FreelancerAssignment[]
+
+  @@index([client_id])
+  @@index([status])
+}
+
+model Task {
+  id                String       @id @default(uuid())
+  project_id        String?
+  project           Project?     @relation(fields: [project_id], references: [id], onDelete: Cascade)
+  client_id         String?
+  client            Client?      @relation(fields: [client_id], references: [id], onDelete: SetNull)
+  title             String
+  description       String?      @db.Text
+  category          TaskCategory @default(PHOTO_EDITING)
+  assigned_to       String?
+  assignee          User?        @relation("TaskAssignee", fields: [assigned_to], references: [id], onDelete: SetNull)
+  assigned_by       String?
+  creator           User?        @relation("TaskCreator", fields: [assigned_by], references: [id], onDelete: SetNull)
+  priority          Priority     @default(MEDIUM)
+  status            TaskStatus   @default(ASSIGNED)
+  due_date          DateTime?
+  estimated_minutes Int          @default(0)
+  actual_minutes    Int          @default(0)
+  started_at        DateTime?
+  paused_at         DateTime?
+  completed_at      DateTime?
+  created_at        DateTime     @default(now())
+  updated_at        DateTime     @updatedAt
+
+  // Relations
+  work_sessions WorkSession[]
+  assignments   TaskAssignment[]
+  activity_logs ActivityLog[]
+  files         FileRecord[]
+
+  @@index([project_id])
+  @@index([client_id])
+  @@index([assigned_to])
+  @@index([status])
+}
+
+model TaskAssignment {
+  id               String   @id @default(uuid())
+  task_id          String
+  task             Task     @relation(fields: [task_id], references: [id], onDelete: Cascade)
+  previous_user_id String?
+  previous_user    User?    @relation("TaskAssignmentPrevUser", fields: [previous_user_id], references: [id], onDelete: SetNull)
+  new_user_id      String
+  new_user         User     @relation("TaskAssignmentNewUser", fields: [new_user_id], references: [id], onDelete: Cascade)
+  assigned_by      String?
+  actor            User?    @relation("TaskAssignmentActor", fields: [assigned_by], references: [id], onDelete: SetNull)
+  reason           String?  @db.Text
+  created_at       DateTime @default(now())
+
+  @@index([task_id])
+}
+
+model WorkSession {
+  id               String               @id @default(uuid())
+  task_id          String
+  task             Task                 @relation(fields: [task_id], references: [id], onDelete: Cascade)
+  user_id          String
+  user             User                 @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  started_at       DateTime             @default(now())
+  ended_at         DateTime?
+  status           WorkSessionStatus    @default(ACTIVE)
+  end_reason       WorkSessionEndReason?
+  active_seconds   Int                  @default(0)
+  idle_seconds     Int                  @default(0)
+  last_activity_at DateTime             @default(now())
+  created_at       DateTime             @default(now())
+  updated_at       DateTime             @updatedAt
+
+  // Relations
+  activity_logs ActivityLog[]
+
+  @@index([task_id])
+  @@index([user_id])
+  @@index([status])
+}
+
+model Break {
+  id               String      @id @default(uuid())
+  user_id          String
+  user             User        @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  reason           String?
+  started_at       DateTime    @default(now())
+  ended_at         DateTime?
+  duration_seconds Int         @default(0)
+  status           BreakStatus @default(ACTIVE)
+  created_at       DateTime    @default(now())
+  updated_at       DateTime    @updatedAt
+
+  @@index([user_id])
+  @@index([status])
+}
+
+model Attendance {
+  id                   String           @id @default(uuid())
+  user_id              String
+  user                 User             @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  date                 DateTime         @db.Date
+  status               AttendanceStatus @default(PRESENT)
+  first_login_at       DateTime?
+  last_logout_at       DateTime?
+  total_working_seconds Int             @default(0)
+  total_active_seconds  Int             @default(0)
+  break_seconds        Int              @default(0)
+  auto_logout_count    Int              @default(0)
+  notes                String?          @db.Text
+  created_at           DateTime         @default(now())
+  updated_at           DateTime         @updatedAt
+
+  @@unique([user_id, date])
+  @@index([date])
+  @@index([status])
+}
+
+model ActivityLog {
+  id              String       @id @default(uuid())
+  user_id         String
+  user            User         @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  work_session_id String?
+  work_session    WorkSession? @relation(fields: [work_session_id], references: [id], onDelete: SetNull)
+  task_id         String?
+  task            Task?        @relation(fields: [task_id], references: [id], onDelete: SetNull)
+  activity_type   ActivityType
+  metadata        String?      @db.Text
+  ip_address      String?
+  created_at      DateTime     @default(now())
+
+  @@index([user_id])
+  @@index([task_id])
+  @@index([created_at])
+}
+
+model AuditLog {
+  id           String   @id @default(uuid())
+  user_id      String?
+  user         User?    @relation(fields: [user_id], references: [id], onDelete: SetNull)
+  action       String
+  module       String
+  reference_id String?
+  old_value    String?  @db.Text
+  new_value    String?  @db.Text
+  ip_address   String?
+  user_agent   String?  @db.Text
+  created_at   DateTime @default(now())
+
+  @@index([user_id])
+  @@index([module])
+  @@index([action])
+  @@index([created_at])
+}
+
+model Notification {
+  id             String           @id @default(uuid())
+  user_id        String
+  user           User             @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  type           NotificationType
+  title          String
+  message        String           @db.Text
+  reference_id   String?
+  reference_type String?
+  is_read        Boolean          @default(false)
+  read_at        DateTime?
+  created_at     DateTime         @default(now())
+
+  @@index([user_id])
+  @@index([is_read])
+}
+
+model Lead {
+  id              String     @id @default(uuid())
+  name            String
+  phone           String
+  email           String?
+  source          LeadSource @default(INSTAGRAM)
+  assigned_to     String?
+  assignee        User?      @relation("LeadAssignee", fields: [assigned_to], references: [id], onDelete: SetNull)
+  status          LeadStatus @default(NEW)
+  follow_up_date  DateTime?
+  estimated_value Float      @default(0)
+  notes           String?    @db.Text
+  client_id       String?
+  client          Client?    @relation(fields: [client_id], references: [id], onDelete: SetNull)
+  created_at      DateTime   @default(now())
+  updated_at      DateTime   @updatedAt
+
+  @@index([assigned_to])
+  @@index([status])
+  @@index([source])
+}
+
+model Quotation {
+  id               String          @id @default(uuid())
+  quotation_number String          @unique
+  client_id        String
+  client           Client          @relation(fields: [client_id], references: [id], onDelete: Cascade)
+  project_id       String?
+  project          Project?        @relation(fields: [project_id], references: [id], onDelete: SetNull)
+  total_amount     Float           @default(0)
+  status           QuotationStatus @default(DRAFT)
+  valid_until      DateTime?
+  items            String?         @db.Text
+  notes            String?         @db.Text
+  created_by       String?
+  created_at       DateTime        @default(now())
+  updated_at       DateTime        @updatedAt
+
+  @@index([client_id])
+  @@index([quotation_number])
+}
+
+model Invoice {
+  id             String        @id @default(uuid())
+  invoice_number String        @unique
+  client_id      String
+  client         Client        @relation(fields: [client_id], references: [id], onDelete: Cascade)
+  project_id     String?
+  project        Project?      @relation(fields: [project_id], references: [id], onDelete: SetNull)
+  total_amount   Float         @default(0)
+  paid_amount    Float         @default(0)
+  balance_amount Float         @default(0)
+  status         InvoiceStatus @default(DRAFT)
+  due_date       DateTime?
+  items          String?       @db.Text
+  notes          String?       @db.Text
+  created_by     String?
+  created_at     DateTime      @default(now())
+  updated_at     DateTime      @updatedAt
+
+  // Relations
+  payments Payment[]
+
+  @@index([client_id])
+  @@index([invoice_number])
+}
+
+model Payment {
+  id              String        @id @default(uuid())
+  payment_number  String        @unique
+  invoice_id      String?
+  invoice         Invoice?      @relation(fields: [invoice_id], references: [id], onDelete: SetNull)
+  client_id       String
+  client          Client        @relation(fields: [client_id], references: [id], onDelete: Cascade)
+  project_id      String?
+  project         Project?      @relation(fields: [project_id], references: [id], onDelete: SetNull)
+  amount          Float
+  payment_method  PaymentMethod @default(UPI)
+  status          PaymentStatus @default(COMPLETED)
+  transaction_ref String?
+  payment_date    DateTime      @default(now())
+  recorded_by     String?
+  recorder        User?         @relation("PaymentRecorder", fields: [recorded_by], references: [id], onDelete: SetNull)
+  notes           String?       @db.Text
+  created_at      DateTime      @default(now())
+  updated_at      DateTime      @updatedAt
+
+  @@index([client_id])
+  @@index([project_id])
+  @@index([payment_number])
+}
+
+model Freelancer {
+  id             String   @id @default(uuid())
+  name           String
+  phone          String
+  email          String?
+  skill_category String?
+  day_rate       Float?   @default(0)
+  address        String?  @db.Text
+  status         String   @default("ACTIVE")
+  notes          String?  @db.Text
+  created_at     DateTime @default(now())
+  updated_at     DateTime @updatedAt
+
+  // Relations
+  assignments FreelancerAssignment[]
+
+  @@index([name])
+}
+
+model FreelancerAssignment {
+  id             String        @id @default(uuid())
+  freelancer_id  String
+  freelancer     Freelancer    @relation(fields: [freelancer_id], references: [id], onDelete: Cascade)
+  project_id     String
+  project        Project       @relation(fields: [project_id], references: [id], onDelete: Cascade)
+  shoot_id       String?
+  shoot          Shoot?        @relation(fields: [shoot_id], references: [id], onDelete: SetNull)
+  assigned_role  String?
+  agreed_rate    Float?        @default(0)
+  payment_status PaymentStatus @default(PENDING)
+  created_at     DateTime      @default(now())
+  updated_at     DateTime      @updatedAt
+
+  @@index([freelancer_id])
+  @@index([project_id])
+}
+
+model Shoot {
+  id             String   @id @default(uuid())
+  project_id     String
+  project        Project  @relation(fields: [project_id], references: [id], onDelete: Cascade)
+  title          String
+  shoot_type     String?
+  shoot_date     DateTime
+  location       String?
+  lead_member_id String?
+  lead_member    User?    @relation("ShootLead", fields: [lead_member_id], references: [id], onDelete: SetNull)
+  status         String   @default("SCHEDULED")
+  notes          String?  @db.Text
+  created_at     DateTime @default(now())
+  updated_at     DateTime @updatedAt
+
+  // Relations
+  freelancer_assignments FreelancerAssignment[]
+
+  @@index([project_id])
+}
+
+model Delivery {
+  id            String    @id @default(uuid())
+  project_id    String
+  project       Project   @relation(fields: [project_id], references: [id], onDelete: Cascade)
+  item_name     String
+  delivery_type String?
+  delivery_date DateTime?
+  status        String    @default("PENDING")
+  download_link String?   @db.Text
+  notes         String?   @db.Text
+  created_at    DateTime  @default(now())
+  updated_at    DateTime  @updatedAt
+
+  @@index([project_id])
+}
+
+model FileRecord {
+  id          String   @id @default(uuid())
+  project_id  String?
+  project     Project? @relation(fields: [project_id], references: [id], onDelete: Cascade)
+  task_id     String?
+  task        Task?    @relation(fields: [task_id], references: [id], onDelete: SetNull)
+  client_id   String?
+  client      Client?  @relation(fields: [client_id], references: [id], onDelete: SetNull)
+  file_name   String
+  file_url    String   @db.Text
+  file_size   Int      @default(0)
+  file_type   FileType @default(OTHER)
+  mime_type   String?
+  uploaded_by String?
+  uploader    User?    @relation("FileUploader", fields: [uploaded_by], references: [id], onDelete: SetNull)
+  created_at  DateTime @default(now())
+
+  @@index([project_id])
+  @@index([task_id])
+  @@index([client_id])
+}
+
+model SystemSetting {
+  id          String   @id @default(uuid())
+  key         String   @unique
+  value       String   @db.Text
+  description String?
+  updated_by  String?
+  updated_at  DateTime @updatedAt
+  created_at  DateTime @default(now())
+
+  @@index([key])
+}
