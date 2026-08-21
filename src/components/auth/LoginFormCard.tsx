@@ -1,6 +1,5 @@
 import React from 'react';
-import { ArrowRight, Camera, Eye, EyeOff, LockKeyhole, Moon, ShieldCheck, Sun, Users } from 'lucide-react';
-import { OWNER_USER } from './authConstants';
+import { ArrowRight, Camera, Check, Eye, EyeOff, LockKeyhole, Moon, ShieldCheck, Sun, Users } from 'lucide-react';
 
 type Message = { type: 'error' | 'info'; text: string } | null;
 
@@ -48,34 +47,32 @@ export function LoginFormCard(props: LoginFormCardProps) {
           <div><strong className="block text-base font-extrabold uppercase tracking-[.04em]">Secure Access Portal</strong><small className={`mt-1 block text-sm leading-relaxed sm:text-[15px] ${isDark ? 'text-[#c7b7bb]' : 'text-[#8b7b7d]'}`}>Your data is protected with enterprise grade security</small></div>
         </div>
 
-        <header><h2 className="font-serif text-[clamp(34px,6vw,44px)] font-medium leading-[1.12] text-[#862f4d] 2xl:text-5xl">Login to Your Account</h2><p className={`mt-2 text-base leading-relaxed sm:text-[17px] ${isDark ? 'text-[#c7b7bb]' : 'text-[#8b7d7e]'}`}>Enter your credentials to continue to your dashboard</p></header>
+        <header><h2 className={`font-serif text-[clamp(34px,6vw,44px)] font-medium leading-[1.12] 2xl:text-5xl ${isDark ? 'text-[#d45d85]' : 'text-[#9f3659]'}`}>Login to Your Account</h2><p className={`mt-2 text-base leading-relaxed sm:text-[17px] ${isDark ? 'text-[#c7b7bb]' : 'text-[#8b7d7e]'}`}>Enter your credentials to continue to your dashboard</p></header>
 
         <form onSubmit={props.onSubmit} noValidate className="mt-6 lg:mt-5">
           <FieldLabel htmlFor="login-identifier">Email or Username</FieldLabel>
-          <div className={`flex min-h-14 items-center gap-3 rounded-[15px] border px-4 py-2.5 transition focus-within:border-[#a74665] focus-within:ring-3 focus-within:ring-[#a74665]/10 lg:min-h-15 ${field}`}>
-            <Users className="size-5.5 shrink-0 text-[#a74665]" /><input id="login-identifier" name="identifier" value={props.identifier} onChange={(event) => props.onIdentifierChange(event.target.value)} placeholder="Enter your email or username" autoComplete="username" autoCapitalize="none" spellCheck={false} required className="min-w-0 flex-1 bg-transparent text-lg outline-none" />
+          <div className={`flex min-h-14 items-center gap-3.5 rounded-[15px] border px-4.5 py-2.5 transition-all duration-200 focus-within:border-[#b64b70] focus-within:shadow-[0_0_0_4px_rgba(167,70,101,.12)] lg:min-h-15 ${field}`}>
+            <Users className="size-5.5 shrink-0 text-[#b64b70]" /><input id="login-identifier" name="identifier" value={props.identifier} onChange={(event) => props.onIdentifierChange(event.target.value)} placeholder="Enter your email or username" autoComplete="username" autoCapitalize="none" spellCheck={false} required className="min-w-0 flex-1 bg-transparent text-lg outline-none placeholder:text-[#a99ca0] focus-visible:!outline-none" />
           </div>
 
           <div className="mt-5 lg:mt-4"><FieldLabel htmlFor="login-password">Password</FieldLabel></div>
-          <div className={`flex min-h-14 items-center gap-3 rounded-[15px] border px-4 py-2.5 transition focus-within:border-[#a74665] focus-within:ring-3 focus-within:ring-[#a74665]/10 lg:min-h-15 ${field}`}>
-            <LockKeyhole className="size-5.5 shrink-0 text-[#a74665]" /><input id="login-password" name="password" type={props.showPassword ? 'text' : 'password'} value={props.password} onChange={(event) => props.onPasswordChange(event.target.value)} placeholder="Enter your password" autoComplete="current-password" required className="min-w-0 flex-1 bg-transparent text-lg outline-none" />
-            <button type="button" onClick={props.onPasswordVisibility} aria-label={props.showPassword ? 'Hide password' : 'Show password'} className="rounded-lg p-2 text-[#928689]">{props.showPassword ? <EyeOff className="size-5" /> : <Eye className="size-5" />}</button>
+          <div className={`flex min-h-14 items-center gap-3.5 rounded-[15px] border px-4.5 py-2.5 transition-all duration-200 focus-within:border-[#b64b70] focus-within:shadow-[0_0_0_4px_rgba(167,70,101,.12)] lg:min-h-15 ${field}`}>
+            <LockKeyhole className="size-5.5 shrink-0 text-[#b64b70]" /><input id="login-password" name="password" type={props.showPassword ? 'text' : 'password'} value={props.password} onChange={(event) => props.onPasswordChange(event.target.value)} placeholder="Enter your password" autoComplete="current-password" required className="min-w-0 flex-1 bg-transparent text-lg outline-none placeholder:text-[#a99ca0] focus-visible:!outline-none" />
+            <button type="button" onClick={props.onPasswordVisibility} aria-label={props.showPassword ? 'Hide password' : 'Show password'} className="grid size-9 shrink-0 place-items-center rounded-lg text-[#928689] transition hover:bg-[#a74665]/10 hover:text-[#b64b70]">{props.showPassword ? <EyeOff className="size-5" /> : <Eye className="size-5" />}</button>
           </div>
 
           <div className="my-4 flex items-start justify-between gap-4 text-base font-bold sm:items-center">
-            <label className="flex cursor-pointer items-center gap-2"><input type="checkbox" checked={props.rememberMe} onChange={(event) => props.onRememberChange(event.target.checked)} className="size-5 accent-[#a74665]" />Remember me</label>
+            <label className="group flex cursor-pointer items-center gap-2.5"><input type="checkbox" checked={props.rememberMe} onChange={(event) => props.onRememberChange(event.target.checked)} className="peer sr-only" /><span className="grid size-5.5 shrink-0 place-items-center rounded-md border border-[#a98b95] bg-white/10 transition peer-checked:border-[#b64b70] peer-checked:bg-[#b64b70] peer-focus-visible:ring-3 peer-focus-visible:ring-[#a74665]/20"><Check className={`size-4 stroke-3 text-white transition ${props.rememberMe ? 'scale-100 opacity-100' : 'scale-75 opacity-0'}`} /></span><span>Remember me</span></label>
             <button type="button" onClick={props.onForgotPassword} className={isDark ? 'text-[#d8bfc7]' : 'text-[#725b61]'}>Forgot Password?</button>
           </div>
 
-          {props.message && <div role="alert" className={`mb-3.5 rounded-lg p-3 text-base font-bold leading-relaxed ${props.message.type === 'error' ? 'bg-[#fde7eb] text-[#a0223e]' : 'bg-[#fbefd7] text-[#76551f]'}`}>{props.message.text}</div>}
           <button type="submit" className="relative flex min-h-15 w-full items-center justify-center rounded-[15px] bg-linear-to-r from-[#8e294b] to-[#721f3d] px-13 text-lg font-bold text-white shadow-[0_12px_25px_rgba(125,41,71,.23)] transition hover:-translate-y-0.5"><span>Login to Dashboard</span><i className="absolute right-2.5 grid size-10 place-items-center rounded-full bg-[#ae4969]"><ArrowRight className="size-5.5" /></i></button>
           <div className="my-4 flex items-center gap-3 text-sm text-[#8d7e80]"><span className="h-px flex-1 bg-[#e4d7d2]" />OR<span className="h-px flex-1 bg-[#e4d7d2]" /></div>
           <button type="button" onClick={props.onGoogleLogin} className={`min-h-14 w-full rounded-[15px] border border-[#ba7288] text-[17px] font-semibold ${isDark ? 'bg-[#33242a] text-white' : 'bg-white/45 text-[#645558]'}`}><b className="mr-2 text-xl text-[#4285f4]">G</b> Continue with Google</button>
-          <p className="mt-3 text-center text-sm leading-relaxed text-[#9a898b]">Demo: <strong>{OWNER_USER.email}</strong> · Password: <strong>1234</strong></p>
         </form>
 
-        <div className={`mt-5 grid grid-cols-1 gap-4 border-t pt-4 sm:grid-cols-3 sm:gap-1 ${isDark ? 'border-[#644954]' : 'border-[#eadeda]'}`}>
-          {benefits.map(({ icon: Icon, title, detail }) => <div key={title} className="grid grid-cols-[48px_1fr] gap-x-3 text-left sm:flex sm:flex-col sm:items-center sm:px-1 sm:text-center"><span className="row-span-2 grid size-12 place-items-center rounded-full border border-[#efd3d6] bg-[#f9e9e9] text-[#a74665]"><Icon className="size-5.5" /></span><strong className="text-[15px] leading-snug text-[#8e3551]">{title}</strong><small className="mt-1 block text-sm leading-snug text-[#8f8183]">{detail}</small></div>)}
+        <div className={`mt-5 grid grid-cols-1 divide-y border-t pt-4 sm:grid-cols-3 sm:divide-x sm:divide-y-0 ${isDark ? 'divide-[#644954] border-[#644954]' : 'divide-[#decdd1] border-[#eadeda]'}`}>
+          {benefits.map(({ icon: Icon, title, detail }) => <div key={title} className="grid grid-cols-[48px_1fr] gap-x-3 py-4 text-left first:pt-0 last:pb-0 sm:flex sm:flex-col sm:items-center sm:px-4 sm:py-0 sm:text-center"><span className="row-span-2 grid size-12 place-items-center rounded-full border border-[#efd3d6] bg-[#f9e9e9] text-[#a74665]"><Icon className="size-5.5" /></span><strong className={`text-[15px] leading-snug ${isDark ? 'text-[#d45d85]' : 'text-[#9f3659]'}`}>{title}</strong><small className={`mt-1 block text-sm leading-snug ${isDark ? 'text-[#d8c9cd]' : 'text-[#6f6064]'}`}>{detail}</small></div>)}
         </div>
       </div>
     </section>

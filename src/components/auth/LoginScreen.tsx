@@ -5,6 +5,7 @@ import { Heart, X } from 'lucide-react';
 import { TeamMember } from '@/types';
 import { LoginHero } from './LoginHero';
 import { LoginFormCard } from './LoginFormCard';
+import { LoginToast } from './LoginToast';
 import { OWNER_USER } from './authConstants';
 
 interface LoginScreenProps {
@@ -80,7 +81,10 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ team, onLogin, onClose
           showPassword={showPassword} isDark={isDark} message={message}
           onIdentifierChange={(value) => { setIdentifier(value); setMessage(null); }}
           onPasswordChange={(value) => { setPassword(value); setMessage(null); }}
-          onRememberChange={setRememberMe}
+          onRememberChange={(value) => {
+            setRememberMe(value);
+            setMessage({ type: 'info', text: value ? 'Remember me enabled' : 'Remember me disabled' });
+          }}
           onPasswordVisibility={() => setShowPassword((value) => !value)}
           onThemeChange={selectTheme}
           onForgotPassword={() => setMessage({ type: 'info', text: 'Demo access: use password 1234 or contact the studio owner.' })}
@@ -92,6 +96,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ team, onLogin, onClose
       <footer className="hidden h-9 items-center justify-center gap-2.5 pt-2 text-xs font-extrabold uppercase tracking-[.12em] text-[#d9bdc4] lg:flex">
         Wedding Photo Planet CRM © 2026 <span>·</span> <Heart className="size-3 fill-[#d56686] text-[#d56686]" /> Made with passion
       </footer>
+      <LoginToast message={message} onDismiss={() => setMessage(null)} />
     </main>
   );
 };
