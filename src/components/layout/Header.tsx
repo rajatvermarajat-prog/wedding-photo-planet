@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { 
   Camera, 
   Plus, 
@@ -21,7 +21,8 @@ import {
   ShieldCheck,
   UserCheck,
   Crown,
-  Target
+  Target,
+  MoreHorizontal
 } from 'lucide-react';
 import { ProjectStatus, TeamMember } from '@/types';
 
@@ -219,25 +220,42 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
   onExportData,
   onImportData,
   currentUser,
-  onLogout,
   counts,
 }) => {
   const isFullAdmin = currentUser?.role === 'Owner' || currentUser?.role === 'Studio Manager' || currentUser?.role === 'Manager' || currentUser?.role === 'Account Manager';
+  const showProjectFilters = activeTab === 'projects' || activeTab === 'deliveries';
+  const pageTitles: Record<TabType, string> = {
+    dashboard: 'Studio Dashboard',
+    roles: 'Role Workspaces',
+    projects: 'Projects',
+    shoots: 'Shoot Management',
+    data: 'Data Management',
+    team: 'Team & Attendance',
+    freelancers: 'Freelancer Team',
+    deliveries: 'Deliveries',
+    owner_workspace: 'Owner Workspace',
+    leads: 'Leads & Inquiries',
+  };
 
   return (
-    <header className="min-h-14 bg-white border-b border-slate-200 flex flex-col md:flex-row items-stretch md:items-center px-4 sm:px-6 justify-between gap-2 z-20 py-2 md:py-0 shadow-xs">
+    <header className="relative z-20 flex min-h-16 items-center justify-between gap-3 border-b border-[#e8ddd7] bg-[#fffdfb] px-4 py-2 shadow-[0_4px_18px_rgba(67,31,43,0.05)] sm:px-6">
       
       {/* Left side: Mobile Menu Toggle & Project Sub-Nav Filters */}
-      <div className="flex items-center gap-4 overflow-x-auto scrollbar-none py-1">
+      <div className="flex min-w-0 items-center gap-3 overflow-x-auto scrollbar-none">
         <button
           onClick={onToggleMobileSidebar}
-          className="md:hidden p-1.5 text-slate-600 hover:text-slate-900 rounded border border-slate-200"
+          className="shrink-0 rounded-lg border border-[#e4d8d2] p-2 text-[#6f4351] transition hover:bg-[#f8f0f2] md:hidden"
           title="Toggle Navigation"
         >
           <Menu className="w-5 h-5" />
         </button>
 
-        <div className="flex items-center gap-2 sm:gap-6 text-xs sm:text-sm font-semibold text-slate-600 whitespace-nowrap">
+        {!showProjectFilters ? (
+          <div className="min-w-0">
+            <p className="truncate text-sm font-extrabold text-[#321f27] sm:text-base">{pageTitles[activeTab]}</p>
+            <p className="hidden text-xs font-medium text-[#8b747b] sm:block">Wedding Photo Planet CRM</p>
+          </div>
+        ) : <div className="flex items-center gap-4 whitespace-nowrap text-xs font-semibold text-slate-600 sm:gap-6 sm:text-sm">
           <button
             onClick={() => {
               setActiveTab('projects');
@@ -245,7 +263,7 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
             }}
             className={`py-3 px-1 border-b-2 transition ${
               activeTab === 'projects' && statusFilter === 'all'
-                ? 'text-indigo-600 border-indigo-600 font-bold'
+                ? 'text-rose-800 border-rose-700 font-bold'
                 : 'border-transparent text-slate-500 hover:text-slate-800'
             }`}
           >
@@ -259,11 +277,11 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
             }}
             className={`py-3 px-1 border-b-2 transition flex items-center gap-1.5 ${
               activeTab === 'projects' && statusFilter === 'running'
-                ? 'text-indigo-600 border-indigo-600 font-bold'
+                ? 'text-rose-800 border-rose-700 font-bold'
                 : 'border-transparent text-slate-500 hover:text-slate-800'
             }`}
           >
-            <span className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse" />
+            <span className="h-2 w-2 rounded-full bg-rose-600 animate-pulse" />
             <span>Running ({counts.running})</span>
           </button>
 
@@ -273,7 +291,7 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
             }}
             className={`py-3 px-1 border-b-2 transition flex items-center gap-1.5 ${
               activeTab === 'deliveries' || (activeTab === 'projects' && statusFilter === 'ready_to_deliver')
-                ? 'text-indigo-600 border-indigo-600 font-bold'
+                ? 'text-rose-800 border-rose-700 font-bold'
                 : 'border-transparent text-slate-500 hover:text-slate-800'
             }`}
           >
@@ -295,85 +313,41 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
             <AlertCircle className="w-3.5 h-3.5 text-red-600" />
             <span>Urgent ({counts.urgent})</span>
           </button>
-        </div>
+        </div>}
       </div>
 
-      {/* Right side: Action Buttons & User Account Pill */}
-      <div className="flex items-center justify-between md:justify-end gap-2 sm:gap-3 py-1">
-        {/* User Account Quick Pill */}
-        {currentUser && (
-          <div className="flex items-center gap-2 bg-slate-100 hover:bg-slate-200/80 px-2.5 py-1 rounded-xl border border-slate-200 transition">
-            <div className="text-[11px] font-bold text-slate-800 leading-tight">
-              <span>{currentUser.name.split(' ')[0]}</span>
-              <span className="text-[9px] block text-indigo-700 font-mono font-black uppercase">
-                {currentUser.role}
-              </span>
-            </div>
-
-            {onLogout && (
-              <button
-                onClick={onLogout}
-                title="Logout / Switch Role"
-                className="p-1 hover:bg-red-100 text-slate-500 hover:text-red-600 rounded-lg transition"
-              >
-                <LogOut className="w-3.5 h-3.5" />
-              </button>
-            )}
-          </div>
-        )}
-
-        <div className="flex items-center gap-1.5 sm:gap-2">
-          {isFullAdmin && onExportData && (
-            <button
-              onClick={onExportData}
-              title="Backup & Download All CRM Data"
-              className="flex items-center gap-1 px-2.5 py-1.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold border border-slate-200 transition cursor-pointer"
-            >
-              <Download className="w-3.5 h-3.5 text-slate-600" />
-              <span className="hidden sm:inline">Export</span>
-            </button>
-          )}
-
-          {isFullAdmin && onImportData && (
-            <label
-              title="Restore CRM Data from Backup JSON file"
-              className="flex items-center gap-1 px-2.5 py-1.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold border border-slate-200 transition cursor-pointer"
-            >
-              <Upload className="w-3.5 h-3.5 text-slate-600" />
-              <span className="hidden sm:inline">Restore</span>
-              <input
-                type="file"
-                accept=".json"
-                className="hidden"
-                onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  if (file) {
-                    onImportData(file);
-                    e.target.value = '';
-                  }
-                }}
-              />
-            </label>
-          )}
-
+      <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
           <button
             onClick={onOpenAIModal}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded bg-indigo-50 text-indigo-700 hover:bg-indigo-100 text-xs font-bold border border-indigo-200 transition"
+            title="Open AI Helper"
+            className="flex h-9 items-center gap-1.5 rounded-lg border border-rose-200 bg-rose-50 px-2.5 text-xs font-bold text-rose-800 transition hover:bg-rose-100 sm:px-3"
           >
-            <Sparkles className="w-3.5 h-3.5 text-indigo-600" />
-            <span className="hidden sm:inline">AI Helper</span>
+            <Sparkles className="h-4 w-4 text-rose-700" />
+            <span className="hidden lg:inline">AI Helper</span>
           </button>
+
+          {isFullAdmin && (onExportData || onImportData) && (
+            <details className="group relative">
+              <summary className="flex h-9 cursor-pointer list-none items-center gap-1 rounded-lg border border-[#e4d8d2] bg-white px-2.5 text-xs font-bold text-[#60434c] transition hover:bg-[#faf5f3] [&::-webkit-details-marker]:hidden">
+                <MoreHorizontal className="h-4 w-4" />
+                <span className="hidden xl:inline">Backup</span>
+              </summary>
+              <div className="absolute right-0 top-11 z-40 w-44 space-y-1 rounded-xl border border-[#e4d8d2] bg-white p-2 shadow-[0_14px_35px_rgba(51,25,34,.16)]">
+                {onExportData && <button onClick={onExportData} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs font-bold text-slate-700 hover:bg-[#f8f0f2]"><Download className="h-4 w-4 text-rose-700" />Export backup</button>}
+                {onImportData && <label className="flex cursor-pointer items-center gap-2 rounded-lg px-3 py-2 text-xs font-bold text-slate-700 hover:bg-[#f8f0f2]"><Upload className="h-4 w-4 text-rose-700" />Restore backup<input type="file" accept=".json" className="hidden" onChange={(e) => { const file = e.target.files?.[0]; if (file) { onImportData(file); e.target.value = ''; } }} /></label>}
+              </div>
+            </details>
+          )}
 
           {isFullAdmin && (
             <button
               onClick={onOpenNewProjectModal}
-              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs uppercase tracking-wider transition shadow-xs"
+              className="flex h-9 items-center gap-1.5 rounded-lg bg-[#8f3655] px-3 text-xs font-bold text-white shadow-sm transition hover:bg-[#762944] sm:px-4"
             >
-              <Plus className="w-3.5 h-3.5 stroke-[3]" />
-              <span>+ New Project</span>
+              <Plus className="h-4 w-4 stroke-[2.5]" />
+              <span className="hidden sm:inline">New Project</span>
             </button>
           )}
-        </div>
       </div>
 
     </header>
