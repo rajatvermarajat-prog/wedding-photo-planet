@@ -1,7 +1,5 @@
 import { OfficeExpense } from '@/types';
-import { MemberSalaryRecord, SalaryColumn } from './dashboardTypes';
-
-export const DEFAULT_SALARY_COLUMNS: SalaryColumn[] = [];
+import { MemberSalaryRecord } from './dashboardTypes';
 
 export const DEFAULT_SALARY_RECORDS: MemberSalaryRecord[] = [
   { memberId: 'team-ishita', memberName: 'Ishita', role: 'Studio Manager', monthlySalary: 65000, paidAmount: 45000 },

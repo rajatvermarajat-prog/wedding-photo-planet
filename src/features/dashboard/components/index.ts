@@ -9,6 +9,7 @@ export { MonthlyOfficeExpenses } from './MonthlyOfficeExpenses';
 export { MonthlyPayments } from './MonthlyPayments';
 export { MonthlyProfitLoss } from './MonthlyProfitLoss';
 export { MonthlyStaffSalary } from './MonthlyStaffSalary';
+export { QuickActionsPanel } from './QuickActionsPanel';
 export { SalaryPaymentModal } from './SalaryPaymentModal';
 export { TeamActivity } from './TeamActivity';
 export { UpcomingShoots } from './UpcomingShoots';

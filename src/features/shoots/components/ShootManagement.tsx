@@ -1,18 +1,21 @@
 import React, { useState } from 'react';
-import { Project, ShootEvent } from '@/types';
+import { Project, ShootEvent, TeamMember } from '@/types';
 import { Film, Calendar, MapPin, Users, CheckCircle2, ChevronDown, ChevronUp, ExternalLink, Clock, AlertCircle, Sparkles, UserPlus, Edit3, Plus, Trash2, X, UserCheck, BarChart2, FileText, Copy, Check, AlertTriangle } from 'lucide-react';
 import { getShootDateInfo, getShootTrackingStats } from '@/utils/shootTracking';
 import { INITIAL_FREELANCERS } from '@/data/mockFreelancers';
 import { INITIAL_TEAM } from '@/data/mockData';
+import { ScheduleShootModal } from './ScheduleShootModal';
 
 interface ShootManagementProps {
   projects: Project[];
   onUpdateProject: (updated: Project) => void;
   onSelectProject?: (project: Project) => void;
+  team?: TeamMember[];
 }
 
-export const ShootManagement: React.FC<ShootManagementProps> = ({ projects, onUpdateProject, onSelectProject }) => {
+export const ShootManagement: React.FC<ShootManagementProps> = ({ projects, onUpdateProject, onSelectProject, team = [] }) => {
   const [selectedProjectId, setSelectedProjectId] = useState<string>('all');
+  const [showScheduleShoot, setShowScheduleShoot] = useState(false);
   const [filterStatus, setFilterStatus] = useState<'all' | 'scheduled' | 'completed'>('all');
   const [selectedMonth, setSelectedMonth] = useState<string>('all');
   const [selectedDate, setSelectedDate] = useState<string>('');
@@ -418,6 +421,15 @@ export const ShootManagement: React.FC<ShootManagementProps> = ({ projects, onUp
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          {/* Schedule Shoot Button */}
+          <button
+            onClick={() => setShowScheduleShoot(true)}
+            className="text-[11px] font-extrabold text-white bg-rose-600 hover:bg-rose-700 px-3 py-1.5 rounded-lg shadow-xs transition cursor-pointer flex items-center gap-1.5 border border-rose-500/30"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            <span>Schedule Shoot</span>
+          </button>
+
           <button
             onClick={expandAll}
             className="text-[11px] font-bold text-indigo-600 hover:text-indigo-800 bg-indigo-50 hover:bg-indigo-100 px-2.5 py-1.5 rounded border border-indigo-200 transition cursor-pointer"
@@ -1431,6 +1443,15 @@ export const ShootManagement: React.FC<ShootManagementProps> = ({ projects, onUp
           </div>
         </div>
       )}
+
+      <ScheduleShootModal
+        isOpen={showScheduleShoot}
+        onClose={() => setShowScheduleShoot(false)}
+        projects={projects}
+        onUpdateProject={onUpdateProject}
+        team={team}
+        defaultProjectId={selectedProjectId !== 'all' ? selectedProjectId : undefined}
+      />
 
     </div>
   );

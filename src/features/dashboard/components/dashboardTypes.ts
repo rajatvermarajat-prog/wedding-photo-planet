@@ -1,11 +1,5 @@
 import { AttendanceRecord, Project, TeamMember, TeamTask } from '@/types';
 
-export interface SalaryColumn {
-  id: string;
-  name: string;
-  type: 'number' | 'text';
-}
-
 export interface SalaryInstallment {
   id: string;
   amount: number;
@@ -31,6 +25,7 @@ export interface OwnerDashboardProps {
   projects: Project[];
   onSelectProject: (project: Project) => void;
   onOpenNewProjectModal: () => void;
+  onUpdateProject: (updated: Project) => void;
   onOpenAllPaymentsModal?: () => void;
   setActiveTab: (tab: 'dashboard' | 'projects' | 'shoots' | 'data' | 'team' | 'deliveries') => void;
   team?: TeamMember[];

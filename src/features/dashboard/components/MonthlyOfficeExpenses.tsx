@@ -16,7 +16,7 @@ export function MonthlyOfficeExpenses({ expenses: filteredOfficeExpenses, allExp
               {formatDateDots(finFromDate)} - {formatDateDots(finToDate)}
             </span>
           </h3>
-          <p className="text-xs text-slate-500 font-medium">Rent, Fuel, Equipment, Snacks & Bills Ledger</p>
+          <p className="text-xs text-slate-500 font-medium">Studio operating cost ledger, by category</p>
         </div>
       </div>
 
@@ -28,23 +28,10 @@ export function MonthlyOfficeExpenses({ expenses: filteredOfficeExpenses, allExp
       </button>
     </div>
 
-    {/* Expense Summary Stats */}
-    <div className="grid grid-cols-3 gap-1 text-center text-xs bg-[#faf8f6] p-3 rounded-xl border border-[#e6ded8]">
-      <div className="border-r border-slate-200 pr-1">
-        <span className="text-xs font-bold text-slate-400 uppercase block">Office Expenses</span>
-        <span className="font-black text-rose-600 text-xs">₹{totalMonthlyExpenses.toLocaleString('en-IN')}</span>
-      </div>
-      <div className="border-r border-slate-200 pr-1">
-        <span className="text-xs font-bold text-slate-400 uppercase block">Staff Salaries</span>
-        <span className="font-black text-slate-900 text-xs">₹{totalPaidPayroll.toLocaleString('en-IN')}</span>
-      </div>
-      <div>
-        <span className="text-xs font-bold text-rose-800 uppercase block">Total Outflow</span>
-        <span className="font-black text-rose-800 text-xs">₹{(totalMonthlyExpenses + totalPaidPayroll).toLocaleString('en-IN')}</span>
-      </div>
-    </div>
-
-
+    {/* Slim context line — full totals already live in the Monthly P&L snapshot above */}
+    <p className="text-xs font-semibold text-slate-500">
+      <span className="font-black text-rose-600">{filteredOfficeExpenses.length}</span> expense{filteredOfficeExpenses.length === 1 ? '' : 's'} logged this period, totalling <span className="font-black text-rose-600">₹{totalMonthlyExpenses.toLocaleString('en-IN')}</span>.
+    </p>
 
     {/* Category & Spent By Filters */}
     <div className="grid grid-cols-2 gap-2 bg-[#faf8f6] p-3 rounded-xl border border-[#e6ded8] text-xs">

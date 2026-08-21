@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
+import { usePathname, useRouter } from 'next/navigation';
 import { OfficeExpense } from '@/types';
-import { MemberSalaryRecord, OwnerDashboardProps, SalaryColumn, SalaryInstallment } from './dashboardTypes';
-import { DEFAULT_OFFICE_EXPENSES, DEFAULT_SALARY_COLUMNS, DEFAULT_SALARY_RECORDS } from './dashboardDefaults';
+import { MemberSalaryRecord, OwnerDashboardProps, SalaryInstallment } from './dashboardTypes';
+import { DEFAULT_OFFICE_EXPENSES, DEFAULT_SALARY_RECORDS } from './dashboardDefaults';
 import { DashboardHeader } from './DashboardHeader';
 import { DashboardKpiGrid } from './DashboardKpiGrid';
 import { DashboardSecurityAlerts } from './DashboardSecurityAlerts';
@@ -16,11 +17,15 @@ import { MonthlyOfficeExpenses } from './MonthlyOfficeExpenses';
 import { MonthlyStaffSalary } from './MonthlyStaffSalary';
 import { SalaryPaymentModal } from './SalaryPaymentModal';
 import { ExpenseModals } from './ExpenseModals';
+import { QuickActionsPanel } from './QuickActionsPanel';
+import { useToast } from '@/components/common';
 
 
 export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
   projects,
   onSelectProject,
+  onOpenNewProjectModal,
+  onUpdateProject,
   onOpenAllPaymentsModal,
   setActiveTab,
   team = [],
@@ -32,26 +37,14 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
   onOpenMemberModal,
   currentUser,
 }) => {
-  // Custom Salary Columns State
-  const [salaryColumns, setSalaryColumns] = useState<SalaryColumn[]>(() => {
-    const saved = localStorage.getItem('wpp_salary_custom_columns');
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (e) {
-        console.error(e);
-      }
-    }
-    return DEFAULT_SALARY_COLUMNS;
-  });
+  const router = useRouter();
+  const pathname = usePathname();
+  const { showToast } = useToast();
+  const isAddExpensePage = pathname === '/expenses/new';
 
   useEffect(() => {
-    localStorage.setItem('wpp_salary_custom_columns', JSON.stringify(salaryColumns));
-  }, [salaryColumns]);
-
-  const [showColumnManager, setShowColumnManager] = useState<boolean>(false);
-  const [newColNameInput, setNewColNameInput] = useState<string>('');
-  const [newColTypeInput, setNewColTypeInput] = useState<'number' | 'text'>('number');
+    ['/projects/new', '/shoots/schedule', '/payments/new', '/expenses/new'].forEach((route) => router.prefetch(route));
+  }, [router]);
 
   // Salary State Management
   const [salaryRecords, setSalaryRecords] = useState<MemberSalaryRecord[]>(() => {
@@ -65,15 +58,16 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
     }
 
     if (team && team.length > 0) {
+      // A real team member's paid amount always starts at 0 — it must never be
+      // silently seeded from demo/mock records, even if a name happens to match.
       return team.map((m) => {
-        const match = DEFAULT_SALARY_RECORDS.find((d) => d.memberId === m.id || d.memberName.toLowerCase() === m.name.toLowerCase());
         const sal = m.monthlySalary || (m.dailyRate ? m.dailyRate * 26 : 45000);
         return {
           memberId: m.id,
           memberName: m.name,
           role: m.role || 'Team Member',
           monthlySalary: sal,
-          paidAmount: match ? match.paidAmount : Math.round(sal * 0.6),
+          paidAmount: 0,
         };
       });
     }
@@ -85,41 +79,11 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
     localStorage.setItem('wpp_owner_monthly_salary_ledger', JSON.stringify(salaryRecords));
   }, [salaryRecords]);
 
-  // Add / Remove Salary Column handlers
-  const handleAddSalaryColumn = (name: string, type: 'number' | 'text' = 'number') => {
-    const trimmed = name.trim();
-    if (!trimmed) return;
-    const exists = salaryColumns.some((c) => c.name.toLowerCase() === trimmed.toLowerCase());
-    if (exists) {
-      alert(`Column "${trimmed}" already exists!`);
-      return;
-    }
-    const newCol: SalaryColumn = {
-      id: `col_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
-      name: trimmed,
-      type,
-    };
-    setSalaryColumns((prev) => [...prev, newCol]);
-    setNewColNameInput('');
-  };
-
-  const handleRemoveSalaryColumn = (colId: string) => {
-    const col = salaryColumns.find((c) => c.id === colId);
-    if (!col) return;
-    setSalaryColumns((prev) => prev.filter((c) => c.id !== colId));
-    setEditCustomValues((prev) => {
-      const copy = { ...prev };
-      delete copy[colId];
-      return copy;
-    });
-  };
-
   // Modal State for Updating Salary Payments
   const [editingSalaryMember, setEditingSalaryMember] = useState<MemberSalaryRecord | null>(null);
   const [editPaidAmount, setEditPaidAmount] = useState<number | ''>('');
   const [editPaymentMonth, setEditPaymentMonth] = useState<string>('');
   const [editSalaryNotes, setEditSalaryNotes] = useState<string>('');
-  const [editCustomValues, setEditCustomValues] = useState<Record<string, number | string>>({});
   const [editInstallments, setEditInstallments] = useState<SalaryInstallment[]>([]);
   const [selectedSalaryMonth, setSelectedSalaryMonth] = useState<string>('2026-07');
 
@@ -163,7 +127,6 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
     setEditPaidAmount(m.paidAmount);
     setEditPaymentMonth(m.paymentMonth || new Date().toLocaleString('en-US', { month: 'long', year: 'numeric' }));
     setEditSalaryNotes(m.notes || '');
-    setEditCustomValues(m.customValues ? { ...m.customValues } : {});
     setEditInstallments(m.installments ? m.installments.map((i) => ({ ...i })) : []);
   };
 
@@ -216,12 +179,12 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
               lastPaymentDate: new Date().toISOString().split('T')[0],
               paymentMonth: editPaymentMonth.trim() || undefined,
               notes: editSalaryNotes.trim() || undefined,
-              customValues: { ...editCustomValues },
               installments: activeInstallments,
             }
           : r
       )
     );
+    showToast(`Salary payment saved for ${editingSalaryMember.memberName}.`);
     setEditingSalaryMember(null);
   };
 
@@ -261,18 +224,6 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
   const [newExpPaidVia, setNewExpPaidVia] = useState<OfficeExpense['paidVia']>('UPI / GPay');
   const [newExpNotes, setNewExpNotes] = useState<string>('');
 
-  const handleOpenAddExpenseWithCategory = (cat: string) => {
-    setEditingExpense(null);
-    setNewExpTitle(cat === 'Rent' ? 'Office Rent' : cat === 'Electricity & Water' ? 'Electricity Bill' : cat === 'Food & Tea/Chai' ? 'Tea & Refreshments' : cat === 'Travel & Fuel' ? 'Fuel & Vehicle Charge' : cat === 'Albums Print' ? 'Album Printing & Sheets' : cat === 'Photo & Video Edit' ? 'Editing Charge' : '');
-    setNewExpAmount('');
-    setNewExpCategory(cat);
-    setNewExpDate(new Date().toISOString().split('T')[0]);
-    setNewExpSpentBy('Owner');
-    setNewExpPaidVia('UPI / GPay');
-    setNewExpNotes('');
-    setShowAddExpenseModal(true);
-  };
-
   const handleOpenEditExpense = (exp: OfficeExpense) => {
     setEditingExpense(exp);
     setNewExpTitle(exp.title);
@@ -288,7 +239,7 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
   const handleAddExpenseSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newExpTitle.trim() || !newExpAmount || Number(newExpAmount) <= 0) {
-      alert('Please enter a valid expense title and amount!');
+      showToast('Enter a valid expense title and amount.', { variant: 'error' });
       return;
     }
     const finalCategory = newExpCategory || 'Miscellaneous';
@@ -328,6 +279,7 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
       setOfficeExpenses((prev) => [newExp, ...prev]);
     }
 
+    showToast(editingExpense ? 'Expense updated successfully.' : 'Expense added successfully.');
     setShowAddExpenseModal(false);
     setEditingExpense(null);
     setNewExpTitle('');
@@ -335,10 +287,10 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
     setNewExpNotes('');
     setCustomExpCategory('');
     setCustomExpSpentBy('');
+    if (isAddExpensePage) router.push('/dashboard');
   };
 
-  // State for Undo Delete notification & Confirm Delete Modal
-  const [undoToast, setUndoToast] = useState<{ message: string; onUndo: () => void } | null>(null);
+  // State for Confirm Delete Modal
   const [expenseToDelete, setExpenseToDelete] = useState<OfficeExpense | null>(null);
 
   const confirmDeleteExpense = (deletedItem: OfficeExpense) => {
@@ -346,15 +298,16 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
     if (idx === -1) return;
 
     setOfficeExpenses((prev) => prev.filter((e) => e.id !== deletedItem.id));
-    setUndoToast({
-      message: `Expense "${deletedItem.title}" (₹${deletedItem.amount.toLocaleString('en-IN')}) deleted`,
-      onUndo: () => {
-        setOfficeExpenses((prev) => {
-          const copy = [...prev];
-          copy.splice(idx >= 0 && idx <= copy.length ? idx : 0, 0, deletedItem);
-          return copy;
-        });
-        setUndoToast(null);
+    showToast(`Expense "${deletedItem.title}" (₹${deletedItem.amount.toLocaleString('en-IN')}) deleted.`, {
+      action: {
+        label: 'Undo',
+        onClick: () => {
+          setOfficeExpenses((prev) => {
+            const copy = [...prev];
+            copy.splice(idx >= 0 && idx <= copy.length ? idx : 0, 0, deletedItem);
+            return copy;
+          });
+        },
       },
     });
   };
@@ -481,12 +434,19 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
 
   const urgentProjectsList = projects.filter(p => p.status === 'urgent' || p.status === 'running').slice(0, 4);
 
+  if (isAddExpensePage) {
+    return (
+      <ExpenseModals open variant="page" setOpen={(open) => { if (!open) router.push('/dashboard'); }} editingExpense={editingExpense} setEditingExpense={setEditingExpense} onSubmit={handleAddExpenseSubmit} title={newExpTitle} setTitle={setNewExpTitle} amount={newExpAmount} setAmount={setNewExpAmount} category={newExpCategory} setCategory={setNewExpCategory} date={newExpDate} setDate={setNewExpDate} spentBy={newExpSpentBy} setSpentBy={setNewExpSpentBy} paidVia={newExpPaidVia} setPaidVia={setNewExpPaidVia} notes={newExpNotes} setNotes={setNewExpNotes} expenseToDelete={expenseToDelete} setExpenseToDelete={setExpenseToDelete} confirmDelete={confirmDeleteExpense} />
+    );
+  }
+
   return (
     <div className="space-y-7 pb-10">
       
       <DashboardHeader currentUserName={currentUser?.name} />
       <DashboardSecurityAlerts team={team} onTeam={() => setActiveTab('team')} />
       <DashboardKpiGrid totalRevenue={totalRevenue} totalAdvanceReceived={totalAdvanceReceived} totalBalanceDue={totalBalanceDue} allProjectsCount={allProjectsCount} runningProjectsCount={runningProjectsCount} readyToDeliverCount={readyToDeliverCount} deliveredProjectsCount={deliveredProjectsCount} pendingProjectsCount={pendingProjectsCount} urgentProjectsCount={urgentProjectsCount} onPayments={onOpenAllPaymentsModal} onProjects={() => setActiveTab('projects')} onDeliveries={() => setActiveTab('deliveries')} />
+      <QuickActionsPanel />
       <div className="grid grid-cols-1 gap-5 xl:grid-cols-3">
         <div className="xl:col-span-2">
           <ClientProjectsDeadlines projects={projects} urgentProjects={urgentProjectsList} isEditor={isEditor} onSelect={onSelectProject} onViewAll={() => setActiveTab('projects')} />
@@ -497,7 +457,7 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
       <FinancialCollectionStatus totalRevenue={totalRevenue} totalAdvanceReceived={totalAdvanceReceived} totalBalanceDue={totalBalanceDue} currentUserName={currentUser?.name} />
 
       <FinancialFilterBar fromDate={finFromDate} toDate={finToDate} setFromDate={setFinFromDate} setToDate={setFinToDate} />
-      <MonthlyProfitLoss fromDate={finFromDate} toDate={finToDate} totalPayments={totalMonthlyPaymentsReceived} paymentCount={filteredClientPaymentLogs.length} totalExpenses={totalMonthlyExpenses} totalPaidPayroll={totalPaidPayroll} formatDate={formatDateDots} onAddExpense={() => setShowAddExpenseModal(true)} onRecordPayment={() => onOpenAllPaymentsModal ? onOpenAllPaymentsModal() : setActiveTab('projects')} />
+      <MonthlyProfitLoss fromDate={finFromDate} toDate={finToDate} totalPayments={totalMonthlyPaymentsReceived} paymentCount={filteredClientPaymentLogs.length} totalExpenses={totalMonthlyExpenses} totalPaidPayroll={totalPaidPayroll} formatDate={formatDateDots} onAddExpense={() => router.push('/expenses/new')} onRecordPayment={() => router.push('/payments/new')} />
       {/* Monthly Financials & Payroll Master Grid: Payments Received + Monthly Expense (Left) & Staff Salary Status (Right) */}
       <div className="grid grid-cols-1 gap-5 pt-1 xl:grid-cols-3">
         
@@ -527,8 +487,7 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
 
       <SalaryPaymentModal member={editingSalaryMember} close={() => setEditingSalaryMember(null)} editPaidAmount={editPaidAmount} setEditPaidAmount={setEditPaidAmount} selectedSalaryMonth={selectedSalaryMonth} setSelectedSalaryMonth={setSelectedSalaryMonth} attendanceLogs={memberAttendanceLogs} presentDays={presentDays} halfDays={halfDays} absentDays={absentDays} attendanceEarnedPay={attendanceEarnedPay} estimatedDailyRate={estimatedDailyRate} pendingAttendanceBalance={pendingAttendanceBalance} pendingBaseBalance={pendingBaseBalance} installments={editInstallments} setInstallments={setEditInstallments} addInstallment={handleAddInstallment} removeInstallment={handleRemoveInstallment} changeInstallment={handleInstallmentChange} save={handleSaveMemberSalary} />
 
-      <ExpenseModals open={showAddExpenseModal} setOpen={setShowAddExpenseModal} editingExpense={editingExpense} setEditingExpense={setEditingExpense} onSubmit={handleAddExpenseSubmit} title={newExpTitle} setTitle={setNewExpTitle} amount={newExpAmount} setAmount={setNewExpAmount} category={newExpCategory} setCategory={setNewExpCategory} date={newExpDate} setDate={setNewExpDate} spentBy={newExpSpentBy} setSpentBy={setNewExpSpentBy} paidVia={newExpPaidVia} setPaidVia={setNewExpPaidVia} notes={newExpNotes} setNotes={setNewExpNotes} expenseToDelete={expenseToDelete} setExpenseToDelete={setExpenseToDelete} confirmDelete={confirmDeleteExpense} undoToast={undoToast} setUndoToast={setUndoToast} />
-
+      <ExpenseModals open={showAddExpenseModal} setOpen={setShowAddExpenseModal} editingExpense={editingExpense} setEditingExpense={setEditingExpense} onSubmit={handleAddExpenseSubmit} title={newExpTitle} setTitle={setNewExpTitle} amount={newExpAmount} setAmount={setNewExpAmount} category={newExpCategory} setCategory={setNewExpCategory} date={newExpDate} setDate={setNewExpDate} spentBy={newExpSpentBy} setSpentBy={setNewExpSpentBy} paidVia={newExpPaidVia} setPaidVia={setNewExpPaidVia} notes={newExpNotes} setNotes={setNewExpNotes} expenseToDelete={expenseToDelete} setExpenseToDelete={setExpenseToDelete} confirmDelete={confirmDeleteExpense} />
     </div>
 
   );

@@ -43,12 +43,13 @@ import {
   InvoiceModal,
   AllPaymentsModal,
 } from '@/features/projects';
-import { ShootManagement } from '@/features/shoots';
+import { ScheduleShootModal, ShootManagement } from '@/features/shoots';
 import { DataManagement } from '@/features/data-management';
-import { TeamAttendance } from '@/features/team';
+import { TeamAttendance, MemberDashboardModal } from '@/features/team';
 import { DeliveriesManager } from '@/features/deliveries';
 import { FreelancerTeamManager } from '@/features/freelancers';
 import { Lock, ShieldAlert, ShieldCheck, ArrowRight } from 'lucide-react';
+import { ToastProvider } from '@/components/common';
 
 const TAB_ROUTES: Record<TabType, string> = {
   dashboard: '/dashboard',
@@ -70,9 +71,7 @@ const ROUTE_TABS = Object.fromEntries(
 export default function App() {
   const router = useRouter();
   const pathname = usePathname();
-  // Root-layout session survives client-side workspace navigation, while a full
-  // browser refresh still starts securely at the login screen.
-  const { currentUser, login, logout } = useAuthSession();
+  const { currentUser, isHydrated, login, logout } = useAuthSession();
 
   const [showLoginModal, setShowLoginModal] = useState<boolean>(false);
 
@@ -244,7 +243,7 @@ export default function App() {
   }, [freelancerActivityLogs]);
 
   // Tab, Sidebar & Filter States
-  const [activeTab, setActiveTabState] = useState<TabType>(() => ROUTE_TABS[pathname] || 'dashboard');
+  const [activeTab, setActiveTabState] = useState<TabType>(() => ROUTE_TABS[pathname] || (pathname.startsWith('/projects/') ? 'projects' : 'dashboard'));
   const setActiveTab = useCallback((tab: TabType) => {
     setActiveTabState(tab);
     router.push(TAB_ROUTES[tab]);
@@ -255,6 +254,7 @@ export default function App() {
   useEffect(() => {
     const routeTab = ROUTE_TABS[pathname];
     if (routeTab) setActiveTabState(routeTab);
+    else if (pathname.startsWith('/projects/')) setActiveTabState('projects');
   }, [pathname]);
 
   const isEditor = currentUser?.role === 'Video Editor' || 
@@ -280,16 +280,26 @@ export default function App() {
   // Modal States
   const [isFormModalOpen, setIsFormModalOpen] = useState(false);
   const [editingProject, setEditingProject] = useState<Project | null>(null);
-  const [selectedProjectForDetail, setSelectedProjectForDetail] = useState<Project | null>(null);
   const [selectedProjectRole, setSelectedProjectRole] = useState<string | undefined>(undefined);
   const [selectedProjectForInvoice, setSelectedProjectForInvoice] = useState<Project | null>(null);
   const [isAIModalOpen, setIsAIModalOpen] = useState(false);
   const [isAllPaymentsModalOpen, setIsAllPaymentsModalOpen] = useState(false);
+  const [selectedMemberForModal, setSelectedMemberForModal] = useState<TeamMember | null>(null);
 
   const handleSelectProject = (project: Project, roleContext?: string) => {
-    setSelectedProjectForDetail(project);
     setSelectedProjectRole(roleContext || currentUser?.role);
+    router.push(`/projects/${encodeURIComponent(project.id)}`);
   };
+
+  const routedProjectId = pathname.startsWith('/projects/')
+    ? decodeURIComponent(pathname.slice('/projects/'.length))
+    : null;
+  const routedProject = routedProjectId
+    ? projects.find((project) => project.id === routedProjectId) || null
+    : null;
+  const isNewProjectPage = pathname === '/projects/new';
+  const isScheduleShootPage = pathname === '/shoots/schedule';
+  const isRecordPaymentPage = pathname === '/payments/new';
 
   // Status counts for Header & Filters
   const counts = {
@@ -330,9 +340,6 @@ export default function App() {
 
   const handleUpdateProject = (updatedProject: Project) => {
     setProjects(projects.map((p) => (p.id === updatedProject.id ? updatedProject : p)));
-    if (selectedProjectForDetail?.id === updatedProject.id) {
-      setSelectedProjectForDetail(updatedProject);
-    }
   };
 
   const handleDeleteProject = (projectId: string) => {
@@ -524,6 +531,18 @@ export default function App() {
     reader.readAsText(file);
   };
 
+  // Wait for the persisted browser session before deciding whether login is needed.
+  if (!isHydrated) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-[#2b1b21] text-[#f8e9df]">
+        <div className="flex items-center gap-3 text-sm font-semibold">
+          <span className="h-5 w-5 animate-spin rounded-full border-2 border-[#b64b70] border-t-transparent" />
+          Restoring your studio session…
+        </div>
+      </div>
+    );
+  }
+
   // Do not mount or expose any admin UI until credentials are validated.
   if (!currentUser) {
     return (
@@ -536,8 +555,9 @@ export default function App() {
   }
 
   return (
+    <ToastProvider>
     <div className="h-screen w-full bg-slate-100 flex overflow-hidden font-sans text-slate-800">
-      
+
       {/* Sidebar Component */}
       <Sidebar
         activeTab={activeTab}
@@ -558,8 +578,7 @@ export default function App() {
           statusFilter={statusFilter}
           setStatusFilter={setStatusFilter}
           onOpenNewProjectModal={() => {
-            setEditingProject(null);
-            setIsFormModalOpen(true);
+            router.push('/projects/new');
           }}
           onOpenAIModal={() => setIsAIModalOpen(true)}
           onToggleMobileSidebar={() => setIsMobileSidebarOpen(!isMobileSidebarOpen)}
@@ -572,6 +591,50 @@ export default function App() {
 
         {/* Scrollable Canvas Area */}
         <div className="crm-canvas flex-1 p-4 sm:p-6 space-y-6 overflow-y-auto">
+          {isNewProjectPage ? (
+            <ProjectFormModal
+              isOpen
+              variant="page"
+              onClose={() => router.push('/projects')}
+              onSave={handleSaveProject}
+              existingProject={null}
+              team={team}
+            />
+          ) : isScheduleShootPage ? (
+            <ScheduleShootModal
+              isOpen
+              variant="page"
+              onClose={() => router.push('/dashboard')}
+              projects={projects}
+              onUpdateProject={handleUpdateProject}
+              team={team}
+            />
+          ) : isRecordPaymentPage ? (
+            <AllPaymentsModal
+              isOpen
+              variant="page"
+              onClose={() => router.push('/dashboard')}
+              projects={projects}
+              onUpdateProject={handleUpdateProject}
+              onSelectProject={handleSelectProject}
+            />
+          ) : routedProject ? (
+            <ProjectDetailModal
+              variant="page"
+              project={routedProject}
+              onClose={() => {
+                setSelectedProjectRole(undefined);
+                router.push('/projects');
+              }}
+              onUpdateProject={handleUpdateProject}
+              onGenerateInvoice={(project) => setSelectedProjectForInvoice(project)}
+              onDeleteProject={handleDeleteProject}
+              team={team}
+              currentUser={currentUser}
+              userRole={selectedProjectRole || currentUser?.role}
+            />
+          ) : (
+          <>
           
           {/* Tab 1: Main Dashboard */}
           {activeTab === 'dashboard' && (
@@ -579,10 +642,10 @@ export default function App() {
               projects={projects}
               onSelectProject={(project) => handleSelectProject(project)}
               onOpenNewProjectModal={() => {
-                setEditingProject(null);
-                setIsFormModalOpen(true);
+                router.push('/projects/new');
               }}
-              onOpenAllPaymentsModal={() => setIsAllPaymentsModalOpen(true)}
+              onUpdateProject={handleUpdateProject}
+              onOpenAllPaymentsModal={() => router.push('/payments/new')}
               setActiveTab={setActiveTab}
               team={team}
               attendance={attendance}
@@ -590,6 +653,7 @@ export default function App() {
               onUpdateTask={handleUpdateTask}
               onDeleteTask={handleDeleteTask}
               onAddTask={handleAddTask}
+              onOpenMemberModal={(member) => setSelectedMemberForModal(member)}
               currentUser={currentUser}
             />
           )}
@@ -662,6 +726,7 @@ export default function App() {
               projects={projects}
               onUpdateProject={handleUpdateProject}
               onSelectProject={(project) => handleSelectProject(project)}
+              team={team}
             />
           )}
 
@@ -772,6 +837,9 @@ export default function App() {
             />
           )}
 
+          </>
+          )}
+
         </div>
 
         {/* High Density Status Bar Footer */}
@@ -817,23 +885,6 @@ export default function App() {
         />
       )}
 
-      {/* Detailed Project Modal */}
-      {selectedProjectForDetail && (
-        <ProjectDetailModal
-          project={selectedProjectForDetail}
-          onClose={() => {
-            setSelectedProjectForDetail(null);
-            setSelectedProjectRole(undefined);
-          }}
-          onUpdateProject={handleUpdateProject}
-          onGenerateInvoice={(project) => setSelectedProjectForInvoice(project)}
-          onDeleteProject={handleDeleteProject}
-          team={team}
-          currentUser={currentUser}
-          userRole={selectedProjectRole || currentUser?.role}
-        />
-      )}
-
       {/* Invoice / Quotation Receipt Modal */}
       {selectedProjectForInvoice && (
         <InvoiceModal
@@ -854,10 +905,34 @@ export default function App() {
           onClose={() => setIsAllPaymentsModalOpen(false)}
           projects={projects}
           onUpdateProject={handleUpdateProject}
-          onSelectProject={(project) => setSelectedProjectForDetail(project)}
+          onSelectProject={(project) => {
+            setIsAllPaymentsModalOpen(false);
+            handleSelectProject(project);
+          }}
+        />
+      )}
+
+      {/* Individual Team Member Dashboard (opened from the Dashboard's Team Activity widget) */}
+      {selectedMemberForModal && (
+        <MemberDashboardModal
+          member={selectedMemberForModal}
+          attendance={attendance}
+          tasks={tasks}
+          projects={projects}
+          onClose={() => setSelectedMemberForModal(null)}
+          onUpdateTeamMember={(updated) => {
+            handleUpdateTeamMember(updated);
+            setSelectedMemberForModal(updated);
+          }}
+          onRecordAttendance={handleRecordAttendance}
+          onUpdateAttendance={handleUpdateAttendance}
+          onAddTask={handleAddTask}
+          onUpdateTask={handleUpdateTask}
+          onDeleteTask={handleDeleteTask}
         />
       )}
 
     </div>
+    </ToastProvider>
   );
 }

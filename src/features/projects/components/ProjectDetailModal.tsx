@@ -43,11 +43,13 @@ import {
   Send,
   Sparkles,
   Clock,
-  AlertTriangle
+  AlertTriangle,
+  ArrowLeft
 } from 'lucide-react';
 
 interface ProjectDetailModalProps {
   project: Project | null;
+  variant?: 'modal' | 'page';
   onClose: () => void;
   onUpdateProject: (updated: Project) => void;
   onGenerateInvoice: (project: Project) => void;
@@ -59,6 +61,7 @@ interface ProjectDetailModalProps {
 
 export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
   project,
+  variant = 'modal',
   onClose,
   onUpdateProject,
   onGenerateInvoice,
@@ -744,7 +747,6 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
   const [shootStartTime, setShootStartTime] = useState('');
   const [shootEndTime, setShootEndTime] = useState('');
   const [shootVenue, setShootVenue] = useState('');
-  const [shootLead, setShootLead] = useState('Rajat Verma');
   const [shootTime, setShootTime] = useState('09:00 AM - 09:00 PM');
   const [newShootCrew, setNewShootCrew] = useState<CrewMemberAssignment[]>([
     { id: 'c1', name: 'Rajat Verma', role: 'Photographer', mobile: '' },
@@ -1065,6 +1067,12 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
       ? `${shootStartTime} - ${shootEndTime}`
       : shootStartTime || shootEndTime || shootTime || '09:00 AM - 09:00 PM';
 
+    // Derive the headline crew fields from the roles actually entered in the
+    // crew grid, instead of hardcoding placeholder names.
+    const activeCrew = newShootCrew.filter((c) => c.name || c.role);
+    const findCrewName = (matches: (role: string) => boolean) =>
+      activeCrew.find((c) => matches((c.role || '').toLowerCase()))?.name || '';
+
     const newShoot: ShootEvent = {
       id: `shoot-${Date.now()}`,
       title: shootTitle,
@@ -1074,11 +1082,11 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
       endTime: shootEndTime,
       venue: shootVenue || project.venueLocation,
       location: project.venueLocation,
-      leadPhotographer: shootLead,
-      cinematographer: 'Rahul Kapoor',
-      droneOperator: 'Amit Kumar',
-      assistant: 'Sunil Sharma',
-      crewAssignments: newShootCrew.filter((c) => c.name || c.role),
+      leadPhotographer: findCrewName((r) => r.includes('photographer') && !r.includes('drone')),
+      cinematographer: findCrewName((r) => r.includes('videographer') || r.includes('cinematographer')),
+      droneOperator: findCrewName((r) => r.includes('drone')),
+      assistant: findCrewName((r) => r.includes('assistant')),
+      crewAssignments: activeCrew,
       equipmentChecklist: ['Sony A7IV', 'Sony FX3', 'Gimbal', 'Lights'],
       status: 'scheduled',
     };
@@ -1111,8 +1119,10 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
     : project.status || workInfo.autoStatus;
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 overflow-hidden">
-      <div className="bg-white border border-slate-200 rounded-2xl w-full max-w-5xl md:w-[92vw] lg:w-[1024px] shadow-2xl overflow-hidden h-[92vh] max-h-[92vh] my-auto flex flex-col">
+    <div className={variant === 'page' ? 'w-full' : 'fixed inset-0 z-50 flex items-center justify-center overflow-hidden bg-slate-900/60 p-2 backdrop-blur-xs sm:p-4'}>
+      <div className={variant === 'page'
+        ? 'flex min-h-[calc(100vh-9rem)] w-full flex-col overflow-hidden rounded-2xl border border-[#dfd9d2] bg-white shadow-[0_12px_35px_rgba(48,31,38,.08)]'
+        : 'my-auto flex h-[92vh] max-h-[92vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl md:w-[92vw] lg:w-[1024px]'}>
         
         {/* Header */}
         <div className="p-3.5 sm:p-4 bg-slate-50 border-b border-slate-200 flex items-start justify-between shrink-0">
@@ -1188,9 +1198,10 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
 
             <button
               onClick={onClose}
-              className="p-1.5 text-slate-400 hover:text-slate-700 rounded hover:bg-slate-200 transition"
+              className="flex items-center gap-1.5 rounded-lg border border-slate-200 px-2.5 py-1.5 text-slate-500 transition hover:bg-slate-100 hover:text-slate-800"
+              title={variant === 'page' ? 'Back to projects' : 'Close project details'}
             >
-              <X className="w-4 h-4" />
+              {variant === 'page' ? <><ArrowLeft className="h-4 w-4" /><span className="hidden text-xs font-bold sm:inline">Projects</span></> : <X className="h-4 w-4" />}
             </button>
           </div>
         </div>

@@ -26,6 +26,7 @@ import {
 
 interface AllPaymentsModalProps {
   isOpen: boolean;
+  variant?: 'modal' | 'page';
   onClose: () => void;
   projects: Project[];
   onUpdateProject: (updatedProject: Project) => void;
@@ -34,6 +35,7 @@ interface AllPaymentsModalProps {
 
 export const AllPaymentsModal: React.FC<AllPaymentsModalProps> = ({
   isOpen,
+  variant = 'modal',
   onClose,
   projects,
   onUpdateProject,
@@ -169,12 +171,12 @@ export const AllPaymentsModal: React.FC<AllPaymentsModalProps> = ({
   });
 
   return (
-    <div 
-      className="fixed inset-0 z-50 bg-slate-900/75 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4 overflow-y-auto"
-      onClick={onClose}
+    <div
+      className={variant === 'page' ? 'w-full' : 'fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-slate-900/75 p-2 backdrop-blur-sm sm:p-4'}
+      onClick={variant === 'modal' ? onClose : undefined}
     >
       <div 
-        className="relative bg-slate-100 rounded-2xl w-full max-w-5xl my-auto shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[92vh]"
+        className={variant === 'page' ? 'relative flex min-h-[calc(100vh-9rem)] w-full flex-col overflow-hidden rounded-2xl border border-[#dfd9d2] bg-slate-100 shadow-[0_12px_35px_rgba(48,31,38,.08)]' : 'relative my-auto flex max-h-[92vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-slate-100 shadow-2xl'}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Top Header */}

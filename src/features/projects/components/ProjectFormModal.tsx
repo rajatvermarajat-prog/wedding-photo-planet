@@ -7,6 +7,7 @@ import { X, Save, IndianRupee, Phone, MapPin, Music, Link2, Calendar, Sparkles, 
 
 interface ProjectFormModalProps {
   isOpen: boolean;
+  variant?: 'modal' | 'page';
   onClose: () => void;
   onSave: (project: Project) => void;
   existingProject?: Project | null;
@@ -15,6 +16,7 @@ interface ProjectFormModalProps {
 
 export const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
   isOpen,
+  variant = 'modal',
   onClose,
   onSave,
   existingProject,
@@ -489,8 +491,8 @@ export const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
-      <div className="bg-white border border-slate-200 rounded-xl w-full max-w-3xl shadow-xl overflow-hidden my-6 max-h-[90vh] flex flex-col">
+    <div className={variant === 'page' ? 'w-full' : 'fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-slate-900/60 p-4 backdrop-blur-xs'}>
+      <div className={variant === 'page' ? 'flex min-h-[calc(100vh-9rem)] w-full flex-col overflow-hidden rounded-2xl border border-[#dfd9d2] bg-white shadow-[0_12px_35px_rgba(48,31,38,.08)]' : 'my-6 flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl'}>
         
         {/* Modal Header */}
         <div className="p-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between sticky top-0 z-10">
@@ -512,7 +514,7 @@ export const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
         </div>
 
         {/* Modal Form Content */}
-        <form onSubmit={handleSubmit} className="p-5 overflow-y-auto space-y-6 flex-1 text-xs">
+        <form onSubmit={handleSubmit} className={`flex-1 space-y-6 p-5 text-xs ${variant === 'page' ? '' : 'overflow-y-auto'}`}>
           
           {/* Section 1: Core Client Project Information (Required fields 01, 02, 03) */}
           <div className="space-y-3">
@@ -1059,4 +1061,3 @@ export const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
     </div>
   );
 };
-

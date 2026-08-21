@@ -1,14 +1,14 @@
 import React from 'react';
-import { Receipt, RotateCcw, X } from 'lucide-react';
+import { Receipt, X } from 'lucide-react';
 import { OfficeExpense } from '@/types';
 import { ConfirmDeleteModal } from '@/components/common/ConfirmDeleteModal';
-interface Props { open: boolean; setOpen: (value: boolean) => void; editingExpense: OfficeExpense | null; setEditingExpense: (value: OfficeExpense | null) => void; onSubmit: (event: React.FormEvent) => void; title: string; setTitle: (value: string) => void; amount: number | ''; setAmount: (value: number | '') => void; category: string; setCategory: (value: string) => void; date: string; setDate: (value: string) => void; spentBy: string; setSpentBy: (value: string) => void; paidVia: OfficeExpense['paidVia']; setPaidVia: (value: OfficeExpense['paidVia']) => void; notes: string; setNotes: (value: string) => void; expenseToDelete: OfficeExpense | null; setExpenseToDelete: (value: OfficeExpense | null) => void; confirmDelete: (expense: OfficeExpense) => void; undoToast: { message: string; onUndo: () => void } | null; setUndoToast: (value: null) => void; }
-export function ExpenseModals({ open: showAddExpenseModal, setOpen: setShowAddExpenseModal, editingExpense, setEditingExpense, onSubmit: handleAddExpenseSubmit, title: newExpTitle, setTitle: setNewExpTitle, amount: newExpAmount, setAmount: setNewExpAmount, category: newExpCategory, setCategory: setNewExpCategory, date: newExpDate, setDate: setNewExpDate, spentBy: newExpSpentBy, setSpentBy: setNewExpSpentBy, paidVia: newExpPaidVia, setPaidVia: setNewExpPaidVia, notes: newExpNotes, setNotes: setNewExpNotes, expenseToDelete, setExpenseToDelete, confirmDelete: confirmDeleteExpense, undoToast, setUndoToast }: Props) {
+interface Props { open: boolean; variant?: 'modal' | 'page'; setOpen: (value: boolean) => void; editingExpense: OfficeExpense | null; setEditingExpense: (value: OfficeExpense | null) => void; onSubmit: (event: React.FormEvent) => void; title: string; setTitle: (value: string) => void; amount: number | ''; setAmount: (value: number | '') => void; category: string; setCategory: (value: string) => void; date: string; setDate: (value: string) => void; spentBy: string; setSpentBy: (value: string) => void; paidVia: OfficeExpense['paidVia']; setPaidVia: (value: OfficeExpense['paidVia']) => void; notes: string; setNotes: (value: string) => void; expenseToDelete: OfficeExpense | null; setExpenseToDelete: (value: OfficeExpense | null) => void; confirmDelete: (expense: OfficeExpense) => void; }
+export function ExpenseModals({ open: showAddExpenseModal, variant = 'modal', setOpen: setShowAddExpenseModal, editingExpense, setEditingExpense, onSubmit: handleAddExpenseSubmit, title: newExpTitle, setTitle: setNewExpTitle, amount: newExpAmount, setAmount: setNewExpAmount, category: newExpCategory, setCategory: setNewExpCategory, date: newExpDate, setDate: setNewExpDate, spentBy: newExpSpentBy, setSpentBy: setNewExpSpentBy, paidVia: newExpPaidVia, setPaidVia: setNewExpPaidVia, notes: newExpNotes, setNotes: setNewExpNotes, expenseToDelete, setExpenseToDelete, confirmDelete: confirmDeleteExpense }: Props) {
   return (<>
   {/* Modal: Log / Edit Office Expense */}
   {showAddExpenseModal && (
-    <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl p-5 max-w-md w-full border border-slate-200 shadow-xl space-y-4 animate-in fade-in zoom-in-95 duration-200">
+    <div className={variant === 'page' ? 'w-full' : 'fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-xs'}>
+      <div className={variant === 'page' ? 'mx-auto min-h-[calc(100vh-9rem)] w-full max-w-4xl space-y-5 rounded-2xl border border-[#dfd9d2] bg-white p-5 shadow-[0_12px_35px_rgba(48,31,38,.08)] sm:p-7' : 'w-full max-w-md space-y-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-xl animate-in fade-in zoom-in-95 duration-200'}>
         <div className="flex items-center justify-between border-b border-slate-100 pb-3">
           <h4 className="font-extrabold text-slate-900 text-sm flex items-center gap-2">
             <Receipt className="w-4 h-4 text-rose-600" />
@@ -163,28 +163,5 @@ export function ExpenseModals({ open: showAddExpenseModal, setOpen: setShowAddEx
     }}
     onCancel={() => setExpenseToDelete(null)}
   />
-
-  {/* Floating Undo Notification */}
-  {undoToast && (
-    <div className="fixed bottom-6 right-6 z-50 bg-slate-900/95 backdrop-blur-md text-white px-4 py-3 rounded-2xl shadow-2xl flex items-center gap-3 border border-slate-700">
-      <span className="p-1.5 bg-rose-500/20 text-rose-400 rounded-lg text-sm">🗑️</span>
-      <div className="text-xs">
-        <span className="font-bold">{undoToast.message}</span>
-      </div>
-      <button
-        onClick={undoToast.onUndo}
-        className="ml-2 px-3 py-1.5 bg-rose-600 hover:bg-rose-500 active:bg-rose-700 text-white font-black text-xs rounded-xl shadow transition cursor-pointer flex items-center gap-1.5"
-      >
-        <RotateCcw className="w-3.5 h-3.5" /> Undo / Restore
-      </button>
-      <button
-        onClick={() => setUndoToast(null)}
-        className="text-slate-400 hover:text-white text-xs font-bold px-1.5 py-1 cursor-pointer"
-        title="Close"
-      >
-        ✕
-      </button>
-    </div>
-  )}
   </>);
 }

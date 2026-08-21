@@ -28,25 +28,17 @@ export function MonthlyStaffSalary({ records: salaryRecords, totalMonthlyPayroll
         </div>
       </div>
 
-      {/* Overall Payroll Summary Pills */}
-      <div className="grid grid-cols-3 gap-1 text-center text-xs bg-[#faf8f6] p-3 rounded-xl border border-[#e6ded8] shrink-0">
-        <div className="border-r border-slate-200 pr-1">
-          <span className="text-xs font-bold text-slate-400 uppercase block">Total Base</span>
-          <span className="font-black text-slate-900 text-xs">₹{totalMonthlyPayroll.toLocaleString('en-IN')}</span>
-        </div>
-        <div className="border-r border-slate-200 pr-1">
-          <span className="text-xs font-bold text-emerald-600 uppercase block">Total Paid</span>
-          <span className="font-black text-emerald-700 text-xs">₹{totalPaidPayroll.toLocaleString('en-IN')}</span>
-        </div>
-        <div>
-          <span className="text-xs font-bold text-red-600 uppercase block">Pending Due</span>
-          <span className="font-black text-red-700 text-xs">₹{totalPendingPayroll.toLocaleString('en-IN')}</span>
-        </div>
-      </div>
+      {/* Slim payroll context line */}
+      <p className="text-xs font-semibold text-slate-500 bg-[#faf8f6] px-3 py-2 rounded-xl border border-[#e6ded8] shrink-0">
+        <span className="font-black text-slate-900">₹{totalPaidPayroll.toLocaleString('en-IN')}</span> paid of <span className="font-bold text-slate-700">₹{totalMonthlyPayroll.toLocaleString('en-IN')}</span> base
+        {totalPendingPayroll > 0 && <> · <span className="font-black text-red-600">₹{totalPendingPayroll.toLocaleString('en-IN')}</span> pending</>}
+      </p>
 
       {/* Individual Team Salary Rows */}
-      <div className="space-y-2 flex-1 min-h-0 max-h-[500px] overflow-y-auto pr-1">
-        {salaryRecords.map((m) => {
+      <div className="min-h-0 flex-1 space-y-2 overflow-y-auto pr-1">
+        {salaryRecords.length === 0 ? (
+          <p className="py-8 text-center text-xs italic text-slate-400">No salary records yet.</p>
+        ) : salaryRecords.map((m) => {
           const pending = Math.max(0, m.monthlySalary - m.paidAmount);
           const isFull = pending === 0;
           const isPartial = m.paidAmount > 0 && pending > 0;

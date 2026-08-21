@@ -23,13 +23,13 @@ export function MonthlyProfitLoss({ fromDate: finFromDate, toDate: finToDate, to
           onClick={onAddExpense}
           className="px-3 py-1.5 bg-rose-600 hover:bg-rose-500 text-white text-xs font-extrabold rounded-xl transition shadow-md flex items-center gap-1.5 cursor-pointer"
         >
-          <Plus className="w-3.5 h-3.5" /> + Add Expense
+          <Plus className="w-3.5 h-3.5" /> Add Expense
         </button>
         <button
           onClick={onRecordPayment}
           className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-extrabold rounded-xl transition shadow-md flex items-center gap-1.5 cursor-pointer"
         >
-          <CreditCard className="w-3.5 h-3.5" /> + Record Payment
+          <CreditCard className="w-3.5 h-3.5" /> Record Payment
         </button>
       </div>
     </div>
@@ -60,7 +60,7 @@ export function MonthlyProfitLoss({ fromDate: finFromDate, toDate: finToDate, to
           ₹{totalMonthlyExpenses.toLocaleString('en-IN')}
         </p>
         <p className="text-xs text-rose-200/80 font-medium mt-1">
-          Rent, Chai, Fuel, Bills & Repair
+          Studio operating costs, all categories
         </p>
       </div>
 
