@@ -1,4 +1,15 @@
-import { Camera, X } from 'lucide-react';
+import { useState } from 'react';
+import {
+  Camera,
+  CheckCircle2,
+  ChevronDown,
+  FileText,
+  Hash,
+  Plus,
+  Sparkles,
+  Wrench,
+  X,
+} from 'lucide-react';
 import { EQUIPMENT_CATEGORIES, EquipmentItem } from './equipmentData';
 
 interface Props {
@@ -8,32 +19,147 @@ interface Props {
 }
 
 export function EquipmentFormModal({ open, onClose, onSubmit }: Props) {
+  const [selectedCategory, setSelectedCategory] = useState<EquipmentItem['category']>('Cameras');
+
   if (!open) return null;
+
   const submit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const data = new FormData(event.currentTarget);
     onSubmit({
       name: String(data.get('name') || '').trim(),
       category: String(data.get('category')) as EquipmentItem['category'],
+      customCategory: String(data.get('customCategory') || '').trim() || undefined,
       status: String(data.get('status')) as EquipmentItem['status'],
       serialNumber: String(data.get('serial') || '').trim() || undefined,
       conditionNote: String(data.get('note') || '').trim() || undefined,
     });
   };
-  const field = 'w-full rounded-xl border border-slate-300 bg-slate-50 p-2.5 font-medium text-slate-900 outline-none focus:ring-2 focus:ring-rose-500';
-  return <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-xs">
-    <div className="w-full max-w-md space-y-4 rounded-3xl border border-[#dfd9d2] bg-white p-6 shadow-2xl">
-      <div className="flex items-center justify-between border-b border-slate-100 pb-3"><h4 className="flex items-center gap-2 text-base font-black text-slate-900"><Camera className="size-5 text-rose-700" />Add New Studio Equipment</h4><button onClick={onClose} className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700"><X className="size-5" /></button></div>
-      <form onSubmit={submit} className="space-y-3 text-xs">
-        <label className="block font-bold text-slate-700">Equipment Name *<input name="name" required placeholder="e.g. Sony FX30 / Aputure 600d Pro" className={`${field} mt-1`} /></label>
-        <div className="grid grid-cols-2 gap-2">
-          <label className="font-bold text-slate-700">Category<select name="category" className={`${field} mt-1`}>{EQUIPMENT_CATEGORIES.map((category) => <option key={category}>{category}</option>)}</select></label>
-          <label className="font-bold text-slate-700">Status<select name="status" className={`${field} mt-1`}><option value="available">Available</option><option value="in_use">In Use / On Shoot</option><option value="maintenance">Maintenance</option></select></label>
-        </div>
-        <label className="block font-bold text-slate-700">Serial Number<input name="serial" placeholder="#SN-882103" className={`${field} mt-1`} /></label>
-        <label className="block font-bold text-slate-700">Condition Notes<textarea name="note" placeholder="Includes batteries, charger, condition…" className={`${field} mt-1 min-h-20`} /></label>
-        <div className="flex justify-end gap-2 border-t border-slate-100 pt-3"><button type="button" onClick={onClose} className="rounded-xl bg-slate-100 px-4 py-2 font-bold text-slate-700">Cancel</button><button type="submit" className="rounded-xl bg-[#8f3655] px-5 py-2 font-bold text-white hover:bg-[#762944]">Save Equipment</button></div>
-      </form>
+
+  const field = 'w-full rounded-2xl border border-[#ded5cf] bg-[#fbfaf8] py-3 pl-11 pr-4 text-sm font-semibold text-slate-900 outline-none transition placeholder:font-medium placeholder:text-slate-400 focus:border-[#9b4865] focus:bg-white focus:ring-4 focus:ring-rose-100';
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#24171c]/75 p-3 backdrop-blur-sm sm:p-6">
+      <div role="dialog" aria-modal="true" aria-labelledby="equipment-form-title" className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-[2rem] border border-white/50 bg-white shadow-[0_30px_90px_rgba(26,13,19,.42)]">
+        <header className="relative overflow-hidden bg-[radial-gradient(circle_at_85%_15%,rgba(235,190,167,.22),transparent_32%),linear-gradient(125deg,#704758,#55333f_52%,#38262d)] px-5 py-5 text-white sm:px-7 sm:py-6">
+          <div className="absolute -bottom-12 -right-8 size-40 rounded-full border-[22px] border-white/5" />
+          <div className="relative flex items-start justify-between gap-4">
+            <div className="flex items-center gap-4">
+              <span className="grid size-14 shrink-0 place-items-center rounded-2xl border border-white/30 bg-white/15 shadow-inner backdrop-blur-sm">
+                <Camera className="size-7 text-[#f6d9ca]" />
+              </span>
+              <div>
+                <p className="flex items-center gap-1.5 text-xs font-extrabold uppercase tracking-[.18em] text-[#ecc8d3]">
+                  <Sparkles className="size-3.5" /> Studio Asset Intake
+                </p>
+                <h2 id="equipment-form-title" className="mt-1 text-xl font-black tracking-tight sm:text-2xl">Add New Equipment</h2>
+                <p className="mt-1 text-sm leading-relaxed text-[#eadfe2]">Register a gear item and make it ready for studio allocation.</p>
+              </div>
+            </div>
+            <button type="button" onClick={onClose} aria-label="Close add equipment form" className="grid size-10 shrink-0 place-items-center rounded-xl border border-white/15 bg-black/15 text-white/80 transition hover:bg-white/15 hover:text-white">
+              <X className="size-5" />
+            </button>
+          </div>
+        </header>
+
+        <form onSubmit={submit} className="space-y-6 p-5 sm:p-7">
+          <section className="space-y-3">
+            <div>
+              <p className="text-sm font-black uppercase tracking-[.1em] text-[#6d2f45]">01 · Asset Identity</p>
+              <p className="mt-0.5 text-sm text-slate-500">Add the gear name and its unique serial reference.</p>
+            </div>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1.5fr_1fr]">
+              <label className="block text-sm font-bold text-slate-700">
+                Equipment Name <span className="text-rose-700">*</span>
+                <span className="relative mt-1.5 block">
+                  <Camera className="absolute left-3.5 top-1/2 size-5 -translate-y-1/2 text-[#9b4865]" />
+                  <input name="name" required autoFocus placeholder="e.g. Sony FX30 Cinema Camera" className={field} />
+                </span>
+              </label>
+              <label className="block text-sm font-bold text-slate-700">
+                Serial Number
+                <span className="relative mt-1.5 block">
+                  <Hash className="absolute left-3.5 top-1/2 size-5 -translate-y-1/2 text-[#9b4865]" />
+                  <input name="serial" placeholder="SN-882103" className={field} />
+                </span>
+              </label>
+            </div>
+          </section>
+
+          <section className="space-y-3 border-t border-[#eee7e2] pt-5">
+            <div>
+              <p className="text-sm font-black uppercase tracking-[.1em] text-[#6d2f45]">02 · Gear Category</p>
+              <p className="mt-0.5 text-sm text-slate-500">Choose where this item belongs in the inventory.</p>
+            </div>
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+              {EQUIPMENT_CATEGORIES.map((category) => (
+                <label key={category} className="cursor-pointer">
+                  <input type="radio" name="category" value={category} checked={selectedCategory === category} onChange={() => setSelectedCategory(category)} className="peer sr-only" />
+                  <span className="flex min-h-14 items-center justify-center rounded-xl border border-[#ded5cf] bg-[#fbfaf8] px-2.5 py-2 text-center text-sm font-bold leading-tight text-slate-600 transition hover:border-rose-300 hover:bg-rose-50 peer-checked:border-[#8f3655] peer-checked:bg-[#8f3655] peer-checked:text-white peer-checked:hover:border-[#742b45] peer-checked:hover:bg-[#742b45] peer-focus-visible:ring-4 peer-focus-visible:ring-rose-100">
+                    {category}
+                  </span>
+                </label>
+              ))}
+            </div>
+            {selectedCategory === 'Other' && (
+              <label className="block rounded-2xl border border-dashed border-rose-200 bg-rose-50/60 p-3 text-sm font-bold text-slate-700">
+                Enter Custom Category <span className="text-rose-700">*</span>
+                <span className="relative mt-1.5 block">
+                  <Plus className="absolute left-3.5 top-1/2 size-5 -translate-y-1/2 text-[#9b4865]" />
+                  <input name="customCategory" required placeholder="e.g. Tripods, Storage Drives, Monitors…" className={field} />
+                </span>
+              </label>
+            )}
+          </section>
+
+          <section className="space-y-3 border-t border-[#eee7e2] pt-5">
+            <div>
+              <p className="text-sm font-black uppercase tracking-[.1em] text-[#6d2f45]">03 · Current Availability</p>
+              <p className="mt-0.5 text-sm text-slate-500">Set the live operational state for your team.</p>
+            </div>
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+              <label className="cursor-pointer">
+                <input type="radio" name="status" value="available" defaultChecked className="peer sr-only" />
+                <span className="flex items-center gap-2.5 rounded-2xl border border-emerald-200 bg-emerald-50 p-3.5 text-sm font-extrabold text-emerald-800 transition peer-checked:border-emerald-600 peer-checked:ring-2 peer-checked:ring-emerald-200 peer-focus-visible:ring-4">
+                  <CheckCircle2 className="size-5" /> Available
+                </span>
+              </label>
+              <label className="cursor-pointer">
+                <input type="radio" name="status" value="in_use" className="peer sr-only" />
+                <span className="flex items-center gap-2.5 rounded-2xl border border-amber-200 bg-amber-50 p-3.5 text-sm font-extrabold text-amber-900 transition peer-checked:border-amber-600 peer-checked:ring-2 peer-checked:ring-amber-200 peer-focus-visible:ring-4">
+                  <Camera className="size-5" /> In Use / Shoot
+                </span>
+              </label>
+              <label className="cursor-pointer">
+                <input type="radio" name="status" value="maintenance" className="peer sr-only" />
+                <span className="flex items-center gap-2.5 rounded-2xl border border-red-200 bg-red-50 p-3.5 text-sm font-extrabold text-red-800 transition peer-checked:border-red-600 peer-checked:ring-2 peer-checked:ring-red-200 peer-focus-visible:ring-4">
+                  <Wrench className="size-5" /> Maintenance
+                </span>
+              </label>
+            </div>
+          </section>
+
+          <section className="border-t border-[#eee7e2] pt-5">
+            <label className="block text-sm font-bold text-slate-700">
+              Condition & Kit Notes
+              <span className="relative mt-1.5 block">
+                <FileText className="absolute left-3.5 top-3.5 size-5 text-[#9b4865]" />
+                <textarea name="note" placeholder="Mention condition, batteries, charger or included accessories…" className={`${field} min-h-24 resize-none pl-11`} />
+              </span>
+            </label>
+          </section>
+
+          <footer className="flex flex-col-reverse gap-2 border-t border-[#eee7e2] pt-5 sm:flex-row sm:items-center sm:justify-between">
+            <p className="flex items-center gap-1.5 text-sm font-medium text-slate-500"><ChevronDown className="size-4 -rotate-90 text-[#9b4865]" />Fields marked with * are required</p>
+            <div className="flex gap-2">
+              <button type="button" onClick={onClose} className="flex-1 rounded-xl border border-slate-200 bg-white px-5 py-2.5 text-sm font-bold text-slate-700 transition hover:bg-slate-50 sm:flex-none">Cancel</button>
+              <button type="submit" className="group flex flex-1 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#8f3655] to-[#6d2f45] px-5 py-2.5 text-sm font-extrabold text-white shadow-[0_8px_20px_rgba(109,47,69,.25)] transition hover:-translate-y-0.5 hover:shadow-lg sm:flex-none">
+                <Plus className="size-5 transition group-hover:rotate-90" /> Save Equipment
+              </button>
+            </div>
+          </footer>
+        </form>
+      </div>
     </div>
-  </div>;
+  );
 }

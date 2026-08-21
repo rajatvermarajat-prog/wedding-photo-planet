@@ -1,7 +1,8 @@
 export interface EquipmentItem {
   id: string;
   name: string;
-  category: 'Cameras' | 'Lenses' | 'Drones' | 'Lighting' | 'Audio' | 'Gimbals & Stabilizers' | 'Accessories';
+  category: 'Cameras' | 'Lenses' | 'Drones' | 'Lighting' | 'Audio' | 'Gimbals & Stabilizers' | 'Accessories' | 'Other';
+  customCategory?: string;
   serialNumber?: string;
   status: 'available' | 'in_use' | 'maintenance';
   assignedToShoot?: string;
@@ -10,7 +11,7 @@ export interface EquipmentItem {
   purchaseDate?: string;
 }
 
-export const EQUIPMENT_CATEGORIES: EquipmentItem['category'][] = ['Cameras', 'Lenses', 'Drones', 'Lighting', 'Audio', 'Gimbals & Stabilizers', 'Accessories'];
+export const EQUIPMENT_CATEGORIES: EquipmentItem['category'][] = ['Cameras', 'Lenses', 'Drones', 'Lighting', 'Audio', 'Gimbals & Stabilizers', 'Accessories', 'Other'];
 
 export const INITIAL_EQUIPMENT: EquipmentItem[] = [
   { id: 'eq-1', name: 'Sony FX3 Cinema Camera Body', category: 'Cameras', serialNumber: 'FX3-98210', status: 'in_use', assignedToShoot: 'Rohan & Ananya Royal Wedding', assignedMember: 'Rajat Verma', conditionNote: 'Pristine condition. Clean sensor.' },
