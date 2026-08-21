@@ -34,6 +34,7 @@ import { useAuthSession } from '@/components/auth/AuthSessionProvider';
 import { AISuggestionsModal } from '@/components/ai/AISuggestionsModal';
 import { OwnerDashboard } from '@/features/dashboard';
 import { OwnerWorkspace } from '@/features/owner';
+import { EquipmentInventory } from '@/features/equipment';
 import { LeadsManagement } from '@/features/leads';
 import { RoleDashboards } from '@/features/workspaces';
 import {
@@ -54,6 +55,7 @@ import { ToastProvider } from '@/components/common';
 const TAB_ROUTES: Record<TabType, string> = {
   dashboard: '/dashboard',
   owner_workspace: '/owner-workspace',
+  equipment: '/equipment',
   roles: '/workspaces',
   leads: '/leads',
   projects: '/projects',
@@ -270,7 +272,7 @@ export default function App() {
 
     if (currentUser?.role === 'Owner' && activeTab === 'roles') {
       setActiveTab('owner_workspace');
-    } else if (currentUser?.role !== 'Owner' && activeTab === 'owner_workspace') {
+    } else if (currentUser?.role !== 'Owner' && (activeTab === 'owner_workspace' || activeTab === 'equipment')) {
       setActiveTab(isFullAdmin ? 'dashboard' : 'roles');
     } else if (!isFullAdmin && activeTab === 'dashboard') {
       setActiveTab('roles');
@@ -664,6 +666,10 @@ export default function App() {
               projects={projects}
               activeTeamMembers={team}
             />
+          )}
+
+          {activeTab === 'equipment' && currentUser?.role === 'Owner' && (
+            <EquipmentInventory />
           )}
 
           {/* Leads & Inquiries Management (Visible ONLY to Owner, Manager, and Sales) */}

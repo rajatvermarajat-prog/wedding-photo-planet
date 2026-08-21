@@ -26,7 +26,7 @@ import {
 } from 'lucide-react';
 import { ProjectStatus, TeamMember } from '@/types';
 
-export type TabType = 'dashboard' | 'roles' | 'projects' | 'shoots' | 'data' | 'team' | 'freelancers' | 'deliveries' | 'owner_workspace' | 'leads';
+export type TabType = 'dashboard' | 'roles' | 'projects' | 'shoots' | 'data' | 'team' | 'freelancers' | 'deliveries' | 'owner_workspace' | 'equipment' | 'leads';
 
 interface SidebarProps {
   activeTab: TabType;
@@ -54,6 +54,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const navItems = [
     ...(isFullAdmin ? [{ id: 'dashboard' as TabType, label: 'Dashboard', icon: LayoutDashboard }] : []),
     ...(isOwner ? [{ id: 'owner_workspace' as TabType, label: 'Owner Workspace', icon: Crown }] : []),
+    ...(isOwner ? [{ id: 'equipment' as TabType, label: 'Equipment Inventory', icon: Camera }] : []),
     ...(!isOwner ? [{ id: 'roles' as TabType, label: 'Role Workspaces', icon: Briefcase }] : []),
     ...(canSeeLeads ? [{ id: 'leads' as TabType, label: 'Leads & Inquiries', icon: Target }] : []),
     { id: 'projects' as TabType, label: 'Projects', icon: FolderKanban },
@@ -234,6 +235,7 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
     freelancers: 'Freelancer Team',
     deliveries: 'Deliveries',
     owner_workspace: 'Owner Workspace',
+    equipment: 'Equipment Inventory',
     leads: 'Leads & Inquiries',
   };
 

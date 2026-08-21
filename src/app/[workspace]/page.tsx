@@ -4,6 +4,7 @@ import { CrmClient } from '@/components/app/CrmClient';
 const WORKSPACES = new Set([
   'dashboard',
   'owner-workspace',
+  'equipment',
   'workspaces',
   'leads',
   'projects',
