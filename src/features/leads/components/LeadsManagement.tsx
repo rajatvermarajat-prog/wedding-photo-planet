@@ -1,6 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { OwnerLead, LeadStatus, TeamMember, LeadQuotationFile, LeadActivityLog } from '@/types';
-import { ConfirmDeleteModal } from '@/components/common/ConfirmDeleteModal';
+import { LeadFormModal } from './LeadFormModal';
+import { LeadsFilterBar } from './LeadsFilterBar';
+import { LeadsHeader } from './LeadsHeader';
+import { LeadsKpiGrid } from './LeadsKpiGrid';
+import { LeadQuotationModal } from './LeadQuotationModal';
+import { LeadBookingModal, LeadHistoryModal, LeadNoteModal } from './LeadSecondaryModals';
+import { LeadQuotationPreview } from './LeadQuotationPreview';
+import { LeadTargetsModal } from './LeadTargetsModal';
+import { LeadDeleteConfirmModal } from './LeadDeleteConfirmModal';
 import { 
   Target, 
   Plus, 
@@ -9,33 +17,18 @@ import {
   MessageSquare, 
   Calendar, 
   IndianRupee, 
-  Filter, 
   Trash2, 
-  X, 
   CheckCircle2, 
   Clock, 
-  Building2, 
   UserCheck, 
-  Share2, 
   Edit3,
-  Check,
-  TrendingUp,
-  AlertCircle,
   FileText,
   Upload,
   Paperclip,
-  Shield,
   Eye,
-  EyeOff,
   History,
-  ArrowRightLeft,
-  FileSpreadsheet,
-  Download,
-  Lock,
   BarChart2,
   Users,
-  FileCheck,
-  Printer
 } from 'lucide-react';
 
 export const SALES_TEAM_OPTIONS = [
@@ -764,24 +757,26 @@ export const LeadsManagement: React.FC<LeadsManagementProps> = ({ currentUser })
 
   return (
     <div className="space-y-6 pb-12 animate-in fade-in duration-300">
+      <LeadsHeader userName={userName} userRole={userRole} isOwner={isOwner} activeView={activeSubTab} onViewChange={setActiveSubTab} onAddLead={handleOpenAddModal} />
+
       {/* YEARLY & MONTHLY TARGETING & GOALS WIDGET (Visible to Owner & Managers only) */}
       {isOwner && (
-        <div className="bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 rounded-3xl p-5 md:p-6 text-white shadow-xl border border-indigo-500/30 space-y-4">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-indigo-800/60 pb-3.5">
+        <div className="space-y-4 rounded-3xl border border-[#ddc89c]/30 bg-[linear-gradient(135deg,#422a34,#302329_55%,#241b1f)] p-5 text-white shadow-xl md:p-6">
+          <div className="flex flex-col items-start justify-between gap-3 border-b border-rose-300/15 pb-3.5 sm:flex-row sm:items-center">
             <div className="flex items-center gap-2.5">
-              <div className="p-2.5 rounded-2xl bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
-                <Target className="w-5 h-5 text-emerald-400" />
+              <div className="rounded-2xl border border-[#efd9b0]/25 bg-[#efd9b0]/10 p-2.5 text-[#efd9b0]">
+                <Target className="size-5" />
               </div>
               <div>
                 <div className="flex items-center gap-2 flex-wrap">
                   <h3 className="text-base md:text-lg font-black text-white flex items-center gap-2">
                     <span>Lead Goals & Target Performance</span>
-                    <span className="text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-2 py-0.5 rounded-full uppercase font-mono font-extrabold">
+                    <span className="rounded-full border border-rose-300/25 bg-rose-300/10 px-2.5 py-1 text-xs font-extrabold uppercase text-rose-200">
                       Target Tracking
                     </span>
                   </h3>
                 </div>
-                <p className="text-xs text-slate-300 font-medium mt-0.5">
+                <p className="mt-0.5 text-sm font-medium text-[#d9cdd1]">
                   Owner defined yearly ({targets.targetYear}) and monthly ({currentMonthName}) inquiry & conversion goals.
                 </p>
               </div>
@@ -790,10 +785,10 @@ export const LeadsManagement: React.FC<LeadsManagementProps> = ({ currentUser })
             {isOwner && (
               <button
                 onClick={handleOpenTargetModal}
-                className="px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold text-xs flex items-center gap-1.5 transition shadow-md hover:scale-105 cursor-pointer shrink-0 border border-indigo-400/40"
+                className="flex shrink-0 cursor-pointer items-center gap-2 rounded-xl border border-[#efd9b0]/50 bg-[#f3dfc8] px-4 py-2.5 text-sm font-extrabold text-[#633346] shadow-md transition hover:-translate-y-0.5 hover:bg-white"
               >
-                <Edit3 className="w-3.5 h-3.5 text-amber-300" />
-                <span>⚙️ Set / Edit Targets</span>
+                <Edit3 className="size-4" />
+                <span>Set / Edit Targets</span>
               </button>
             )}
           </div>
@@ -804,11 +799,11 @@ export const LeadsManagement: React.FC<LeadsManagementProps> = ({ currentUser })
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <Calendar className="w-4 h-4 text-amber-400" />
-                  <h4 className="font-black text-xs uppercase tracking-wider text-amber-300">
-                    Yearly Target ({targets.targetYear}) • साल का लक्ष्य
+                  <h4 className="text-sm font-black uppercase tracking-wider text-amber-200">
+                    Yearly Target ({targets.targetYear})
                   </h4>
                 </div>
-                <span className="text-[10px] font-mono font-bold text-slate-400 bg-slate-900/80 px-2 py-0.5 rounded border border-slate-700">
+                <span className="rounded border border-slate-700 bg-slate-900/80 px-2 py-1 font-mono text-xs font-bold text-slate-300">
                   Year {targets.targetYear}
                 </span>
               </div>
@@ -816,20 +811,20 @@ export const LeadsManagement: React.FC<LeadsManagementProps> = ({ currentUser })
               <div className="space-y-3">
                 {/* Metric 1: Yearly Leads */}
                 <div className="bg-slate-900/70 p-3 rounded-xl border border-slate-700/60 space-y-1.5">
-                  <div className="flex items-center justify-between text-xs font-bold">
+                  <div className="flex items-center justify-between text-sm font-bold">
                     <span className="text-slate-300 flex items-center gap-1.5">
-                      <Users className="w-3.5 h-3.5 text-indigo-400" /> Inquiry Leads Volume:
+                      <Users className="size-4 text-rose-300" /> Inquiry Leads Volume:
                     </span>
                     <span className="text-white font-black font-mono">
                       {yearlyLeadsCount} / {targets.yearlyLeadTarget} Leads
-                      <span className={`ml-2 px-1.5 py-0.2 rounded text-[10px] ${yearlyLeadsPct >= 100 ? 'bg-emerald-500/30 text-emerald-300' : 'bg-indigo-500/30 text-indigo-300'}`}>
+                      <span className={`ml-2 rounded px-2 py-0.5 text-xs ${yearlyLeadsPct >= 100 ? 'bg-emerald-500/30 text-emerald-300' : 'bg-rose-500/30 text-rose-200'}`}>
                         {yearlyLeadsPct}%
                       </span>
                     </span>
                   </div>
                   <div className="w-full bg-slate-800 rounded-full h-2 overflow-hidden border border-slate-700">
                     <div
-                      className={`h-full transition-all duration-500 ${yearlyLeadsPct >= 100 ? 'bg-gradient-to-r from-emerald-500 to-teal-400' : 'bg-gradient-to-r from-indigo-500 to-cyan-400'}`}
+                      className={`h-full transition-all duration-500 ${yearlyLeadsPct >= 100 ? 'bg-gradient-to-r from-emerald-500 to-teal-400' : 'bg-gradient-to-r from-rose-700 to-rose-400'}`}
                       style={{ width: `${Math.min(100, yearlyLeadsPct)}%` }}
                     />
                   </div>
@@ -884,11 +879,11 @@ export const LeadsManagement: React.FC<LeadsManagementProps> = ({ currentUser })
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <Clock className="w-4 h-4 text-emerald-400" />
-                  <h4 className="font-black text-xs uppercase tracking-wider text-emerald-300">
-                    Monthly Target ({currentMonthName} {primaryYear}) • महीने का लक्ष्य
+                  <h4 className="text-sm font-black uppercase tracking-wider text-emerald-300">
+                    Monthly Target ({currentMonthName} {primaryYear})
                   </h4>
                 </div>
-                <span className="text-[10px] font-mono font-bold text-emerald-300 bg-emerald-950/80 border border-emerald-700/60 px-2 py-0.5 rounded">
+                <span className="rounded border border-emerald-700/60 bg-emerald-950/80 px-2 py-1 font-mono text-xs font-bold text-emerald-300">
                   Current Month
                 </span>
               </div>
@@ -896,20 +891,20 @@ export const LeadsManagement: React.FC<LeadsManagementProps> = ({ currentUser })
               <div className="space-y-3">
                 {/* Metric 1: Monthly Leads */}
                 <div className="bg-slate-900/70 p-3 rounded-xl border border-slate-700/60 space-y-1.5">
-                  <div className="flex items-center justify-between text-xs font-bold">
+                  <div className="flex items-center justify-between text-sm font-bold">
                     <span className="text-slate-300 flex items-center gap-1.5">
-                      <Users className="w-3.5 h-3.5 text-indigo-400" /> Monthly Inquiry Target:
+                      <Users className="size-4 text-rose-300" /> Monthly Inquiry Target:
                     </span>
                     <span className="text-white font-black font-mono">
                       {monthlyLeadsCount} / {targets.monthlyLeadTarget} Leads
-                      <span className={`ml-2 px-1.5 py-0.2 rounded text-[10px] ${monthlyLeadsPct >= 100 ? 'bg-emerald-500/30 text-emerald-300' : 'bg-indigo-500/30 text-indigo-300'}`}>
+                      <span className={`ml-2 rounded px-2 py-0.5 text-xs ${monthlyLeadsPct >= 100 ? 'bg-emerald-500/30 text-emerald-300' : 'bg-rose-500/30 text-rose-200'}`}>
                         {monthlyLeadsPct}%
                       </span>
                     </span>
                   </div>
                   <div className="w-full bg-slate-800 rounded-full h-2 overflow-hidden border border-slate-700">
                     <div
-                      className={`h-full transition-all duration-500 ${monthlyLeadsPct >= 100 ? 'bg-gradient-to-r from-emerald-500 to-teal-400' : 'bg-gradient-to-r from-indigo-500 to-cyan-400'}`}
+                      className={`h-full transition-all duration-500 ${monthlyLeadsPct >= 100 ? 'bg-gradient-to-r from-emerald-500 to-teal-400' : 'bg-gradient-to-r from-rose-700 to-rose-400'}`}
                       style={{ width: `${Math.min(100, monthlyLeadsPct)}%` }}
                     />
                   </div>
@@ -924,7 +919,7 @@ export const LeadsManagement: React.FC<LeadsManagementProps> = ({ currentUser })
                     <span className="text-white font-black font-mono">
                       {monthlyBookedCount} / {targets.monthlyBookedTarget} Deals
                       <span className={`ml-2 px-1.5 py-0.2 rounded text-[10px] ${monthlyBookedPct >= 100 ? 'bg-emerald-500 text-slate-950 font-black' : 'bg-emerald-500/30 text-emerald-300'}`}>
-                        {monthlyBookedPct}% {monthlyBookedPct >= 100 ? '🎉' : ''}
+                        {monthlyBookedPct}%
                       </span>
                     </span>
                   </div>
@@ -945,7 +940,7 @@ export const LeadsManagement: React.FC<LeadsManagementProps> = ({ currentUser })
                     <span className="text-white font-black font-mono">
                       ₹{monthlyBookedRevenue.toLocaleString('en-IN')} / ₹{targets.monthlyRevenueTarget.toLocaleString('en-IN')}
                       <span className={`ml-2 px-1.5 py-0.2 rounded text-[10px] ${monthlyRevPct >= 100 ? 'bg-amber-400 text-slate-950 font-black' : 'bg-amber-500/30 text-amber-300'}`}>
-                        {monthlyRevPct}% {monthlyRevPct >= 100 ? '🚀' : ''}
+                        {monthlyRevPct}%
                       </span>
                     </span>
                   </div>
@@ -962,117 +957,7 @@ export const LeadsManagement: React.FC<LeadsManagementProps> = ({ currentUser })
         </div>
       )}
 
-      {/* Header Banner */}
-      <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 rounded-3xl p-6 text-white shadow-xl border border-indigo-700/40 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[10px] font-extrabold uppercase tracking-wider flex items-center gap-1">
-              <Shield className="w-3 h-3 text-emerald-400" /> Studio Lead CRM & Privacy Vault
-            </span>
-            <span className="text-xs font-mono font-bold text-slate-200 bg-white/10 px-2.5 py-0.5 rounded-lg border border-white/10">
-              User: <strong className="text-emerald-300">{userName}</strong> ({userRole})
-            </span>
-            {!isOwner && (
-              <span className="text-[10px] bg-amber-500/20 text-amber-200 border border-amber-500/30 px-2 py-0.5 rounded-full font-bold flex items-center gap-1">
-                <Lock className="w-3 h-3 text-amber-400" /> Private View Active (My Leads Only)
-              </span>
-            )}
-          </div>
-          <h2 className="text-xl md:text-2xl font-black text-white mt-2 flex items-center gap-2">
-            <Target className="w-6 h-6 text-emerald-400" />
-            <span>Leads & Inquiry Management</span>
-          </h2>
-          <p className="text-xs text-slate-300 font-medium mt-1 max-w-2xl">
-            Complete lead ownership tracking, quotation file attachments, staff assignments, and audit logs.
-          </p>
-        </div>
-
-        <div className="flex items-center gap-2.5 shrink-0">
-          {isOwner && (
-            <div className="bg-slate-800/80 p-1 rounded-2xl border border-slate-700 flex items-center gap-1">
-              <button
-                onClick={() => setActiveSubTab('list')}
-                className={`px-3 py-1.5 rounded-xl text-xs font-extrabold transition flex items-center gap-1.5 ${
-                  activeSubTab === 'list'
-                    ? 'bg-indigo-600 text-white shadow-md'
-                    : 'text-slate-300 hover:text-white hover:bg-slate-700'
-                }`}
-              >
-                <FileText className="w-3.5 h-3.5" /> All Leads
-              </button>
-              <button
-                onClick={() => setActiveSubTab('analytics')}
-                className={`px-3 py-1.5 rounded-xl text-xs font-extrabold transition flex items-center gap-1.5 ${
-                  activeSubTab === 'analytics'
-                    ? 'bg-indigo-600 text-white shadow-md'
-                    : 'text-slate-300 hover:text-white hover:bg-slate-700'
-                }`}
-              >
-                <BarChart2 className="w-3.5 h-3.5 text-emerald-400" /> Owner Analytics
-              </button>
-            </div>
-          )}
-
-          <button
-            onClick={handleOpenAddModal}
-            className="px-4 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black rounded-xl text-xs flex items-center gap-2 transition shadow-lg hover:scale-105 cursor-pointer shrink-0"
-          >
-            <Plus className="w-4 h-4" /> + Add Lead / Inquiry
-          </button>
-        </div>
-      </div>
-
-      {/* KPI Stats Bar */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-        <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-xs">
-          <div className="flex items-center justify-between text-slate-500">
-            <span className="text-[10px] font-extrabold uppercase tracking-wider">Total Leads</span>
-            <Target className="w-4 h-4 text-indigo-600" />
-          </div>
-          <p className="text-2xl font-black text-slate-900 mt-1">{totalLeadsCount}</p>
-          <p className="text-[10px] text-slate-500 font-medium mt-0.5">
-            {isOwner ? 'All Studio Leads' : 'Assigned/Created by you'}
-          </p>
-        </div>
-
-        <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-xs">
-          <div className="flex items-center justify-between text-amber-600">
-            <span className="text-[10px] font-extrabold uppercase tracking-wider">Active Pipeline</span>
-            <Clock className="w-4 h-4 text-amber-500" />
-          </div>
-          <p className="text-2xl font-black text-amber-600 mt-1">{activeCount}</p>
-          <p className="text-[10px] text-slate-500 font-medium mt-0.5">In followups / quotes</p>
-        </div>
-
-        <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-xs">
-          <div className="flex items-center justify-between text-emerald-600">
-            <span className="text-[10px] font-extrabold uppercase tracking-wider">Booked Deals</span>
-            <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-          </div>
-          <p className="text-2xl font-black text-emerald-600 mt-1">{bookedCount}</p>
-          <p className="text-[10px] text-emerald-700 font-bold mt-0.5">
-            ₹{bookedRevenue.toLocaleString('en-IN')} Secured
-          </p>
-        </div>
-
-        <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-xs">
-          <div className="flex items-center justify-between text-indigo-600">
-            <span className="text-[10px] font-extrabold uppercase tracking-wider">Quotations Uploaded</span>
-            <FileCheck className="w-4 h-4 text-indigo-600" />
-          </div>
-          <p className="text-2xl font-black text-indigo-900 mt-1">{totalQuotationsCount}</p>
-          <p className="text-[10px] text-slate-500 font-medium mt-0.5">PDF / Excel Quotes attached</p>
-        </div>
-
-        <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-xs col-span-2 md:col-span-1">
-          <div className="flex items-center justify-between text-slate-500">
-            <span className="text-[10px] font-extrabold uppercase tracking-wider">Est. Pipeline Value</span>
-            <IndianRupee className="w-4 h-4 text-slate-700" />
-          </div>
-          <p className="text-xl font-black text-slate-900 mt-1">₹{totalPipelineRevenue.toLocaleString('en-IN')}</p>
-          <p className="text-[10px] text-slate-500 font-medium mt-0.5">Estimated budget sum</p>
-        </div>
-      </div>
+      <LeadsKpiGrid totalLeads={totalLeadsCount} activeLeads={activeCount} bookedDeals={bookedCount} bookedRevenue={bookedRevenue} quotations={totalQuotationsCount} pipelineValue={totalPipelineRevenue} isOwner={isOwner} />
 
       {/* SUB TAB VIEW SWITCH: LIST VS OWNER ANALYTICS */}
       {activeSubTab === 'analytics' && isOwner ? (
@@ -1169,81 +1054,14 @@ export const LeadsManagement: React.FC<LeadsManagementProps> = ({ currentUser })
         </div>
       ) : (
         <>
-          {/* Filters & Search Controls */}
-          <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-xs space-y-3">
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-              {/* Search */}
-              <div className="relative">
-                <Search className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
-                <input
-                  type="text"
-                  placeholder="Search client name, phone, requirement..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                />
-              </div>
-
-              {/* Status Filter */}
-              <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5">
-                <Filter className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                <select
-                  value={statusFilter}
-                  onChange={(e) => setStatusFilter(e.target.value)}
-                  className="w-full bg-transparent border-none text-xs font-bold text-slate-800 focus:outline-none cursor-pointer"
-                >
-                  <option value="all">All Lead Statuses</option>
-                  <option value="new">🆕 New Inquiries</option>
-                  <option value="contacted">📞 Contacted / Followup</option>
-                  <option value="meeting_fixed">📅 Meeting Fixed</option>
-                  <option value="quotation_sent">📄 Quotation Sent</option>
-                  <option value="booked">✓ Booked Deals</option>
-                  <option value="lost">❌ Lost / Unconverted</option>
-                </select>
-              </div>
-
-              {/* Source Filter */}
-              <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5">
-                <Share2 className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                <select
-                  value={sourceFilter}
-                  onChange={(e) => setSourceFilter(e.target.value)}
-                  className="w-full bg-transparent border-none text-xs font-bold text-slate-800 focus:outline-none cursor-pointer"
-                >
-                  <option value="all">All Sources</option>
-                  <option value="Instagram">Instagram</option>
-                  <option value="Meta Ads">Meta Ads</option>
-                  <option value="Google Ads">Google Ads</option>
-                  <option value="Reference / Word of Mouth">Reference / Word of Mouth</option>
-                  <option value="Website">Website</option>
-                  <option value="Walk-in">Walk-in</option>
-                  <option value="Google Search">Google Search</option>
-                </select>
-              </div>
-
-              {/* Staff Assignee Filter (Available for Owner or search) */}
-              <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5">
-                <UserCheck className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
-                <select
-                  value={assigneeFilter}
-                  onChange={(e) => setAssigneeFilter(e.target.value)}
-                  className="w-full bg-transparent border-none text-xs font-bold text-slate-800 focus:outline-none cursor-pointer"
-                >
-                  <option value="all">Filter by Staff Assignee</option>
-                  {SALES_TEAM_OPTIONS.map((m) => (
-                    <option key={m} value={m}>{m}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
-          </div>
+          <LeadsFilterBar search={searchQuery} status={statusFilter} source={sourceFilter} assignee={assigneeFilter} teamOptions={SALES_TEAM_OPTIONS} onSearchChange={setSearchQuery} onStatusChange={setStatusFilter} onSourceChange={setSourceFilter} onAssigneeChange={setAssigneeFilter} />
 
           {/* Leads Data Table */}
-          <div className="bg-white rounded-3xl border border-slate-200 shadow-xs overflow-hidden">
+          <div className="overflow-hidden rounded-3xl border border-[#e2d9d3] bg-white shadow-[0_12px_34px_rgba(48,44,46,.07)]">
             <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse text-xs">
+              <table className="w-full border-collapse text-left text-sm">
                 <thead>
-                  <tr className="bg-slate-900 text-slate-200 font-extrabold uppercase text-[10px] tracking-wider border-b border-slate-800">
+                  <tr className="border-b border-[#7e5363] bg-[#4b303a] text-xs font-extrabold uppercase tracking-wider text-[#f4e8ec]">
                     <th className="p-3.5 whitespace-nowrap min-w-[200px]">Client & Inquiry</th>
                     <th className="p-3.5 whitespace-nowrap min-w-[150px]">Contact Details</th>
                     <th className="p-3.5 whitespace-nowrap min-w-[170px]">Event Type / Requirement</th>
@@ -1275,11 +1093,11 @@ export const LeadsManagement: React.FC<LeadsManagementProps> = ({ currentUser })
 
                       return (
                         <React.Fragment key={lead.id}>
-                          <tr className="hover:bg-slate-50/80 transition group align-top">
+                          <tr className="group align-top transition hover:bg-rose-50/50">
                             {/* Client Name & ID */}
                             <td className="p-3.5 font-black text-slate-900 align-top">
                               <div className="flex items-center gap-2 py-0.5">
-                                <div className="w-8 h-8 rounded-full bg-emerald-100 text-emerald-800 font-extrabold flex items-center justify-center shrink-0 border border-emerald-200 text-xs">
+                                <div className="flex size-9 shrink-0 items-center justify-center rounded-xl border border-rose-200 bg-rose-50 text-sm font-extrabold text-rose-800">
                                   {index + 1}
                                 </div>
                                 <div>
@@ -1472,12 +1290,12 @@ export const LeadsManagement: React.FC<LeadsManagementProps> = ({ currentUser })
                                     : 'bg-slate-100 text-slate-800 border-slate-300'
                                 }`}
                               >
-                                <option value="new">🆕 New Inquiry</option>
-                                <option value="contacted">📞 Contacted / Followup</option>
-                                <option value="meeting_fixed">📅 Meeting Fixed</option>
-                                <option value="quotation_sent">📄 Quotation Sent</option>
-                                <option value="booked">✓ Booked Deal</option>
-                                <option value="lost">❌ Lost / Unconverted</option>
+                                <option value="new">New Inquiry</option>
+                                <option value="contacted">Contacted / Followup</option>
+                                <option value="meeting_fixed">Meeting Fixed</option>
+                                <option value="quotation_sent">Quotation Sent</option>
+                                <option value="booked">Booked Deal</option>
+                                <option value="lost">Lost / Unconverted</option>
                               </select>
 
                               {lead.status === 'booked' && (
@@ -1578,7 +1396,7 @@ export const LeadsManagement: React.FC<LeadsManagementProps> = ({ currentUser })
                                   <FileText className="w-4 h-4 text-amber-800 shrink-0 mt-0.5" />
                                   <div>
                                     <span className="text-[10px] uppercase tracking-wider font-extrabold text-amber-900 block">
-                                      📝 Lead Note / Reminder:
+                                      Lead Note / Reminder:
                                     </span>
                                     <p className="text-xs font-bold text-slate-900 mt-1 leading-relaxed whitespace-pre-wrap break-words max-w-4xl">
                                       "{lead.notes}"
@@ -1611,779 +1429,82 @@ export const LeadsManagement: React.FC<LeadsManagementProps> = ({ currentUser })
         </>
       )}
 
-      {/* 1. ADD / EDIT LEAD MODAL */}
-      {showAddLeadModal && (
-        <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
-          <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 space-y-4 max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <h3 className="text-lg font-black text-slate-900 flex items-center gap-2">
-                <Target className="w-5 h-5 text-emerald-600" />
-                {editingLead ? 'Edit Lead Record' : 'Add New Lead / Inquiry'}
-              </h3>
-              <button
-                onClick={() => setShowAddLeadModal(false)}
-                className="p-1 text-slate-400 hover:text-slate-600 rounded-lg cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <form onSubmit={handleSaveLead} className="space-y-4 text-xs">
-              <div>
-                <label className="font-extrabold text-slate-700 block mb-1">
-                  Client Name (Optional if unknown)
-                </label>
-                <input
-                  type="text"
-                  placeholder="e.g. Aarav & Ishita / Verma Family"
-                  value={clientName}
-                  onChange={(e) => setClientName(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500 font-bold text-slate-900"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-2.5">
-                <div>
-                  <label className="font-extrabold text-slate-700 block mb-1">Mobile Number *</label>
-                  <input
-                    type="tel"
-                    required
-                    placeholder="e.g. 9876543210"
-                    value={mobile}
-                    onChange={(e) => setMobile(e.target.value)}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500 font-bold text-slate-900"
-                  />
-                </div>
-
-                <div>
-                  <label className="font-extrabold text-slate-700 block mb-1">Email ID</label>
-                  <input
-                    type="email"
-                    placeholder="client@gmail.com"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500 font-bold text-slate-900"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="font-extrabold text-slate-700 block mb-1">Event Requirement / Type</label>
-                <input
-                  type="text"
-                  placeholder="e.g. Wedding Photography + Drone Shoot + Album"
-                  value={eventType}
-                  onChange={(e) => setEventType(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500 font-bold text-slate-900"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-2.5">
-                <div>
-                  <label className="font-extrabold text-slate-700 block mb-1">Event Date</label>
-                  <input
-                    type="date"
-                    value={eventDate}
-                    onChange={(e) => setEventDate(e.target.value)}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500 font-bold text-slate-900"
-                  />
-                </div>
-
-                <div>
-                  <label className="font-extrabold text-slate-700 block mb-1">Budget Est. ₹</label>
-                  <input
-                    type="number"
-                    placeholder="e.g. 150000"
-                    value={budgetEstimate}
-                    onChange={(e) => setBudgetEstimate(e.target.value === '' ? '' : Number(e.target.value))}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500 font-bold text-slate-900"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-2.5">
-                <div>
-                  <label className="font-extrabold text-slate-700 block mb-1">Lead Status</label>
-                  <select
-                    value={status}
-                    onChange={(e) => setStatus(e.target.value as LeadStatus)}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500 font-bold text-slate-900 cursor-pointer bg-white"
-                  >
-                    <option value="new">🆕 New Inquiry</option>
-                    <option value="contacted">📞 Contacted / Followup</option>
-                    <option value="meeting_fixed">📅 Meeting Fixed</option>
-                    <option value="quotation_sent">📄 Quotation Sent</option>
-                    <option value="booked">✓ Booked Deal</option>
-                    <option value="lost">❌ Lost / Unconverted</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="font-extrabold text-slate-700 block mb-1">Lead Source</label>
-                  <input
-                    type="text"
-                    list="sources-list"
-                    placeholder="e.g. Meta Ads, Google Ads, Instagram..."
-                    value={source}
-                    onChange={(e) => setSource(e.target.value)}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500 font-bold text-slate-900"
-                  />
-                  <datalist id="sources-list">
-                    <option value="Instagram" />
-                    <option value="Meta Ads" />
-                    <option value="Google Ads" />
-                    <option value="Reference / Word of Mouth" />
-                    <option value="Website" />
-                    <option value="Walk-in" />
-                    <option value="Google Search" />
-                  </datalist>
-                </div>
-
-                {status === 'booked' && (
-                  <div className="col-span-2 bg-emerald-50 border-2 border-emerald-400 rounded-xl p-3.5 space-y-3 shadow-2xs">
-                    <div>
-                      <label className="font-black text-emerald-900 text-xs flex items-center gap-1.5">
-                        <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                        <span>Finalized Deal Amount (₹) *</span>
-                      </label>
-                      <p className="text-[11px] text-emerald-700 font-medium">Specify the total agreed package amount for this client.</p>
-                      <div className="relative mt-1">
-                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-black text-emerald-800">₹</span>
-                        <input
-                          type="number"
-                          placeholder="e.g. 180000"
-                          value={budgetEstimate}
-                          onChange={(e) => setBudgetEstimate(e.target.value === '' ? '' : Number(e.target.value))}
-                          className="w-full pl-7 pr-3 py-2 rounded-lg border border-emerald-300 bg-white font-black text-sm text-emerald-950 focus:outline-emerald-600"
-                          required={status === 'booked'}
-                        />
-                      </div>
-                    </div>
-
-                    <div className="pt-2 border-t border-emerald-200">
-                      <label className="font-black text-emerald-900 text-xs flex items-center gap-1.5">
-                        <CheckCircle2 className="w-4 h-4 text-indigo-600" />
-                        <span>Advance Amount Received (₹)</span>
-                      </label>
-                      <p className="text-[11px] text-emerald-700 font-medium">Advance deposit collected at booking time.</p>
-                      <div className="relative mt-1">
-                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-black text-indigo-800">₹</span>
-                        <input
-                          type="number"
-                          placeholder="e.g. 50000"
-                          value={advanceReceived}
-                          onChange={(e) => setAdvanceReceived(e.target.value === '' ? '' : Number(e.target.value))}
-                          className="w-full pl-7 pr-3 py-2 rounded-lg border border-emerald-300 bg-white font-black text-sm text-slate-950 focus:outline-emerald-600"
-                        />
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              <div>
-                <label className="font-extrabold text-slate-700 block mb-1">Assign Lead To (Sales / Studio Staff)</label>
-                <select
-                  value={assignedTo}
-                  onChange={(e) => setAssignedTo(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl border border-indigo-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 font-bold text-slate-900 bg-indigo-50/40 cursor-pointer"
-                >
-                  <option value="">-- Select Sales / Staff Member --</option>
-                  {SALES_TEAM_OPTIONS.map((member) => (
-                    <option key={member} value={member}>
-                      {member}
-                    </option>
-                  ))}
-                  {assignedTo && !SALES_TEAM_OPTIONS.includes(assignedTo) && (
-                    <option value={assignedTo}>{assignedTo}</option>
-                  )}
-                </select>
-              </div>
-
-              <div>
-                <label className="font-extrabold text-slate-700 block mb-1">Inquiry Notes / Special Remarks</label>
-                <textarea
-                  rows={2}
-                  placeholder="e.g. Wants 2 videographers and traditional album..."
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500 font-bold text-slate-900"
-                />
-              </div>
-
-              <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
-                <button
-                  type="button"
-                  onClick={() => setShowAddLeadModal(false)}
-                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-extrabold rounded-xl transition cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black rounded-xl transition cursor-pointer shadow-md"
-                >
-                  {editingLead ? 'Update Lead' : 'Save Lead Record'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* 2. QUOTATION UPLOAD & MANAGED ATTACHMENTS MODAL */}
-      {quotationModalLead && (
-        <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
-          <div className="bg-white rounded-3xl max-w-xl w-full p-6 shadow-2xl border border-slate-200 space-y-5 max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <div>
-                <span className="px-2 py-0.5 rounded bg-indigo-100 text-indigo-900 font-mono text-[10px] font-bold">
-                  Lead #{quotationModalLead.id.slice(-4)}
-                </span>
-                <h3 className="text-lg font-black text-slate-900 mt-1 flex items-center gap-2">
-                  <Paperclip className="w-5 h-5 text-indigo-600" />
-                  Quotation Documents
-                </h3>
-                <p className="text-xs text-slate-500 font-medium">
-                  Attached for: <strong>{quotationModalLead.clientName || 'Inquiry Record'}</strong> ({quotationModalLead.mobile})
-                </p>
-              </div>
-              <button
-                onClick={() => setQuotationModalLead(null)}
-                className="p-1 text-slate-400 hover:text-slate-600 rounded-lg cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            {/* List of Attached Quotations */}
-            <div className="space-y-3">
-              <h4 className="text-xs font-black uppercase text-slate-500 tracking-wider">
-                Attached Quotation Files ({quotationModalLead.quotations?.length || 0})
-              </h4>
-
-              {(!quotationModalLead.quotations || quotationModalLead.quotations.length === 0) ? (
-                <div className="p-6 text-center border-2 border-dashed border-slate-200 rounded-2xl bg-slate-50 text-slate-400 text-xs italic">
-                  No quotation files attached yet for this lead inquiry. Use the form below to upload PDF/Word/Excel quote.
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  {quotationModalLead.quotations.map((q) => (
-                    <div
-                      key={q.id}
-                      className="flex items-center justify-between p-3 rounded-2xl border border-indigo-100 bg-indigo-50/40 hover:bg-indigo-50 transition text-xs"
-                    >
-                      <div className="flex items-center gap-2.5">
-                        <div className="p-2 rounded-xl bg-indigo-600 text-white font-extrabold text-[10px] uppercase">
-                          {q.fileType || 'PDF'}
-                        </div>
-                        <div>
-                          <p className="font-extrabold text-indigo-950">{q.fileName}</p>
-                          <div className="flex items-center gap-2 text-[10px] text-slate-500 font-medium mt-0.5">
-                            <span>Size: {q.fileSize || '1.5 MB'}</span>
-                            <span>•</span>
-                            <span>Uploaded by: <strong className="text-slate-700">{q.uploadedBy}</strong> on {q.uploadedDate}</span>
-                          </div>
-                          {q.notes && (
-                            <p className="text-[10px] text-indigo-800 italic mt-0.5">"{q.notes}"</p>
-                          )}
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-1.5">
-                        <button
-                          onClick={() => setPreviewQuotation({ file: q, lead: quotationModalLead })}
-                          className="px-2.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold rounded-lg transition cursor-pointer flex items-center gap-1 text-xs shadow-2xs"
-                          title="View / Preview Quotation Document"
-                        >
-                          <Eye className="w-3.5 h-3.5" />
-                          <span>View</span>
-                        </button>
-
-                        {q.fileUrl ? (
-                          <a
-                            href={q.fileUrl}
-                            download={q.fileName}
-                            className="p-1.5 bg-slate-200 text-slate-800 rounded-lg hover:bg-slate-300 transition"
-                            title="Download Quotation File"
-                          >
-                            <Download className="w-3.5 h-3.5" />
-                          </a>
-                        ) : (
-                          <button
-                            onClick={() => alert(`Simulated Download for ${q.fileName}`)}
-                            className="p-1.5 bg-slate-200 text-slate-800 rounded-lg hover:bg-slate-300 transition cursor-pointer"
-                            title="Download File"
-                          >
-                            <Download className="w-3.5 h-3.5" />
-                          </button>
-                        )}
-
-                        {(isOwner || q.uploadedBy === userName) && (
-                          <button
-                            onClick={() => handleDeleteQuotation(quotationModalLead.id, q.id, q.fileName)}
-                            className="p-1.5 text-red-500 hover:bg-red-100 rounded-lg transition cursor-pointer"
-                            title="Delete Quotation"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* Upload Form */}
-            <form onSubmit={handleSaveQuotation} className="bg-slate-50 rounded-2xl p-4 border border-slate-200 space-y-3 text-xs">
-              <h4 className="font-black text-slate-900 flex items-center gap-1.5">
-                <Upload className="w-4 h-4 text-emerald-600" /> Upload New Quotation File
-              </h4>
-
-              <div>
-                <label className="font-extrabold text-slate-700 block mb-1">Select Quotation File (PDF, Word, Excel, Image)</label>
-                <input
-                  type="file"
-                  onChange={handleFileChange}
-                  accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg"
-                  className="w-full text-slate-700 font-bold file:mr-3 file:py-1.5 file:px-3 file:rounded-xl file:border-0 file:text-xs file:font-black file:bg-indigo-600 file:text-white hover:file:bg-indigo-700 cursor-pointer"
-                />
-              </div>
-
-              <div>
-                <label className="font-extrabold text-slate-700 block mb-1">Or File Name / Reference Name</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. ClientName_Wedding_Quotation_v1.pdf"
-                  value={newQuoteFileName}
-                  onChange={(e) => setNewQuoteFileName(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white font-bold text-slate-900"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="font-extrabold text-slate-700 block mb-1">Format Type</label>
-                  <select
-                    value={newQuoteFileType}
-                    onChange={(e) => setNewQuoteFileType(e.target.value)}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white font-bold text-slate-900 cursor-pointer"
-                  >
-                    <option value="pdf">PDF Document</option>
-                    <option value="excel">Excel Spreadsheet (.xlsx)</option>
-                    <option value="word">Word File (.docx)</option>
-                    <option value="image">Image / JPG Quote</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="font-extrabold text-slate-700 block mb-1">Quotation Notes / Discount</label>
-                  <input
-                    type="text"
-                    placeholder="e.g. Includes 10% discount if booked this week"
-                    value={newQuoteNotes}
-                    onChange={(e) => setNewQuoteNotes(e.target.value)}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white font-bold text-slate-900"
-                  />
-                </div>
-              </div>
-
-              <div className="flex justify-end pt-1">
-                <button
-                  type="submit"
-                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-black rounded-xl transition cursor-pointer shadow-sm flex items-center gap-1.5"
-                >
-                  <Upload className="w-3.5 h-3.5" /> Save Quotation File
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* 3. AUDIT HISTORY & TIMELINE MODAL */}
-      {historyModalLead && (
-        <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
-          <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 space-y-4 max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <div>
-                <span className="px-2 py-0.5 rounded bg-emerald-100 text-emerald-900 font-mono text-[10px] font-bold">
-                  Lead ID #{historyModalLead.id.slice(-4)}
-                </span>
-                <h3 className="text-lg font-black text-slate-900 mt-1 flex items-center gap-2">
-                  <History className="w-5 h-5 text-indigo-600" />
-                  Lead Audit History & Timeline
-                </h3>
-                <p className="text-xs text-slate-500 font-medium">
-                  Client: <strong>{historyModalLead.clientName}</strong> | Created by: <strong>{historyModalLead.createdBy || 'Studio Owner'}</strong>
-                </p>
-              </div>
-              <button
-                onClick={() => setHistoryModalLead(null)}
-                className="p-1 text-slate-400 hover:text-slate-600 rounded-lg cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            {/* Audit Logs List */}
-            <div className="space-y-3 text-xs">
-              {(!historyModalLead.activityLogs || historyModalLead.activityLogs.length === 0) ? (
-                <div className="p-6 text-center text-slate-400 italic">No activity logs recorded yet.</div>
-              ) : (
-                <div className="relative pl-4 border-l-2 border-indigo-200 space-y-4 my-2">
-                  {historyModalLead.activityLogs.map((log) => (
-                    <div key={log.id} className="relative group">
-                      <div className="absolute -left-[21px] top-1 w-2.5 h-2.5 rounded-full bg-indigo-600 ring-4 ring-white" />
-                      <div className="bg-slate-50 p-3 rounded-2xl border border-slate-200">
-                        <div className="flex items-center justify-between text-[10px] text-slate-400 font-mono">
-                          <span>{log.timestamp}</span>
-                          <span className="font-extrabold text-indigo-900">by {log.performedBy}</span>
-                        </div>
-                        <p className="font-extrabold text-slate-900 text-xs mt-1">{log.description}</p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            <div className="flex justify-end pt-2 border-t border-slate-100">
-              <button
-                onClick={() => setHistoryModalLead(null)}
-                className="px-4 py-2 bg-slate-900 text-white font-extrabold rounded-xl transition cursor-pointer"
-              >
-                Close History Window
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* 4. QUICK ADD / EDIT NOTE MODAL */}
-      {noteModalLead && (
-        <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
-          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <div>
-                <span className="px-2 py-0.5 rounded bg-amber-100 text-amber-900 font-mono text-[10px] font-bold">
-                  Lead ID #{noteModalLead.id.slice(-4)}
-                </span>
-                <h3 className="text-base font-black text-slate-900 mt-1 flex items-center gap-2">
-                  <FileText className="w-5 h-5 text-amber-600" />
-                  Add / Edit Lead Note
-                </h3>
-                <p className="text-xs text-slate-500 font-medium">
-                  Client: <strong>{noteModalLead.clientName}</strong>
-                </p>
-              </div>
-              <button
-                onClick={() => setNoteModalLead(null)}
-                className="p-1 text-slate-400 hover:text-slate-600 rounded-lg cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <form onSubmit={handleSaveQuickNote} className="space-y-4">
-              <div>
-                <label className="block text-xs font-extrabold text-slate-700 mb-1">
-                  Note / Important Remark:
-                </label>
-                <textarea
-                  rows={4}
-                  required
-                  placeholder="e.g. Client requested 3-day wedding coverage package, called today for budget negotiation."
-                  value={quickNoteText}
-                  onChange={(e) => setQuickNoteText(e.target.value)}
-                  className="w-full p-3 rounded-xl border border-slate-200 bg-slate-50 font-bold text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500"
-                />
-              </div>
-
-              <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
-                <button
-                  type="button"
-                  onClick={() => setNoteModalLead(null)}
-                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-extrabold rounded-xl text-xs transition cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 font-black rounded-xl text-xs transition cursor-pointer shadow-sm flex items-center gap-1.5"
-                >
-                  <Check className="w-4 h-4" /> Save Note
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* 5. FULL QUOTATION DOCUMENT PREVIEW & PRINT MODAL */}
-      {previewQuotation && (
-        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-3 md:p-6 z-[60] animate-in fade-in duration-200">
-          <div className="bg-white rounded-3xl max-w-4xl w-full shadow-2xl border border-slate-200 flex flex-col max-h-[92vh] overflow-hidden">
-            {/* Header */}
-            <div className="p-4 md:p-5 bg-slate-900 text-white flex items-center justify-between border-b border-slate-800 shrink-0">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-2xl bg-indigo-600 text-white flex items-center justify-center shrink-0">
-                  <FileText className="w-5 h-5" />
-                </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="bg-indigo-500/30 text-indigo-200 px-2 py-0.5 rounded text-[10px] font-mono font-extrabold uppercase">
-                      Quotation Preview
-                    </span>
-                    <span className="text-slate-400 text-xs">• {previewQuotation.file.fileName}</span>
-                  </div>
-                  <h3 className="text-base md:text-lg font-black text-white mt-0.5">
-                    Client: {previewQuotation.lead.clientName || 'Inquiry Client'} ({previewQuotation.lead.mobile})
-                  </h3>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2">
-                {previewQuotation.file.fileUrl && (
-                  <a
-                    href={previewQuotation.file.fileUrl}
-                    download={previewQuotation.file.fileName}
-                    className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold text-xs rounded-xl transition flex items-center gap-1.5 cursor-pointer"
-                  >
-                    <Download className="w-3.5 h-3.5" />
-                    <span className="hidden sm:inline">Download</span>
-                  </a>
-                )}
-                <button
-                  onClick={() => window.print()}
-                  className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 font-extrabold text-xs rounded-xl border border-slate-700 transition flex items-center gap-1.5 cursor-pointer"
-                  title="Print Quotation"
-                >
-                  <Printer className="w-3.5 h-3.5" />
-                  <span className="hidden sm:inline">Print</span>
-                </button>
-                <button
-                  onClick={() => setPreviewQuotation(null)}
-                  className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-xl transition cursor-pointer"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-            </div>
-
-            {/* Body Area */}
-            <div className="p-4 md:p-6 overflow-y-auto space-y-6 bg-slate-100 flex-1">
-              {/* If file is an uploaded image or PDF base64 URL */}
-              {previewQuotation.file.fileUrl && previewQuotation.file.fileUrl.startsWith('data:image/') ? (
-                <div className="bg-white p-3 rounded-2xl border border-slate-200 shadow-xs flex justify-center">
-                  <img
-                    src={previewQuotation.file.fileUrl || undefined}
-                    alt={previewQuotation.file.fileName}
-                    className="max-h-[60vh] object-contain rounded-xl"
-                  />
-                </div>
-              ) : previewQuotation.file.fileUrl && previewQuotation.file.fileUrl.startsWith('data:application/pdf') ? (
-                <div className="bg-white p-2 rounded-2xl border border-slate-200 shadow-xs h-[65vh]">
-                  <iframe
-                    src={previewQuotation.file.fileUrl || undefined}
-                    title={previewQuotation.file.fileName}
-                    className="w-full h-full rounded-xl"
-                  />
-                </div>
-              ) : null}
-
-              {/* Studio Generated Printable Quotation Sheet */}
-              <div className="bg-white rounded-2xl p-6 md:p-8 border border-slate-200 shadow-md space-y-6 text-slate-900 max-w-3xl mx-auto">
-                {/* Document Header */}
-                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between border-b-2 border-slate-900 pb-5 gap-4">
-                  <div>
-                    <span className="text-[10px] font-black uppercase tracking-widest text-indigo-600 block">Official Studio Quotation Document</span>
-                    <h2 className="text-xl md:text-2xl font-black text-slate-900 tracking-tight">AARVI PRODUCTION & FILMS</h2>
-                    <p className="text-xs text-slate-500 font-bold mt-0.5">High-End Wedding Photography & Cinematography Studio</p>
-                  </div>
-                  <div className="text-left sm:text-right bg-slate-50 p-3 rounded-xl border border-slate-200 min-w-[180px]">
-                    <span className="text-[10px] text-slate-400 font-extrabold uppercase block">Quotation Ref No</span>
-                    <p className="text-xs font-mono font-black text-indigo-700">#QT-{previewQuotation.lead.id.slice(-6).toUpperCase()}</p>
-                    <p className="text-[10px] text-slate-500 font-bold mt-1">Date: {previewQuotation.file.uploadedDate}</p>
-                  </div>
-                </div>
-
-                {/* Client & Event Info Box */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-indigo-50/60 p-4 rounded-xl border border-indigo-100 text-xs">
-                  <div>
-                    <span className="text-[10px] uppercase font-black text-indigo-900 block mb-1">Prepared For (Client):</span>
-                    <p className="text-sm font-black text-slate-900">{previewQuotation.lead.clientName || 'Inquiry Client'}</p>
-                    <p className="font-extrabold text-slate-700 mt-0.5">📞 Mobile: {previewQuotation.lead.mobile}</p>
-                    {previewQuotation.lead.email && <p className="text-slate-600 font-medium">✉️ {previewQuotation.lead.email}</p>}
-                  </div>
-                  <div>
-                    <span className="text-[10px] uppercase font-black text-indigo-900 block mb-1">Event Requirement:</span>
-                    <p className="text-sm font-black text-slate-900">{previewQuotation.lead.eventType}</p>
-                    <p className="font-extrabold text-slate-700 mt-0.5">📅 Date: {previewQuotation.lead.eventDate || 'To Be Confirmed'}</p>
-                    <p className="font-extrabold text-emerald-700 mt-0.5">💰 Estimated Budget: ₹{(previewQuotation.lead.budgetEstimate || 0).toLocaleString('en-IN')}</p>
-                  </div>
-                </div>
-
-                {/* Quotation Item Breakdown */}
-                <div className="space-y-3">
-                  <h4 className="text-xs font-black uppercase text-slate-800 tracking-wider">Quotation Services & Pricing Summary</h4>
-                  <div className="border border-slate-200 rounded-xl overflow-hidden text-xs">
-                    <table className="w-full text-left">
-                      <thead className="bg-slate-900 text-white font-extrabold text-[11px]">
-                        <tr>
-                          <th className="p-3">Service / Package Description</th>
-                          <th className="p-3 text-right">Estimated Amount (₹)</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-200 font-medium">
-                        <tr>
-                          <td className="p-3">
-                            <p className="font-black text-slate-900">{previewQuotation.lead.eventType} Photography & Videography Package</p>
-                            <p className="text-[11px] text-slate-500 mt-0.5">
-                              Includes Traditional Photography, Candid Photography, Cinematic Teaser, Full HD Highlights, and Color Retouched High-Res Photos.
-                            </p>
-                            {previewQuotation.file.notes && (
-                              <p className="text-[11px] text-indigo-700 font-bold italic mt-1 bg-indigo-50 p-1.5 rounded border border-indigo-100">
-                                Note: "{previewQuotation.file.notes}"
-                              </p>
-                            )}
-                          </td>
-                          <td className="p-3 text-right font-black text-slate-900 text-sm align-top">
-                            ₹{(previewQuotation.lead.budgetEstimate || 0).toLocaleString('en-IN')}
-                          </td>
-                        </tr>
-                        <tr className="bg-slate-50 font-black text-slate-900">
-                          <td className="p-3 text-right uppercase text-[11px]">Total Estimated Quote:</td>
-                          <td className="p-3 text-right text-base text-emerald-700">
-                            ₹{(previewQuotation.lead.budgetEstimate || 0).toLocaleString('en-IN')}
-                          </td>
-                        </tr>
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-
-                {/* Payment Terms & Footer */}
-                <div className="border-t border-slate-200 pt-4 grid grid-cols-1 md:grid-cols-2 gap-4 text-[11px]">
-                  <div className="space-y-1 text-slate-600">
-                    <span className="font-extrabold uppercase text-slate-900 block text-[10px]">Payment Schedule Terms:</span>
-                    <p>• 30% Advance at the time of booking confirmation.</p>
-                    <p>• 60% On the function / shoot date.</p>
-                    <p>• 10% At the time of final raw & edited album handover.</p>
-                  </div>
-                  <div className="text-right flex flex-col justify-end items-end space-y-1">
-                    <span className="text-[10px] text-slate-400 font-bold">Uploaded By: {previewQuotation.file.uploadedBy}</span>
-                    <span className="text-xs font-black text-slate-900 border-t border-slate-300 pt-2 px-4 inline-block mt-4">
-                      Authorized Signature & Seal
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* BOOKING DEAL AMOUNT MODAL */}
-      {bookingAmountModalLead && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fadeIn">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-100 space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <div className="flex items-center gap-2">
-                <div className="p-2 rounded-xl bg-emerald-100 text-emerald-700">
-                  <CheckCircle2 className="w-5 h-5" />
-                </div>
-                <div>
-                  <h3 className="font-extrabold text-slate-900 text-base">Booked Deal Details</h3>
-                  <p className="text-xs text-slate-500 font-medium">Client: {bookingAmountModalLead.clientName}</p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  setBookingAmountModalLead(null);
-                  setModalFinalAmount('');
-                  setModalAdvanceAmount('');
-                }}
-                className="p-1 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <form onSubmit={handleConfirmBookingAmount} className="space-y-4">
-              <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3.5 space-y-3">
-                <div className="space-y-1">
-                  <label className="block text-xs font-black text-emerald-900 uppercase tracking-wide">
-                    Finalized Deal Amount (₹) *
-                  </label>
-                  <p className="text-[11px] text-emerald-700 font-medium leading-relaxed">
-                    Total agreed package amount for <strong>{bookingAmountModalLead.clientName}</strong>.
-                  </p>
-                  <div className="relative mt-1">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-black text-emerald-800">₹</span>
-                    <input
-                      type="number"
-                      value={modalFinalAmount}
-                      onChange={(e) => setModalFinalAmount(e.target.value)}
-                      placeholder="e.g. 250000"
-                      className="w-full pl-8 pr-3 py-2 bg-white border border-emerald-300 rounded-xl font-mono text-sm font-black text-emerald-950 focus:outline-emerald-600 shadow-2xs"
-                      autoFocus
-                      required
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-1 pt-2 border-t border-emerald-200">
-                  <label className="block text-xs font-black text-emerald-900 uppercase tracking-wide">
-                    Advance Amount Received (₹)
-                  </label>
-                  <p className="text-[11px] text-emerald-700 font-medium leading-relaxed">
-                    Advance deposit collected from client at booking time.
-                  </p>
-                  <div className="relative mt-1">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-black text-indigo-800">₹</span>
-                    <input
-                      type="number"
-                      value={modalAdvanceAmount}
-                      onChange={(e) => setModalAdvanceAmount(e.target.value)}
-                      placeholder="e.g. 50000"
-                      className="w-full pl-8 pr-3 py-2 bg-white border border-emerald-300 rounded-xl font-mono text-sm font-black text-slate-950 focus:outline-emerald-600 shadow-2xs"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setBookingAmountModalLead(null);
-                    setModalFinalAmount('');
-                    setModalAdvanceAmount('');
-                  }}
-                  className="px-4 py-2.5 rounded-xl border border-slate-200 text-slate-700 font-bold text-xs hover:bg-slate-50 transition cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs shadow-md transition flex items-center gap-1.5 cursor-pointer"
-                >
-                  <CheckCircle2 className="w-4 h-4" />
-                  <span>Confirm & Save Booked Deal</span>
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
+      <LeadFormModal
+        open={showAddLeadModal}
+        editingLead={editingLead}
+        clientName={clientName}
+        mobile={mobile}
+        email={email}
+        eventType={eventType}
+        eventDate={eventDate}
+        budgetEstimate={budgetEstimate}
+        advanceReceived={advanceReceived}
+        status={status}
+        source={source}
+        assignedTo={assignedTo}
+        notes={notes}
+        teamOptions={SALES_TEAM_OPTIONS}
+        onClientNameChange={setClientName}
+        onMobileChange={setMobile}
+        onEmailChange={setEmail}
+        onEventTypeChange={setEventType}
+        onEventDateChange={setEventDate}
+        onBudgetChange={setBudgetEstimate}
+        onAdvanceChange={setAdvanceReceived}
+        onStatusChange={setStatus}
+        onSourceChange={setSource}
+        onAssignedToChange={setAssignedTo}
+        onNotesChange={setNotes}
+        onClose={() => setShowAddLeadModal(false)}
+        onSubmit={handleSaveLead}
+      />
+      <LeadQuotationModal
+        lead={quotationModalLead}
+        fileName={newQuoteFileName}
+        fileType={newQuoteFileType}
+        notes={newQuoteNotes}
+        isOwner={isOwner}
+        userName={userName}
+        onClose={() => setQuotationModalLead(null)}
+        onPreview={(file, lead) => setPreviewQuotation({ file, lead })}
+        onDelete={handleDeleteQuotation}
+        onFileChange={handleFileChange}
+        onFileNameChange={setNewQuoteFileName}
+        onFileTypeChange={setNewQuoteFileType}
+        onNotesChange={setNewQuoteNotes}
+        onSubmit={handleSaveQuotation}
+      />
+      <LeadHistoryModal
+        lead={historyModalLead}
+        onClose={() => setHistoryModalLead(null)}
+      />
+      <LeadNoteModal
+        lead={noteModalLead}
+        value={quickNoteText}
+        onValueChange={setQuickNoteText}
+        onClose={() => setNoteModalLead(null)}
+        onSubmit={handleSaveQuickNote}
+      />
+      <LeadQuotationPreview
+        preview={previewQuotation}
+        onClose={() => setPreviewQuotation(null)}
+      />
+      <LeadBookingModal
+        lead={bookingAmountModalLead}
+        finalAmount={modalFinalAmount}
+        advanceAmount={modalAdvanceAmount}
+        onFinalAmountChange={setModalFinalAmount}
+        onAdvanceAmountChange={setModalAdvanceAmount}
+        onClose={() => {
+          setBookingAmountModalLead(null);
+          setModalFinalAmount('');
+          setModalAdvanceAmount('');
+        }}
+        onSubmit={handleConfirmBookingAmount}
+      />
       {/* 6. CONFIRMATION MODALS FOR DELETION */}
-      <ConfirmDeleteModal
-        isOpen={!!leadToDelete}
+      <LeadDeleteConfirmModal
+        open={!!leadToDelete}
         title="Delete Lead Record"
         itemTitle={leadToDelete?.clientName || 'Inquiry Record'}
         message={`Are you sure you want to delete lead "${leadToDelete?.clientName || 'Inquiry Record'}"? This action cannot be undone.`}
@@ -2396,8 +1517,8 @@ export const LeadsManagement: React.FC<LeadsManagementProps> = ({ currentUser })
         onCancel={() => setLeadToDelete(null)}
       />
 
-      <ConfirmDeleteModal
-        isOpen={!!quoteToDelete}
+      <LeadDeleteConfirmModal
+        open={!!quoteToDelete}
         title="Delete Quotation File"
         itemTitle={quoteToDelete?.fileName || 'Quotation Document'}
         message={`Are you sure you want to delete quotation document "${quoteToDelete?.fileName || ''}"?`}
@@ -2426,308 +1547,13 @@ export const LeadsManagement: React.FC<LeadsManagementProps> = ({ currentUser })
         onCancel={() => setQuoteToDelete(null)}
       />
 
-      {/* LEAD TARGETS SETTINGS MODAL */}
-      {showTargetModal && (
-        <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fadeIn">
-          <div className="bg-white rounded-3xl max-w-xl w-full p-6 shadow-2xl border border-slate-100 space-y-5 max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3.5">
-              <div className="flex items-center gap-3">
-                <div className="p-2.5 rounded-2xl bg-indigo-100 text-indigo-700">
-                  <Target className="w-6 h-6" />
-                </div>
-                <div>
-                  <h3 className="font-extrabold text-slate-900 text-lg">
-                    Set Lead & Sales Targets (लक्ष्य सेट करें)
-                  </h3>
-                  <p className="text-xs text-slate-500 font-medium">
-                    Configure studio yearly & monthly lead acquisition, deal conversion, and revenue goals.
-                  </p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowTargetModal(false)}
-                className="p-1.5 text-slate-400 hover:text-slate-600 rounded-xl hover:bg-slate-100 transition cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <form onSubmit={handleSaveTargets} className="space-y-4">
-                  {/* Target Year Selector */}
-                  <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200 space-y-2.5">
-                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-                      <div className="flex-1 w-full sm:w-auto">
-                        <label className="block text-xs font-black text-slate-800 uppercase">
-                          Target Year / Financial Year (लक्ष्य वर्ष)
-                        </label>
-                        <div className="flex items-center gap-2 mt-1">
-                          <input
-                            type="text"
-                            value={targetForm.targetYear}
-                            onChange={(e) => setTargetForm({ ...targetForm, targetYear: e.target.value })}
-                            placeholder="e.g. 2026-2027"
-                            className="w-36 px-3 py-1.5 bg-white border border-slate-300 rounded-xl font-black text-xs font-mono text-slate-900 focus:outline-indigo-600"
-                          />
-                          <select
-                            value={['2026-2027', '2025-2026', '2027-2028', '2028-2029', '2026', '2027'].includes(String(targetForm.targetYear)) ? String(targetForm.targetYear) : 'custom'}
-                            onChange={(e) => {
-                              if (e.target.value !== 'custom') {
-                                setTargetForm({ ...targetForm, targetYear: e.target.value });
-                              }
-                            }}
-                            className="px-2.5 py-1.5 bg-white border border-slate-300 rounded-xl font-extrabold text-xs text-indigo-700 cursor-pointer focus:outline-indigo-600"
-                          >
-                            <option value="2026-2027">2026-2027 (FY)</option>
-                            <option value="2025-2026">2025-2026 (FY)</option>
-                            <option value="2027-2028">2027-2028 (FY)</option>
-                            <option value="2028-2029">2028-2029 (FY)</option>
-                            <option value="2026">2026 (CY)</option>
-                            <option value="2027">2027 (CY)</option>
-                            <option value="custom">Custom / Manual Typing...</option>
-                          </select>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-1.5 flex-wrap pt-1">
-                      <span className="text-[10px] font-bold text-slate-500">Quick FY Presets:</span>
-                      {['2025-2026', '2026-2027', '2027-2028', '2028-2029'].map((fy) => (
-                        <button
-                          key={fy}
-                          type="button"
-                          onClick={() => setTargetForm({ ...targetForm, targetYear: fy })}
-                          className={`px-2 py-0.5 rounded-lg text-[11px] font-mono font-bold border transition ${
-                            String(targetForm.targetYear) === fy
-                              ? 'bg-indigo-600 text-white border-indigo-600'
-                              : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'
-                          }`}
-                        >
-                          {fy}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Section 1: Lead Inquiries Target */}
-                  <div className="bg-indigo-50/60 rounded-2xl p-4 border border-indigo-100 space-y-3">
-                    <h4 className="font-extrabold text-xs text-indigo-900 uppercase tracking-wide flex items-center gap-1.5">
-                      <Users className="w-4 h-4 text-indigo-600" />
-                      1. Total Inquiry Lead Volume Target (इन्क्वायरी लीड टारगेट)
-                    </h4>
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                          Yearly Lead Target (साल का कुल लीड्स)
-                        </label>
-                        <input
-                          type="number"
-                          value={targetForm.yearlyLeadTarget}
-                          onChange={(e) => {
-                            const yL = Number(e.target.value) || 0;
-                            setTargetForm((prev) => ({
-                              ...prev,
-                              yearlyLeadTarget: yL,
-                              monthlyLeadTarget: Math.ceil(yL / 12),
-                            }));
-                          }}
-                          placeholder="e.g. 120"
-                          className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-black font-mono focus:outline-indigo-600"
-                          required
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                          Monthly Lead Target (महीने का लीड्स)
-                        </label>
-                        <input
-                          type="number"
-                          value={targetForm.monthlyLeadTarget}
-                          onChange={(e) => {
-                            const mL = Number(e.target.value) || 0;
-                            setTargetForm((prev) => ({
-                              ...prev,
-                              monthlyLeadTarget: mL,
-                              yearlyLeadTarget: mL * 12,
-                            }));
-                          }}
-                          placeholder="e.g. 10"
-                          className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-black font-mono focus:outline-indigo-600"
-                          required
-                        />
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Section 2: Booked Deals Target & Avg Ticket Size */}
-                  <div className="bg-emerald-50/60 rounded-2xl p-4 border border-emerald-100 space-y-3">
-                    <h4 className="font-extrabold text-xs text-emerald-900 uppercase tracking-wide flex items-center gap-1.5">
-                      <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                      2. Booked Deals & Avg Ticket Size (बुक्ड डील्स व एवरेज प्राइस)
-                    </h4>
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                      <div>
-                        <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                          Yearly Booked Deals (साल के बुक्ड इवेंट्स)
-                        </label>
-                        <input
-                          type="number"
-                          value={targetForm.yearlyBookedTarget}
-                          onChange={(e) => {
-                            const yB = Number(e.target.value) || 0;
-                            const currentTicket = targetForm.avgTicketSize ?? (targetForm.yearlyBookedTarget > 0 ? Math.round(targetForm.yearlyRevenueTarget / targetForm.yearlyBookedTarget) : 125000);
-                            const mB = Math.ceil(yB / 12);
-                            const newYearlyRev = yB * currentTicket;
-                            setTargetForm((prev) => ({
-                              ...prev,
-                              yearlyBookedTarget: yB,
-                              monthlyBookedTarget: mB,
-                              avgTicketSize: currentTicket,
-                              yearlyRevenueTarget: newYearlyRev,
-                              monthlyRevenueTarget: Math.round(newYearlyRev / 12),
-                            }));
-                          }}
-                          placeholder="e.g. 24"
-                          className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-black font-mono focus:outline-emerald-600"
-                          required
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                          Monthly Booked Deals (महीने के डील्स)
-                        </label>
-                        <input
-                          type="number"
-                          value={targetForm.monthlyBookedTarget}
-                          onChange={(e) => {
-                            const mB = Number(e.target.value) || 0;
-                            const yB = mB * 12;
-                            const currentTicket = targetForm.avgTicketSize ?? (targetForm.yearlyBookedTarget > 0 ? Math.round(targetForm.yearlyRevenueTarget / targetForm.yearlyBookedTarget) : 125000);
-                            const newYearlyRev = yB * currentTicket;
-                            setTargetForm((prev) => ({
-                              ...prev,
-                              monthlyBookedTarget: mB,
-                              yearlyBookedTarget: yB,
-                              avgTicketSize: currentTicket,
-                              yearlyRevenueTarget: newYearlyRev,
-                              monthlyRevenueTarget: mB * currentTicket,
-                            }));
-                          }}
-                          placeholder="e.g. 2"
-                          className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-black font-mono focus:outline-emerald-600"
-                          required
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-[11px] font-black text-emerald-900 mb-1">
-                          Avg Ticket Size ₹ (एवरेज पैकेज/डील साइज़)
-                        </label>
-                        <input
-                          type="number"
-                          value={targetForm.avgTicketSize ?? (targetForm.yearlyBookedTarget > 0 ? Math.round(targetForm.yearlyRevenueTarget / targetForm.yearlyBookedTarget) : 125000)}
-                          onChange={(e) => {
-                            const ticket = Number(e.target.value) || 0;
-                            const yB = targetForm.yearlyBookedTarget || 0;
-                            const mB = targetForm.monthlyBookedTarget || Math.ceil(yB / 12);
-                            const newYearlyRev = yB * ticket;
-                            const newMonthlyRev = mB > 0 ? mB * ticket : Math.round(newYearlyRev / 12);
-                            setTargetForm((prev) => ({
-                              ...prev,
-                              avgTicketSize: ticket,
-                              yearlyRevenueTarget: newYearlyRev,
-                              monthlyRevenueTarget: newMonthlyRev,
-                            }));
-                          }}
-                          placeholder="e.g. 150000"
-                          className="w-full px-3 py-2 bg-white border border-emerald-300 text-emerald-950 font-black rounded-xl text-xs font-mono focus:outline-emerald-600 shadow-sm"
-                        />
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Section 3: Revenue Target */}
-                  <div className="bg-amber-50/60 rounded-2xl p-4 border border-amber-100 space-y-3">
-                    <div className="flex items-center justify-between flex-wrap gap-1">
-                      <h4 className="font-extrabold text-xs text-amber-900 uppercase tracking-wide flex items-center gap-1.5">
-                        <IndianRupee className="w-4 h-4 text-amber-600" />
-                        3. Booked Revenue Target ₹ (रेवेन्यू टारगेट)
-                      </h4>
-                      <span className="text-[10px] font-extrabold text-amber-800 bg-amber-100 border border-amber-200 px-2 py-0.5 rounded-full font-mono">
-                        ⚡ {targetForm.yearlyBookedTarget || 0} Deals × ₹{(targetForm.avgTicketSize ?? (targetForm.yearlyBookedTarget > 0 ? Math.round(targetForm.yearlyRevenueTarget / targetForm.yearlyBookedTarget) : 125000)).toLocaleString('en-IN')} = ₹{(targetForm.yearlyRevenueTarget || 0).toLocaleString('en-IN')}
-                      </span>
-                    </div>
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                          Yearly Revenue Target (₹)
-                        </label>
-                        <input
-                          type="number"
-                          value={targetForm.yearlyRevenueTarget}
-                          onChange={(e) => {
-                            const yR = Number(e.target.value) || 0;
-                            const yB = targetForm.yearlyBookedTarget || 1;
-                            const calcTicket = yB > 0 ? Math.round(yR / yB) : 0;
-                            setTargetForm((prev) => ({
-                              ...prev,
-                              yearlyRevenueTarget: yR,
-                              monthlyRevenueTarget: Math.round(yR / 12),
-                              avgTicketSize: calcTicket,
-                            }));
-                          }}
-                          placeholder="e.g. 3000000"
-                          className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-black font-mono focus:outline-amber-600"
-                          required
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                          Monthly Revenue Target (₹)
-                        </label>
-                        <input
-                          type="number"
-                          value={targetForm.monthlyRevenueTarget}
-                          onChange={(e) => {
-                            const mR = Number(e.target.value) || 0;
-                            const yR = mR * 12;
-                            const mB = targetForm.monthlyBookedTarget || 1;
-                            const calcTicket = mB > 0 ? Math.round(mR / mB) : 0;
-                            setTargetForm((prev) => ({
-                              ...prev,
-                              monthlyRevenueTarget: mR,
-                              yearlyRevenueTarget: yR,
-                              avgTicketSize: calcTicket,
-                            }));
-                          }}
-                          placeholder="e.g. 250000"
-                          className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-black font-mono focus:outline-amber-600"
-                          required
-                        />
-                      </div>
-                    </div>
-                  </div>
-
-              {/* Footer Actions */}
-              <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
-                <button
-                  type="button"
-                  onClick={() => setShowTargetModal(false)}
-                  className="px-4 py-2.5 rounded-xl border border-slate-200 text-slate-700 font-bold text-xs hover:bg-slate-50 transition cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-xs shadow-md transition flex items-center gap-1.5 cursor-pointer"
-                >
-                  <CheckCircle2 className="w-4 h-4" />
-                  <span>Save Lead Targets</span>
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      <LeadTargetsModal
+        open={showTargetModal}
+        value={targetForm}
+        onChange={setTargetForm}
+        onClose={() => setShowTargetModal(false)}
+        onSubmit={handleSaveTargets}
+      />
     </div>
   );
 };
