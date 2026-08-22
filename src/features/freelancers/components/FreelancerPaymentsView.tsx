@@ -111,7 +111,7 @@ export const FreelancerPaymentsView: React.FC<FreelancerPaymentsViewProps> = ({
             <span className="text-[10px] font-bold uppercase text-slate-400 tracking-wider">Total Agreed Shoot Value</span>
             <h3 className="text-xl font-black text-slate-900 font-mono mt-0.5">₹{totalAgreedSum.toLocaleString('en-IN')}</h3>
           </div>
-          <div className="w-10 h-10 rounded-xl bg-indigo-50 border border-indigo-200 flex items-center justify-center text-indigo-600">
+          <div className="w-10 h-10 rounded-xl bg-rose-50 border border-rose-200 flex items-center justify-center text-[#8f3655]">
             <DollarSign className="w-5 h-5" />
           </div>
         </div>
@@ -146,7 +146,7 @@ export const FreelancerPaymentsView: React.FC<FreelancerPaymentsViewProps> = ({
             placeholder="Search freelancer name, project, transaction ref ID..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-9 pr-4 py-2 text-xs rounded-xl border border-slate-200 bg-white focus:outline-hidden focus:ring-2 focus:ring-indigo-500"
+            className="w-full pl-9 pr-4 py-2 text-xs rounded-xl border border-slate-200 bg-white focus:outline-hidden focus:ring-2 focus:ring-[#9b4865]"
           />
         </div>
 
@@ -192,14 +192,14 @@ export const FreelancerPaymentsView: React.FC<FreelancerPaymentsViewProps> = ({
               {filteredPayments.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="text-center py-10 text-slate-500">
-                    No payment records found.
+                    No freelancer payments yet. Record a payout after a shoot is assigned.
                   </td>
                 </tr>
               ) : (
                 filteredPayments.map((payment) => (
                   <tr key={payment.id} className="hover:bg-slate-50 transition">
                     <td className="p-3.5 font-extrabold text-slate-900 flex items-center gap-2">
-                      <div className="w-7 h-7 rounded-full bg-indigo-100 text-indigo-700 font-bold text-xs flex items-center justify-center">
+                      <div className="w-7 h-7 rounded-full bg-rose-50 text-[#6d2f45] font-bold text-xs flex items-center justify-center">
                         {payment.freelancerName[0]}
                       </div>
                       <span>{payment.freelancerName}</span>
@@ -208,7 +208,7 @@ export const FreelancerPaymentsView: React.FC<FreelancerPaymentsViewProps> = ({
                     <td className="p-3.5 font-bold text-slate-800">{payment.projectName || 'General Advance'}</td>
 
                     <td className="p-3.5">
-                      <span className="px-2 py-0.5 bg-indigo-50 text-indigo-800 text-[10px] font-black rounded uppercase">
+                      <span className="px-2 py-0.5 bg-rose-50 text-[#55333f] text-[10px] font-black rounded uppercase">
                         {(payment.paymentType || 'Advance').replace('_', ' ')}
                       </span>
                     </td>
@@ -232,7 +232,7 @@ export const FreelancerPaymentsView: React.FC<FreelancerPaymentsViewProps> = ({
                           href={payment.receiptUrl}
                           target="_blank"
                           rel="noreferrer"
-                          className="p-1.5 text-indigo-600 hover:bg-indigo-50 rounded inline-block"
+                          className="p-1.5 text-[#8f3655] hover:bg-rose-50 rounded inline-block"
                           title="View Receipt Slip"
                         >
                           <ExternalLink className="w-4 h-4" />

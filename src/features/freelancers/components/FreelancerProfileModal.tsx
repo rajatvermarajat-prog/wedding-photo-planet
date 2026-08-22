@@ -65,8 +65,8 @@ export const FreelancerProfileModal: React.FC<FreelancerProfileModalProps> = ({
   onDeleteFreelancer,
 }) => {
   const [activeProfileTab, setActiveProfileTab] = useState<
-    'shoots' | 'overview' | 'payments' | 'attendance' | 'data' | 'documents' | 'notes'
-  >('shoots');
+    'shoots' | 'overview' | 'about' | 'portfolio' | 'reviews' | 'payments' | 'attendance' | 'data' | 'documents' | 'notes'
+  >('about');
   const [showConfirmDelete, setShowConfirmDelete] = useState(false);
 
   // Filter freelancer specific records
@@ -114,10 +114,9 @@ export const FreelancerProfileModal: React.FC<FreelancerProfileModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-950/75 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
-      <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-5xl overflow-hidden my-6">
-        {/* Header Profile Banner */}
-        <div className="bg-slate-900 text-white p-6 relative">
+    <div className="fixed inset-0 z-[80] bg-[#24171c]/75 backdrop-blur-xs flex items-center justify-center p-3 sm:p-6 overflow-y-auto">
+      <div className="bg-white rounded-[2rem] shadow-[0_30px_90px_rgba(26,13,19,.42)] border border-white/50 w-full max-w-5xl overflow-hidden my-6">
+        <div className="relative overflow-hidden bg-[radial-gradient(circle_at_86%_10%,rgba(236,190,169,.24),transparent_32%),linear-gradient(125deg,#704758,#55333f_52%,#38262d)] text-white p-6">
           <button
             onClick={onClose}
             className="absolute top-4 right-4 p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition"
@@ -127,15 +126,21 @@ export const FreelancerProfileModal: React.FC<FreelancerProfileModalProps> = ({
 
           <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
             <div className="flex items-center gap-4">
-              <img
-                src={freelancer.profilePhoto || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=300'}
-                alt={freelancer.name}
-                className="w-20 h-20 rounded-2xl object-cover border-2 border-indigo-500 shadow-md flex-shrink-0"
-              />
+              {freelancer.profilePhoto ? (
+                <img
+                  src={freelancer.profilePhoto}
+                  alt={freelancer.name}
+                  className="w-20 h-20 rounded-2xl object-cover border-2 border-white/40 shadow-md flex-shrink-0"
+                />
+              ) : (
+                <div className="grid h-20 w-20 place-items-center rounded-2xl border-2 border-white/40 bg-white/15 text-xl font-black">
+                  {freelancer.name.slice(0, 2).toUpperCase()}
+                </div>
+              )}
               <div>
                 <div className="flex items-center gap-2">
                   <h2 className="text-xl font-black tracking-tight">{freelancer.name}</h2>
-                  <span className="px-2.5 py-0.5 bg-indigo-500/20 text-indigo-300 border border-indigo-400/30 rounded-md font-mono text-xs font-bold">
+                  <span className="px-2.5 py-0.5 bg-[#9b4865]/20 text-[#eadfe2] border border-[#c48a9a]/30 rounded-md font-mono text-xs font-bold">
                     {freelancer.freelancerId}
                   </span>
                   <span
@@ -150,7 +155,7 @@ export const FreelancerProfileModal: React.FC<FreelancerProfileModalProps> = ({
                 </div>
 
                 <p className="text-xs text-slate-300 mt-1 flex items-center gap-2">
-                  <span className="font-bold text-indigo-300">{freelancer.mainCategory}</span>
+                  <span className="font-bold text-[#eadfe2]">{freelancer.mainCategory}</span>
                   <span>•</span>
                   <span>{freelancer.subCategory}</span>
                   <span>•</span>
@@ -159,15 +164,15 @@ export const FreelancerProfileModal: React.FC<FreelancerProfileModalProps> = ({
 
                 <div className="flex flex-wrap items-center gap-3 text-xs text-slate-400 mt-2">
                   <span className="flex items-center gap-1">
-                    <Phone className="w-3.5 h-3.5 text-indigo-400" />
+                    <Phone className="w-3.5 h-3.5 text-[#c48a9a]" />
                     <span>{freelancer.mobile}</span>
                   </span>
                   <span className="flex items-center gap-1">
-                    <MapPin className="w-3.5 h-3.5 text-indigo-400" />
+                    <MapPin className="w-3.5 h-3.5 text-[#c48a9a]" />
                     <span>{freelancer.city || 'Jaipur'}</span>
                   </span>
                   <span className="flex items-center gap-1">
-                    <Calendar className="w-3.5 h-3.5 text-indigo-400" />
+                    <Calendar className="w-3.5 h-3.5 text-[#c48a9a]" />
                     <span>Joined {freelancer.joiningDate}</span>
                   </span>
                 </div>
@@ -180,14 +185,14 @@ export const FreelancerProfileModal: React.FC<FreelancerProfileModalProps> = ({
                 onClick={() => onEdit(freelancer)}
                 className="flex-1 md:flex-none px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold rounded-xl border border-slate-700 transition flex items-center justify-center gap-1.5"
               >
-                <Edit3 className="w-3.5 h-3.5 text-indigo-400" />
+                <Edit3 className="w-3.5 h-3.5 text-[#c48a9a]" />
                 <span>Edit Profile</span>
               </button>
 
               {onAssignShootClick && (
                 <button
                   onClick={() => onAssignShootClick(freelancer.id)}
-                  className="flex-1 md:flex-none px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl transition shadow-xs flex items-center justify-center gap-1.5"
+                  className="flex-1 md:flex-none px-4 py-2 bg-[#8f3655] hover:bg-[#6d2f45] text-white text-xs font-bold rounded-xl transition shadow-xs flex items-center justify-center gap-1.5"
                 >
                   <Plus className="w-3.5 h-3.5" />
                   <span>Assign to Shoot</span>
@@ -225,7 +230,7 @@ export const FreelancerProfileModal: React.FC<FreelancerProfileModalProps> = ({
 
             <div className="bg-slate-800/80 p-2.5 rounded-xl border border-slate-700">
               <span className="text-[10px] font-bold text-slate-400 uppercase block">Upcoming</span>
-              <span className="text-lg font-black text-indigo-400">{upcomingShoots}</span>
+              <span className="text-lg font-black text-[#c48a9a]">{upcomingShoots}</span>
             </div>
 
             <div className="bg-slate-800/80 p-2.5 rounded-xl border border-slate-700">
@@ -253,20 +258,23 @@ export const FreelancerProfileModal: React.FC<FreelancerProfileModalProps> = ({
         {/* Profile Navigation Tabs */}
         <div className="bg-slate-100 px-6 border-b border-slate-200 flex items-center gap-2 overflow-x-auto">
           {[
-            { id: 'shoots', label: `🎬 Assigned Shoots (${totalShoots})` },
-            { id: 'overview', label: 'Rate Card & Profile' },
+            { id: 'about', label: 'About' },
+            { id: 'shoots', label: `Shoots (${totalShoots})` },
+            { id: 'overview', label: 'Rates & Gear' },
+            { id: 'portfolio', label: 'Portfolio' },
             { id: 'payments', label: `Payments (${myPayments.length})` },
-            { id: 'attendance', label: `Attendance (${myAttendance.length})` },
-            { id: 'data', label: `Data Received (${myDataReceived.length})` },
+            { id: 'reviews', label: 'Reviews' },
+            { id: 'attendance', label: 'Work Logs' },
+            { id: 'data', label: 'Footage' },
             { id: 'documents', label: `Documents (${freelancer.documents?.length || 0})` },
-            { id: 'notes', label: `Notes & Logs (${myLogs.length})` },
+            { id: 'notes', label: 'Admin Notes' },
           ].map((tab) => (
             <button
               key={tab.id}
               onClick={() => setActiveProfileTab(tab.id as any)}
               className={`py-3 px-3 text-xs font-bold border-b-2 transition whitespace-nowrap ${
                 activeProfileTab === tab.id
-                  ? 'border-indigo-600 text-indigo-600'
+                  ? 'border-[#8f3655] text-[#8f3655]'
                   : 'border-transparent text-slate-600 hover:text-slate-900'
               }`}
             >
@@ -277,20 +285,100 @@ export const FreelancerProfileModal: React.FC<FreelancerProfileModalProps> = ({
 
         {/* Profile Content Body */}
         <div className="p-6 max-h-[55vh] overflow-y-auto">
+          {activeProfileTab === 'about' && (
+            <div className="space-y-4">
+              <p className="text-sm font-medium text-slate-700">{freelancer.bio || 'No professional bio yet.'}</p>
+              <div className="flex flex-wrap gap-1">
+                {(freelancer.skills || []).map((s) => (
+                  <span key={s} className="rounded-full border border-[#ded5cf] bg-[#f6f1ee] px-2 py-0.5 text-[10px] font-bold">{s}</span>
+                ))}
+              </div>
+              <div className="grid grid-cols-2 gap-3 text-xs sm:grid-cols-4">
+                <div className="rounded-xl border border-[#eee7e2] bg-[#fbfaf8] p-3">
+                  <p className="font-bold uppercase text-slate-400">Availability</p>
+                  <p className="font-extrabold text-slate-900">{freelancer.availabilityStatus || 'Available'}</p>
+                </div>
+                <div className="rounded-xl border border-[#eee7e2] bg-[#fbfaf8] p-3">
+                  <p className="font-bold uppercase text-slate-400">Rating</p>
+                  <p className="font-extrabold text-slate-900">{freelancer.rating ? `${freelancer.rating}/5` : 'Not rated'}</p>
+                </div>
+                <div className="rounded-xl border border-[#eee7e2] bg-[#fbfaf8] p-3">
+                  <p className="font-bold uppercase text-slate-400">Travel</p>
+                  <p className="font-extrabold text-slate-900">{freelancer.travelAvailability === false ? 'Local only' : 'Destination OK'}</p>
+                </div>
+                <div className="rounded-xl border border-[#eee7e2] bg-[#fbfaf8] p-3">
+                  <p className="font-bold uppercase text-slate-400">Locations</p>
+                  <p className="font-extrabold text-slate-900">{(freelancer.preferredLocations || []).join(', ') || freelancer.city || '—'}</p>
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-2 text-xs">
+                {freelancer.instagramUrl && <a className="font-bold text-[#8f3655]" href={freelancer.instagramUrl} target="_blank" rel="noreferrer">Instagram</a>}
+                {freelancer.websiteUrl && <a className="font-bold text-[#8f3655]" href={freelancer.websiteUrl} target="_blank" rel="noreferrer">Website</a>}
+                <a className="font-bold text-[#8f3655]" href={`tel:${freelancer.mobile}`}>Call</a>
+                <a className="font-bold text-[#8f3655]" href={`https://wa.me/${(freelancer.whatsapp || freelancer.mobile || '').replace(/[^0-9]/g, '')}`} target="_blank" rel="noreferrer">WhatsApp</a>
+                {freelancer.email && <a className="font-bold text-[#8f3655]" href={`mailto:${freelancer.email}`}>Email</a>}
+              </div>
+              {freelancer.verification && (
+                <div className="flex flex-wrap gap-1">
+                  {freelancer.verification.mobile && <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-800">Mobile</span>}
+                  {freelancer.verification.email && <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-800">Email</span>}
+                  {freelancer.verification.identity && <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-800">Identity</span>}
+                  {freelancer.verification.portfolio && <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-800">Portfolio</span>}
+                  {freelancer.verification.agreement && <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-800">Agreement</span>}
+                  {freelancer.verification.bank && <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-800">Bank</span>}
+                </div>
+              )}
+            </div>
+          )}
+
+          {activeProfileTab === 'portfolio' && (
+            <div className="space-y-3">
+              {(freelancer.portfolio || []).length === 0 && !freelancer.instagramUrl && !freelancer.websiteUrl ? (
+                <p className="rounded-xl border border-dashed border-[#ded5cf] bg-[#fbfaf8] p-8 text-center text-xs font-medium text-slate-500">No portfolio items yet. Add Instagram or website links when editing the profile.</p>
+              ) : (
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  {freelancer.instagramUrl && <a href={freelancer.instagramUrl} target="_blank" rel="noreferrer" className="rounded-xl border border-[#eee7e2] p-4 text-sm font-bold text-[#8f3655]">Instagram</a>}
+                  {freelancer.websiteUrl && <a href={freelancer.websiteUrl} target="_blank" rel="noreferrer" className="rounded-xl border border-[#eee7e2] p-4 text-sm font-bold text-[#8f3655]">Portfolio site</a>}
+                  {(freelancer.portfolio || []).map((item) => (
+                    <a key={item.id} href={item.url} target="_blank" rel="noreferrer" className="rounded-xl border border-[#eee7e2] p-4 text-sm font-bold text-slate-800">
+                      {item.title || item.kind}
+                    </a>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {activeProfileTab === 'reviews' && (
+            <div className="space-y-3">
+              {(freelancer.reviews || []).length === 0 ? (
+                <p className="rounded-xl border border-dashed border-[#ded5cf] bg-[#fbfaf8] p-8 text-center text-xs font-medium text-slate-500">No internal reviews yet. Ratings stay private to studio staff.</p>
+              ) : (
+                (freelancer.reviews || []).map((r) => (
+                  <div key={r.id} className="rounded-xl border border-[#eee7e2] p-4">
+                    <p className="text-sm font-extrabold text-slate-900">{r.overall}/5 · {r.projectName || 'Shoot review'}</p>
+                    <p className="mt-1 text-xs text-slate-600">{r.notes || 'No notes'}</p>
+                    <p className="mt-1 text-[10px] font-bold text-slate-400">{r.createdAt}</p>
+                  </div>
+                ))
+              )}
+            </div>
+          )}
+
           {/* TAB 1: OVERVIEW */}
           {activeProfileTab === 'overview' && (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {/* Rate Card & Charges */}
               <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3">
                 <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5 border-b border-slate-200 pb-2">
-                  <DollarSign className="w-4 h-4 text-indigo-600" />
+                  <DollarSign className="w-4 h-4 text-[#8f3655]" />
                   <span>Rate Card & Daily Charges</span>
                 </h3>
 
                 <div className="grid grid-cols-2 gap-3 text-xs">
                   <div className="bg-white p-2.5 rounded-lg border border-slate-200">
                     <span className="text-[10px] text-slate-400 font-bold uppercase block">Full Event</span>
-                    <span className="font-extrabold text-indigo-700 text-sm font-mono">₹{freelancer.perDayCharges.toLocaleString('en-IN')}</span>
+                    <span className="font-extrabold text-[#6d2f45] text-sm font-mono">₹{freelancer.perDayCharges.toLocaleString('en-IN')}</span>
                   </div>
 
                   <div className="bg-white p-2.5 rounded-lg border border-slate-200">
@@ -319,7 +407,7 @@ export const FreelancerProfileModal: React.FC<FreelancerProfileModalProps> = ({
               {/* Equipment & Gear Specs */}
               <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3">
                 <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5 border-b border-slate-200 pb-2">
-                  <Award className="w-4 h-4 text-indigo-600" />
+                  <Award className="w-4 h-4 text-[#8f3655]" />
                   <span>Gear & Camera Equipment</span>
                 </h3>
 
@@ -350,7 +438,7 @@ export const FreelancerProfileModal: React.FC<FreelancerProfileModalProps> = ({
                     <span className="text-[10px] font-bold text-slate-400 uppercase block mb-1">Key Skills:</span>
                     <div className="flex flex-wrap gap-1">
                       {freelancer.skills.map((s, idx) => (
-                        <span key={idx} className="px-2 py-0.5 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded text-[11px] font-semibold">
+                        <span key={idx} className="px-2 py-0.5 bg-rose-50 text-[#6d2f45] border border-rose-200 rounded text-[11px] font-semibold">
                           {s}
                         </span>
                       ))}
@@ -362,7 +450,7 @@ export const FreelancerProfileModal: React.FC<FreelancerProfileModalProps> = ({
               {/* Bank & Payment Information */}
               <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3 md:col-span-2">
                 <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5 border-b border-slate-200 pb-2">
-                  <CreditCard className="w-4 h-4 text-indigo-600" />
+                  <CreditCard className="w-4 h-4 text-[#8f3655]" />
                   <span>Bank Account & Settlement Details</span>
                 </h3>
 
@@ -374,7 +462,7 @@ export const FreelancerProfileModal: React.FC<FreelancerProfileModalProps> = ({
 
                   <div className="bg-white p-2.5 rounded-lg border border-slate-200">
                     <span className="text-[10px] text-slate-400 font-bold uppercase block">UPI ID</span>
-                    <span className="font-mono font-bold text-indigo-700">{freelancer.upiId || 'N/A'}</span>
+                    <span className="font-mono font-bold text-[#6d2f45]">{freelancer.upiId || 'N/A'}</span>
                   </div>
 
                   <div className="bg-white p-2.5 rounded-lg border border-slate-200">
@@ -410,15 +498,15 @@ export const FreelancerProfileModal: React.FC<FreelancerProfileModalProps> = ({
           {activeProfileTab === 'shoots' && (
             <div className="space-y-4">
               {/* Filter Notice Banner */}
-              <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 p-4 rounded-xl text-white flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border border-indigo-500/30 shadow-xs">
+              <div className="bg-gradient-to-r from-slate-900 via-[#38262d] to-slate-900 p-4 rounded-xl text-white flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border border-[#9b4865]/30 shadow-xs">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-indigo-600/30 border border-indigo-400/40 text-indigo-300 rounded-xl flex items-center justify-center font-bold">
-                    <Layers className="w-5 h-5 text-indigo-300" />
+                  <div className="w-10 h-10 bg-[#8f3655]/30 border border-[#c48a9a]/40 text-[#eadfe2] rounded-xl flex items-center justify-center font-bold">
+                    <Layers className="w-5 h-5 text-[#eadfe2]" />
                   </div>
                   <div>
                     <div className="flex items-center gap-2">
                       <h3 className="text-sm font-black text-white">{freelancer.name}'s Assigned Shoots</h3>
-                      <span className="text-[10px] font-mono px-2 py-0.5 bg-indigo-500/30 text-indigo-200 border border-indigo-400/30 rounded-full font-bold">
+                      <span className="text-[10px] font-mono px-2 py-0.5 bg-[#9b4865]/30 text-rose-200 border border-[#c48a9a]/30 rounded-full font-bold">
                         {freelancer.subCategory}
                       </span>
                     </div>
@@ -428,7 +516,7 @@ export const FreelancerProfileModal: React.FC<FreelancerProfileModalProps> = ({
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="text-xs font-mono font-extrabold px-3 py-1 bg-indigo-600 text-white rounded-lg shadow-2xs">
+                  <span className="text-xs font-mono font-extrabold px-3 py-1 bg-[#8f3655] text-white rounded-lg shadow-2xs">
                     {totalShoots} {totalShoots === 1 ? 'Shoot' : 'Shoots'} Assigned
                   </span>
                   {onAssignShootClick && (
@@ -460,7 +548,7 @@ export const FreelancerProfileModal: React.FC<FreelancerProfileModalProps> = ({
                   return (
                     <div
                       key={assignment.id}
-                      className="p-4.5 bg-white rounded-2xl border border-slate-200 shadow-xs hover:border-indigo-300 transition space-y-3"
+                      className="p-4.5 bg-white rounded-2xl border border-slate-200 shadow-xs hover:border-[#eadfe2] transition space-y-3"
                     >
                       {/* Top Row: Project & Status */}
                       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 border-b border-slate-100 pb-3">
@@ -472,20 +560,20 @@ export const FreelancerProfileModal: React.FC<FreelancerProfileModalProps> = ({
                                 assignment.assignmentStatus === 'completed'
                                   ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
                                   : assignment.assignmentStatus === 'confirmed'
-                                  ? 'bg-indigo-100 text-indigo-800 border border-indigo-200'
+                                  ? 'bg-rose-50 text-[#55333f] border border-rose-200'
                                   : 'bg-amber-100 text-amber-800 border border-amber-200'
                               }`}
                             >
                               {assignment.assignmentStatus}
                             </span>
                           </div>
-                          <p className="text-xs font-bold text-indigo-600 mt-0.5">
+                          <p className="text-xs font-bold text-[#8f3655] mt-0.5">
                             Role: <span className="text-slate-800">{assignment.role}</span>
                           </p>
                         </div>
 
                         <div className="text-left sm:text-right">
-                          <p className="text-sm font-black text-indigo-700 font-mono">
+                          <p className="text-sm font-black text-[#6d2f45] font-mono">
                             ₹{assignment.totalAgreedAmount.toLocaleString('en-IN')}
                           </p>
                           <p className="text-[11px] text-slate-500 font-medium">
@@ -498,22 +586,22 @@ export const FreelancerProfileModal: React.FC<FreelancerProfileModalProps> = ({
                       {/* Middle Grid: Details */}
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs bg-slate-50 p-3 rounded-xl border border-slate-100">
                         <div className="flex items-center gap-2 text-slate-700">
-                          <Calendar className="w-3.5 h-3.5 text-indigo-600 flex-shrink-0" />
+                          <Calendar className="w-3.5 h-3.5 text-[#8f3655] flex-shrink-0" />
                           <span><strong>Date:</strong> {assignment.shootDate}</span>
                         </div>
 
                         <div className="flex items-center gap-2 text-slate-700">
-                          <Clock className="w-3.5 h-3.5 text-indigo-600 flex-shrink-0" />
+                          <Clock className="w-3.5 h-3.5 text-[#8f3655] flex-shrink-0" />
                           <span><strong>Time:</strong> {assignment.startTime} - {assignment.endTime}</span>
                         </div>
 
                         <div className="flex items-center gap-2 text-slate-700 col-span-1 sm:col-span-2">
-                          <MapPin className="w-3.5 h-3.5 text-indigo-600 flex-shrink-0" />
+                          <MapPin className="w-3.5 h-3.5 text-[#8f3655] flex-shrink-0" />
                           <span><strong>Venue:</strong> {assignment.venue}, {assignment.shootLocation}</span>
                         </div>
 
                         <div className="flex items-center gap-2 text-slate-700 col-span-1 sm:col-span-2">
-                          <Film className="w-3.5 h-3.5 text-indigo-600 flex-shrink-0" />
+                          <Film className="w-3.5 h-3.5 text-[#8f3655] flex-shrink-0" />
                           <span><strong>Event Coverage:</strong> {assignment.eventName}</span>
                         </div>
                       </div>
@@ -622,7 +710,7 @@ export const FreelancerProfileModal: React.FC<FreelancerProfileModalProps> = ({
                   <div key={data.id} className="p-4 bg-white rounded-xl border border-slate-200 shadow-xs space-y-2">
                     <div className="flex justify-between items-center">
                       <span className="font-bold text-sm text-slate-900">{data.projectName}</span>
-                      <span className="px-2.5 py-0.5 bg-indigo-100 text-indigo-800 text-[10px] font-bold rounded">
+                      <span className="px-2.5 py-0.5 bg-rose-50 text-[#55333f] text-[10px] font-bold rounded">
                         {data.dataStatus.toUpperCase()}
                       </span>
                     </div>
@@ -636,7 +724,7 @@ export const FreelancerProfileModal: React.FC<FreelancerProfileModalProps> = ({
                         href={data.cloudDriveLink}
                         target="_blank"
                         rel="noreferrer"
-                        className="text-xs font-bold text-indigo-600 hover:underline flex items-center gap-1"
+                        className="text-xs font-bold text-[#8f3655] hover:underline flex items-center gap-1"
                       >
                         <ExternalLink className="w-3.5 h-3.5" />
                         <span>Open Cloud Storage Link</span>
@@ -655,7 +743,7 @@ export const FreelancerProfileModal: React.FC<FreelancerProfileModalProps> = ({
                 <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700">Attached ID Proofs & Agreements</h3>
                 <button
                   onClick={() => setShowAddDocForm(!showAddDocForm)}
-                  className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-lg transition flex items-center gap-1"
+                  className="px-3 py-1.5 bg-[#8f3655] hover:bg-[#6d2f45] text-white text-xs font-bold rounded-lg transition flex items-center gap-1"
                 >
                   <Plus className="w-3.5 h-3.5" />
                   <span>Upload Document</span>
@@ -663,7 +751,7 @@ export const FreelancerProfileModal: React.FC<FreelancerProfileModalProps> = ({
               </div>
 
               {showAddDocForm && (
-                <form onSubmit={handleAddDocumentSubmit} className="bg-indigo-50/60 p-3.5 rounded-xl border border-indigo-200 space-y-3">
+                <form onSubmit={handleAddDocumentSubmit} className="bg-rose-50/60 p-3.5 rounded-xl border border-rose-200 space-y-3">
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     <div>
                       <label className="text-[10px] font-bold text-slate-600 block mb-1">Document Title</label>
@@ -710,7 +798,7 @@ export const FreelancerProfileModal: React.FC<FreelancerProfileModalProps> = ({
                     </button>
                     <button
                       type="submit"
-                      className="px-4 py-1 bg-indigo-600 text-white text-xs font-bold rounded"
+                      className="px-4 py-1 bg-[#8f3655] text-white text-xs font-bold rounded"
                     >
                       Save Document
                     </button>
@@ -727,7 +815,7 @@ export const FreelancerProfileModal: React.FC<FreelancerProfileModalProps> = ({
                   {freelancer.documents.map((doc) => (
                     <div key={doc.id} className="p-3 bg-white rounded-xl border border-slate-200 flex items-center justify-between">
                       <div className="flex items-center gap-2.5">
-                        <FileText className="w-5 h-5 text-indigo-600" />
+                        <FileText className="w-5 h-5 text-[#8f3655]" />
                         <div>
                           <p className="font-bold text-xs text-slate-900">{doc.title}</p>
                           <p className="text-[10px] text-slate-500">Uploaded {doc.uploadDate}</p>
@@ -746,6 +834,12 @@ export const FreelancerProfileModal: React.FC<FreelancerProfileModalProps> = ({
           {/* TAB 7: NOTES & ACTIVITY LOGS */}
           {activeProfileTab === 'notes' && (
             <div className="space-y-4">
+              {freelancer.internalNotes && (
+                <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-slate-800">
+                  <p className="text-[10px] font-extrabold uppercase tracking-wider text-amber-800">Internal notes</p>
+                  <p className="mt-1 whitespace-pre-wrap">{freelancer.internalNotes}</p>
+                </div>
+              )}
               <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700">Activity & Assignment History</h3>
 
               {myLogs.length === 0 ? (

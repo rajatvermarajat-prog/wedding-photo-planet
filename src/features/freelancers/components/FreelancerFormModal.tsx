@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { Freelancer, FreelancerCategory } from '@/types';
-import { X, User, Phone, Mail, MapPin, Camera, DollarSign, CreditCard, Shield, Plus, Upload, Check } from 'lucide-react';
+import { Freelancer, FreelancerApplicationStatus, FreelancerCategory, FreelancerWorkingStatus } from '@/types';
+import { UserPlus } from 'lucide-react';
+import { BTN_GHOST, BTN_PRIMARY, FIELD, LABEL, Modal, ModalHero } from '@/features/team/components/TeamUiKit';
 
 interface FreelancerFormModalProps {
   existingFreelancer?: Freelancer | null;
@@ -9,7 +10,12 @@ interface FreelancerFormModalProps {
   onClose: () => void;
 }
 
-
+const Section: React.FC<{ title: string; children: React.ReactNode }> = ({ title, children }) => (
+  <section className="space-y-4 rounded-2xl border border-[#eee7e2] bg-[#fbfaf8] p-4">
+    <h3 className="text-xs font-extrabold uppercase tracking-wider text-[#6d2f45]">{title}</h3>
+    {children}
+  </section>
+);
 
 export const FreelancerFormModal: React.FC<FreelancerFormModalProps> = ({
   existingFreelancer,
@@ -17,23 +23,9 @@ export const FreelancerFormModal: React.FC<FreelancerFormModalProps> = ({
   onSave,
   onClose,
 }) => {
-  // Basic Info States
   const [name, setName] = useState(existingFreelancer?.name || '');
   const [freelancerId, setFreelancerId] = useState(existingFreelancer?.freelancerId || `FL-${Math.floor(1000 + Math.random() * 9000)}`);
   const [profilePhoto, setProfilePhoto] = useState(existingFreelancer?.profilePhoto || '');
-
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        if (typeof reader.result === 'string') {
-          setProfilePhoto(reader.result);
-        }
-      };
-      reader.readAsDataURL(file);
-    }
-  };
   const [mobile, setMobile] = useState(existingFreelancer?.mobile || '');
   const [whatsapp, setWhatsapp] = useState(existingFreelancer?.whatsapp || '');
   const [email, setEmail] = useState(existingFreelancer?.email || '');
@@ -42,33 +34,34 @@ export const FreelancerFormModal: React.FC<FreelancerFormModalProps> = ({
   const [emergencyContact, setEmergencyContact] = useState(existingFreelancer?.emergencyContact || '');
   const [joiningDate, setJoiningDate] = useState(existingFreelancer?.joiningDate || new Date().toISOString().split('T')[0]);
   const [status, setStatus] = useState<'active' | 'inactive'>(existingFreelancer?.status || 'active');
-
-  // Professional Info States
+  const [applicationStatus, setApplicationStatus] = useState<FreelancerApplicationStatus>(existingFreelancer?.applicationStatus || 'approved');
+  const [workingStatus, setWorkingStatus] = useState<FreelancerWorkingStatus>(existingFreelancer?.workingStatus || (existingFreelancer?.status === 'inactive' ? 'inactive' : 'active'));
   const [mainCategory, setMainCategory] = useState(existingFreelancer?.mainCategory || categories[0]?.name || 'Photographer');
-  
-  // Available sub-categories based on selected category
   const selectedCatObj = categories.find((c) => c.name === mainCategory);
-  const availableSubCats = selectedCatObj ? selectedCatObj.subCategories : ['Candid Photographer', 'Traditional Photographer', 'Operator'];
-
+  const availableSubCats = selectedCatObj ? selectedCatObj.subCategories : ['Candid Photographer'];
   const [subCategory, setSubCategory] = useState(existingFreelancer?.subCategory || availableSubCats[0] || 'Candid Photographer');
   const [experienceYears, setExperienceYears] = useState<number>(existingFreelancer?.experienceYears || 3);
-  const [skillsStr, setSkillsStr] = useState(existingFreelancer?.skills ? existingFreelancer.skills.join(', ') : 'Candid Shots, Lighting, Color Grading');
+  const [skillsStr, setSkillsStr] = useState(existingFreelancer?.skills ? existingFreelancer.skills.join(', ') : '');
+  const [bio, setBio] = useState(existingFreelancer?.bio || '');
+  const [languages, setLanguages] = useState((existingFreelancer?.languages || []).join(', '));
+  const [preferredLocations, setPreferredLocations] = useState((existingFreelancer?.preferredLocations || []).join(', '));
   const [equipmentAvailable, setEquipmentAvailable] = useState(existingFreelancer?.equipmentAvailable || '');
   const [cameraDetails, setCameraDetails] = useState(existingFreelancer?.cameraDetails || '');
   const [lensDetails, setLensDetails] = useState(existingFreelancer?.lensDetails || '');
   const [otherEquipment, setOtherEquipment] = useState(existingFreelancer?.otherEquipment || '');
-
-  // Rate Card States (₹)
-  const [perDayCharges, setPerDayCharges] = useState<number>(existingFreelancer?.perDayCharges || 10000);
-  const [halfDayCharges, setHalfDayCharges] = useState<number>(existingFreelancer?.halfDayCharges || 6000);
-  const [eventCharges, setEventCharges] = useState<number>(existingFreelancer?.eventCharges || 12000);
-  const [overtimeCharges, setOvertimeCharges] = useState<number>(existingFreelancer?.overtimeCharges || 1000);
-  const [extraHourCharges, setExtraHourCharges] = useState<number>(existingFreelancer?.extraHourCharges || 1000);
+  const [perDayCharges, setPerDayCharges] = useState<number>(existingFreelancer?.perDayCharges || 0);
+  const [halfDayCharges, setHalfDayCharges] = useState<number>(existingFreelancer?.halfDayCharges || 0);
+  const [eventCharges, setEventCharges] = useState<number>(existingFreelancer?.eventCharges || 0);
+  const [overtimeCharges, setOvertimeCharges] = useState<number>(existingFreelancer?.overtimeCharges || 0);
+  const [extraHourCharges, setExtraHourCharges] = useState<number>(existingFreelancer?.extraHourCharges || 0);
   const [travelCharges, setTravelCharges] = useState<number>(existingFreelancer?.travelCharges || 0);
   const [otherCharges, setOtherCharges] = useState<number>(existingFreelancer?.otherCharges || 0);
   const [notes, setNotes] = useState(existingFreelancer?.notes || '');
-
-  // Bank Info States
+  const [internalNotes, setInternalNotes] = useState(existingFreelancer?.internalNotes || '');
+  const [instagramUrl, setInstagramUrl] = useState(existingFreelancer?.instagramUrl || '');
+  const [websiteUrl, setWebsiteUrl] = useState(existingFreelancer?.websiteUrl || '');
+  const [travelAvailability, setTravelAvailability] = useState(existingFreelancer?.travelAvailability ?? true);
+  const [maxShootsPerDay, setMaxShootsPerDay] = useState(existingFreelancer?.maxShootsPerDay || 1);
   const [paymentMethod, setPaymentMethod] = useState<'UPI' | 'Bank Transfer' | 'Cash' | 'Other'>(existingFreelancer?.paymentMethod || 'UPI');
   const [upiId, setUpiId] = useState(existingFreelancer?.upiId || '');
   const [bankName, setBankName] = useState(existingFreelancer?.bankName || '');
@@ -76,25 +69,37 @@ export const FreelancerFormModal: React.FC<FreelancerFormModalProps> = ({
   const [accountNumber, setAccountNumber] = useState(existingFreelancer?.accountNumber || '');
   const [ifsc, setIfsc] = useState(existingFreelancer?.ifsc || '');
   const [paymentNotes, setPaymentNotes] = useState(existingFreelancer?.paymentNotes || '');
+  const [gstNumber, setGstNumber] = useState(existingFreelancer?.gstNumber || '');
+  const [panNumber, setPanNumber] = useState(existingFreelancer?.panNumber || '');
+  const [preferredTier, setPreferredTier] = useState(existingFreelancer?.preferredTier || 'new');
+
+  const catLower = mainCategory.toLowerCase();
+  const showPhotoRate = /photo/.test(catLower);
+  const showVideoRate = /video|cinema|edit/.test(catLower);
+  const showDroneRate = /drone/.test(catLower);
+
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      if (typeof reader.result === 'string') setProfilePhoto(reader.result);
+    };
+    reader.readAsDataURL(file);
+  };
 
   const handleCategoryChange = (catName: string) => {
     setMainCategory(catName);
     const catObj = categories.find((c) => c.name === catName);
-    if (catObj && catObj.subCategories.length > 0) {
-      setSubCategory(catObj.subCategories[0]);
-    }
+    if (catObj?.subCategories.length) setSubCategory(catObj.subCategories[0]);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) return;
-
-    const skills = skillsStr
-      .split(',')
-      .map((s) => s.trim())
-      .filter((s) => s.length > 0);
-
-    const savedData: Freelancer = {
+    const skills = skillsStr.split(',').map((s) => s.trim()).filter(Boolean);
+    onSave({
+      ...(existingFreelancer || ({} as Freelancer)),
       id: existingFreelancer ? existingFreelancer.id : `fl-${Date.now()}`,
       freelancerId: freelancerId.trim(),
       name: name.trim(),
@@ -106,7 +111,20 @@ export const FreelancerFormModal: React.FC<FreelancerFormModalProps> = ({
       city: city.trim(),
       emergencyContact: emergencyContact.trim(),
       joiningDate,
-      status,
+      status: workingStatus === 'active' ? 'active' : 'inactive',
+      applicationStatus,
+      workingStatus,
+      preferredTier,
+      bio: bio.trim(),
+      languages: languages.split(',').map((s) => s.trim()).filter(Boolean),
+      preferredLocations: preferredLocations.split(',').map((s) => s.trim()).filter(Boolean),
+      internalNotes: internalNotes.trim(),
+      instagramUrl: instagramUrl.trim(),
+      websiteUrl: websiteUrl.trim(),
+      travelAvailability,
+      maxShootsPerDay,
+      gstNumber: gstNumber.trim(),
+      panNumber: panNumber.trim(),
       mainCategory,
       subCategory,
       experienceYears: Number(experienceYears) || 0,
@@ -132,541 +150,157 @@ export const FreelancerFormModal: React.FC<FreelancerFormModalProps> = ({
       paymentNotes: paymentNotes.trim(),
       availabilityStatus: existingFreelancer?.availabilityStatus || 'Available',
       documents: existingFreelancer?.documents || [],
-    };
-
-    onSave(savedData);
+    });
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
-      <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-4xl overflow-hidden my-6">
-        {/* Header */}
-        <div className="bg-slate-900 text-white p-5 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-indigo-600 flex items-center justify-center font-black text-white shadow-sm">
-              <User className="w-5 h-5 text-white" />
-            </div>
-            <div>
-              <h2 className="text-lg font-black tracking-tight">
-                {existingFreelancer ? `Edit Freelancer (${existingFreelancer.freelancerId})` : 'Add New Freelancer'}
-              </h2>
-              <p className="text-xs text-indigo-300">Complete photographer/cinematographer professional profile & rate card</p>
-            </div>
+    <Modal isOpen onClose={onClose} labelledBy="freelancer-form-title" widthClass="max-w-4xl">
+      <ModalHero
+        icon={UserPlus}
+        eyebrow="Production Network"
+        title={existingFreelancer ? 'Edit Freelancer' : 'Add Freelancer'}
+        description={existingFreelancer ? existingFreelancer.freelancerId : 'Create a talent profile for Wedding Photo Planet shoots.'}
+        onClose={onClose}
+        labelledBy="freelancer-form-title"
+      />
+      <form onSubmit={handleSubmit} className="space-y-5 p-5 sm:p-6">
+        <Section title="Basic information">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+            <span className="grid size-16 place-items-center overflow-hidden rounded-2xl bg-[#f0dce3] text-sm font-black text-[#6d2f45]">
+              {profilePhoto ? <img src={profilePhoto} alt="" className="size-16 object-cover" /> : name.slice(0, 2).toUpperCase() || 'FL'}
+            </span>
+            <label className={BTN_GHOST}>
+              Upload photo
+              <input type="file" accept="image/*" className="sr-only" onChange={handleImageUpload} />
+            </label>
+            {profilePhoto && <button type="button" className={BTN_GHOST} onClick={() => setProfilePhoto('')}>Remove</button>}
           </div>
-          <button
-            onClick={onClose}
-            className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <label><span className={LABEL}>Full name *</span><input required className={FIELD} value={name} onChange={(e) => setName(e.target.value)} /></label>
+            <label><span className={LABEL}>Freelancer ID</span><input className={FIELD} value={freelancerId} onChange={(e) => setFreelancerId(e.target.value)} /></label>
+            <label><span className={LABEL}>Joining date</span><input type="date" className={FIELD} value={joiningDate} onChange={(e) => setJoiningDate(e.target.value)} /></label>
+            <label><span className={LABEL}>Mobile *</span><input required className={FIELD} value={mobile} onChange={(e) => setMobile(e.target.value)} /></label>
+            <label><span className={LABEL}>WhatsApp</span><input className={FIELD} value={whatsapp} onChange={(e) => setWhatsapp(e.target.value)} /></label>
+            <label><span className={LABEL}>Email</span><input type="email" className={FIELD} value={email} onChange={(e) => setEmail(e.target.value)} /></label>
+            <label><span className={LABEL}>City</span><input className={FIELD} value={city} onChange={(e) => setCity(e.target.value)} /></label>
+            <label><span className={LABEL}>Emergency contact</span><input className={FIELD} value={emergencyContact} onChange={(e) => setEmergencyContact(e.target.value)} /></label>
+            <label><span className={LABEL}>Shortlist</span>
+              <select className={FIELD} value={preferredTier} onChange={(e) => setPreferredTier(e.target.value as Freelancer['preferredTier'])}>
+                <option value="new">New</option>
+                <option value="preferred">Preferred</option>
+                <option value="backup">Backup</option>
+                <option value="under_review">Under Review</option>
+              </select>
+            </label>
+            <label className="sm:col-span-3"><span className={LABEL}>Full address</span><input className={FIELD} value={address} onChange={(e) => setAddress(e.target.value)} /></label>
+            <label>
+              <span className={LABEL}>Application status</span>
+              <select className={FIELD} value={applicationStatus} onChange={(e) => setApplicationStatus(e.target.value as FreelancerApplicationStatus)}>
+                <option value="applied">Applied</option>
+                <option value="under_review">Under Review</option>
+                <option value="shortlisted">Shortlisted</option>
+                <option value="verification">Verification</option>
+                <option value="changes_requested">Action Required</option>
+                <option value="approved">Approved</option>
+                <option value="rejected">Rejected</option>
+              </select>
+            </label>
+            <label>
+              <span className={LABEL}>Working status</span>
+              <select className={FIELD} value={workingStatus} onChange={(e) => { const v = e.target.value as FreelancerWorkingStatus; setWorkingStatus(v); setStatus(v === 'active' ? 'active' : 'inactive'); }}>
+                <option value="active">Active</option>
+                <option value="inactive">Inactive</option>
+                <option value="unavailable">Temporarily Unavailable</option>
+                <option value="suspended">Suspended</option>
+              </select>
+            </label>
+          </div>
+        </Section>
+
+        <Section title="Professional information">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <label><span className={LABEL}>Main category</span>
+              <select className={FIELD} value={mainCategory} onChange={(e) => handleCategoryChange(e.target.value)}>
+                {categories.map((cat) => <option key={cat.id} value={cat.name}>{cat.name}</option>)}
+              </select>
+            </label>
+            <label><span className={LABEL}>Subcategory</span>
+              <select className={FIELD} value={subCategory} onChange={(e) => setSubCategory(e.target.value)}>
+                {availableSubCats.map((sub) => <option key={sub} value={sub}>{sub}</option>)}
+              </select>
+            </label>
+            <label><span className={LABEL}>Experience (years)</span><input type="number" min={0} className={FIELD} value={experienceYears} onChange={(e) => setExperienceYears(Number(e.target.value))} /></label>
+            <label className="sm:col-span-3"><span className={LABEL}>Skills</span><input className={FIELD} value={skillsStr} onChange={(e) => setSkillsStr(e.target.value)} placeholder="Candid, Traditional, Lighting" /></label>
+            <label className="sm:col-span-3"><span className={LABEL}>Professional bio</span><textarea className={`${FIELD} min-h-20`} value={bio} onChange={(e) => setBio(e.target.value)} /></label>
+            <label><span className={LABEL}>Languages</span><input className={FIELD} value={languages} onChange={(e) => setLanguages(e.target.value)} /></label>
+            <label className="sm:col-span-2"><span className={LABEL}>Preferred work locations</span><input className={FIELD} value={preferredLocations} onChange={(e) => setPreferredLocations(e.target.value)} /></label>
+          </div>
+        </Section>
+
+        <Section title="Equipment">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <label><span className={LABEL}>Camera bodies</span><input className={FIELD} value={cameraDetails} onChange={(e) => setCameraDetails(e.target.value)} /></label>
+            <label><span className={LABEL}>Lens set</span><input className={FIELD} value={lensDetails} onChange={(e) => setLensDetails(e.target.value)} /></label>
+            <label className="sm:col-span-2"><span className={LABEL}>Drone, gimbal, lighting, audio & other</span><input className={FIELD} value={otherEquipment} onChange={(e) => setOtherEquipment(e.target.value)} /></label>
+            <label className="sm:col-span-2"><span className={LABEL}>Equipment overview</span><input className={FIELD} value={equipmentAvailable} onChange={(e) => setEquipmentAvailable(e.target.value)} /></label>
+          </div>
+        </Section>
+
+        <Section title="Commercial information">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            {(showPhotoRate || showVideoRate || !showDroneRate) && (
+              <label><span className={LABEL}>Day rate</span><input type="number" min={0} className={FIELD} value={perDayCharges} onChange={(e) => setPerDayCharges(Number(e.target.value))} /></label>
+            )}
+            <label><span className={LABEL}>Half-day rate</span><input type="number" min={0} className={FIELD} value={halfDayCharges} onChange={(e) => setHalfDayCharges(Number(e.target.value))} /></label>
+            {showDroneRate && <label><span className={LABEL}>Drone / event rate</span><input type="number" min={0} className={FIELD} value={eventCharges} onChange={(e) => setEventCharges(Number(e.target.value))} /></label>}
+            {showVideoRate && !showDroneRate && <label><span className={LABEL}>Editing / event rate</span><input type="number" min={0} className={FIELD} value={eventCharges} onChange={(e) => setEventCharges(Number(e.target.value))} /></label>}
+            <label><span className={LABEL}>Travel</span><input type="number" min={0} className={FIELD} value={travelCharges} onChange={(e) => setTravelCharges(Number(e.target.value))} /></label>
+            <label><span className={LABEL}>Overtime</span><input type="number" min={0} className={FIELD} value={overtimeCharges} onChange={(e) => setOvertimeCharges(Number(e.target.value))} /></label>
+            <label><span className={LABEL}>Extra hour</span><input type="number" min={0} className={FIELD} value={extraHourCharges} onChange={(e) => setExtraHourCharges(Number(e.target.value))} /></label>
+            <label><span className={LABEL}>Other charges</span><input type="number" min={0} className={FIELD} value={otherCharges} onChange={(e) => setOtherCharges(Number(e.target.value))} /></label>
+            <label className="col-span-2 sm:col-span-4"><span className={LABEL}>Rate notes</span><input className={FIELD} value={notes} onChange={(e) => setNotes(e.target.value)} /></label>
+          </div>
+        </Section>
+
+        <Section title="Availability">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <label className="flex items-center gap-2 text-sm font-semibold text-slate-700">
+              <input type="checkbox" checked={travelAvailability} onChange={(e) => setTravelAvailability(e.target.checked)} />
+              Available for travel / destination
+            </label>
+            <label><span className={LABEL}>Max shoots per day</span><input type="number" min={1} className={FIELD} value={maxShootsPerDay} onChange={(e) => setMaxShootsPerDay(Number(e.target.value))} /></label>
+            <label><span className={LABEL}>Instagram</span><input className={FIELD} value={instagramUrl} onChange={(e) => setInstagramUrl(e.target.value)} /></label>
+            <label className="sm:col-span-2"><span className={LABEL}>Portfolio website</span><input className={FIELD} value={websiteUrl} onChange={(e) => setWebsiteUrl(e.target.value)} /></label>
+          </div>
+        </Section>
+
+        <Section title="Documents & payout (admin only)">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <label><span className={LABEL}>PAN</span><input className={FIELD} value={panNumber} onChange={(e) => setPanNumber(e.target.value)} /></label>
+            <label><span className={LABEL}>GST</span><input className={FIELD} value={gstNumber} onChange={(e) => setGstNumber(e.target.value)} /></label>
+            <label><span className={LABEL}>Payment method</span>
+              <select className={FIELD} value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value as Freelancer['paymentMethod'])}>
+                <option value="UPI">UPI</option>
+                <option value="Bank Transfer">Bank Transfer</option>
+                <option value="Cash">Cash</option>
+                <option value="Other">Other</option>
+              </select>
+            </label>
+            <label><span className={LABEL}>UPI ID</span><input className={FIELD} value={upiId} onChange={(e) => setUpiId(e.target.value)} /></label>
+            <label><span className={LABEL}>Bank name</span><input className={FIELD} value={bankName} onChange={(e) => setBankName(e.target.value)} /></label>
+            <label><span className={LABEL}>Account holder</span><input className={FIELD} value={accountHolderName} onChange={(e) => setAccountHolderName(e.target.value)} /></label>
+            <label><span className={LABEL}>Account number</span><input className={FIELD} value={accountNumber} onChange={(e) => setAccountNumber(e.target.value)} /></label>
+            <label><span className={LABEL}>IFSC</span><input className={FIELD} value={ifsc} onChange={(e) => setIfsc(e.target.value)} /></label>
+            <label className="sm:col-span-3"><span className={LABEL}>Payment notes</span><input className={FIELD} value={paymentNotes} onChange={(e) => setPaymentNotes(e.target.value)} /></label>
+            <label className="sm:col-span-3"><span className={LABEL}>Internal admin notes</span><textarea className={`${FIELD} min-h-20`} value={internalNotes} onChange={(e) => setInternalNotes(e.target.value)} /></label>
+          </div>
+        </Section>
+
+        <div className="flex justify-end gap-2 border-t border-[#eee7e2] pt-4">
+          <button type="button" onClick={onClose} className={BTN_GHOST}>Cancel</button>
+          <button type="submit" className={BTN_PRIMARY}>{existingFreelancer ? 'Update Freelancer' : 'Save Freelancer'}</button>
         </div>
-
-        {/* Form Body */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-6 max-h-[82vh] overflow-y-auto">
-          {/* Section 1: Basic Information */}
-          <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-4">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-indigo-900 flex items-center gap-1.5 border-b border-slate-200 pb-2">
-              <User className="w-4 h-4 text-indigo-600" />
-              <span>1. Basic Personal Information</span>
-            </h3>
-
-            {/* Profile Photo Upload */}
-            <div className="flex flex-col sm:flex-row items-center gap-4 bg-white p-3.5 rounded-xl border border-slate-200 shadow-2xs">
-              <div className="relative group flex-shrink-0">
-                {profilePhoto && profilePhoto.trim() ? (
-                  <img
-                    src={profilePhoto}
-                    alt="Profile Preview"
-                    className="w-16 h-16 rounded-full object-cover border-2 border-indigo-600 shadow-xs"
-                  />
-                ) : (
-                  <div className="w-16 h-16 rounded-full bg-indigo-50 border-2 border-dashed border-indigo-300 flex items-center justify-center text-indigo-500 font-bold text-xl">
-                    <User className="w-8 h-8 text-indigo-400" />
-                  </div>
-                )}
-              </div>
-              <div className="flex-1 w-full space-y-2">
-                <div>
-                  <label className="text-xs font-bold text-slate-800 block">
-                    Upload Profile Photo
-                  </label>
-                  <p className="text-[11px] text-slate-500">
-                    Upload image from your device (JPG, PNG, WEBP)
-                  </p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <label
-                    htmlFor="freelancer-photo-upload"
-                    className="cursor-pointer inline-flex items-center gap-2 px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold shadow-xs transition"
-                  >
-                    <Upload className="w-4 h-4" />
-                    <span>Choose Photo File</span>
-                    <input
-                      id="freelancer-photo-upload"
-                      type="file"
-                      accept="image/*"
-                      onChange={handleImageUpload}
-                      className="hidden"
-                    />
-                  </label>
-                  {profilePhoto && (
-                    <button
-                      type="button"
-                      onClick={() => setProfilePhoto('')}
-                      className="px-3 py-2 border border-slate-300 hover:bg-slate-100 text-slate-700 rounded-lg text-xs font-semibold transition"
-                    >
-                      Remove Photo
-                    </button>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <div>
-                <label className="text-[11px] font-bold text-slate-600 block mb-1">
-                  Freelancer Name <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  placeholder="e.g. Rahul Kapoor"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  className="w-full px-3 py-2 text-xs rounded-lg border border-slate-300 bg-white font-bold text-slate-900"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="text-[11px] font-bold text-slate-600 block mb-1">
-                  Freelancer ID
-                </label>
-                <input
-                  type="text"
-                  value={freelancerId}
-                  onChange={(e) => setFreelancerId(e.target.value)}
-                  className="w-full px-3 py-2 text-xs rounded-lg border border-slate-300 bg-white font-mono uppercase font-bold text-indigo-700"
-                />
-              </div>
-
-              <div>
-                <label className="text-[11px] font-bold text-slate-600 block mb-1">
-                  Status
-                </label>
-                <select
-                  value={status}
-                  onChange={(e) => setStatus(e.target.value as 'active' | 'inactive')}
-                  className="w-full px-3 py-2 text-xs rounded-lg border border-slate-300 bg-white font-bold"
-                >
-                  <option value="active">Active Freelancer</option>
-                  <option value="inactive">Inactive</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="text-[11px] font-bold text-slate-600 block mb-1">
-                  Mobile Number <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  placeholder="+91 98765 00000"
-                  value={mobile}
-                  onChange={(e) => setMobile(e.target.value)}
-                  className="w-full px-3 py-2 text-xs rounded-lg border border-slate-300 bg-white"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="text-[11px] font-bold text-slate-600 block mb-1">
-                  WhatsApp Number
-                </label>
-                <input
-                  type="text"
-                  placeholder="+91 98765 00000"
-                  value={whatsapp}
-                  onChange={(e) => setWhatsapp(e.target.value)}
-                  className="w-full px-3 py-2 text-xs rounded-lg border border-slate-300 bg-white"
-                />
-              </div>
-
-              <div>
-                <label className="text-[11px] font-bold text-slate-600 block mb-1">
-                  Email Address
-                </label>
-                <input
-                  type="email"
-                  placeholder="freelancer@gmail.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="w-full px-3 py-2 text-xs rounded-lg border border-slate-300 bg-white"
-                />
-              </div>
-
-              <div>
-                <label className="text-[11px] font-bold text-slate-600 block mb-1">
-                  City / Base Location
-                </label>
-                <input
-                  type="text"
-                  placeholder="Jaipur, Udaipur, Delhi..."
-                  value={city}
-                  onChange={(e) => setCity(e.target.value)}
-                  className="w-full px-3 py-2 text-xs rounded-lg border border-slate-300 bg-white"
-                />
-              </div>
-
-              <div>
-                <label className="text-[11px] font-bold text-slate-600 block mb-1">
-                  Emergency Contact
-                </label>
-                <input
-                  type="text"
-                  placeholder="+91 98765 99999 (Relation)"
-                  value={emergencyContact}
-                  onChange={(e) => setEmergencyContact(e.target.value)}
-                  className="w-full px-3 py-2 text-xs rounded-lg border border-slate-300 bg-white"
-                />
-              </div>
-
-              <div>
-                <label className="text-[11px] font-bold text-slate-600 block mb-1">
-                  Joining Date
-                </label>
-                <input
-                  type="date"
-                  value={joiningDate}
-                  onChange={(e) => setJoiningDate(e.target.value)}
-                  className="w-full px-3 py-2 text-xs rounded-lg border border-slate-300 bg-white"
-                />
-              </div>
-
-              <div className="sm:col-span-3">
-                <label className="text-[11px] font-bold text-slate-600 block mb-1">
-                  Full Address
-                </label>
-                <input
-                  type="text"
-                  placeholder="House / Street / Locality address"
-                  value={address}
-                  onChange={(e) => setAddress(e.target.value)}
-                  className="w-full px-3 py-2 text-xs rounded-lg border border-slate-300 bg-white"
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Section 2: Professional Information & Equipment */}
-          <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-4">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-indigo-900 flex items-center gap-1.5 border-b border-slate-200 pb-2">
-              <Camera className="w-4 h-4 text-indigo-600" />
-              <span>2. Category, Experience & Gear Details</span>
-            </h3>
-
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <div>
-                <label className="text-[11px] font-bold text-slate-600 block mb-1">
-                  Main Category <span className="text-red-500">*</span>
-                </label>
-                <select
-                  value={mainCategory}
-                  onChange={(e) => handleCategoryChange(e.target.value)}
-                  className="w-full px-3 py-2 text-xs rounded-lg border border-slate-300 bg-white font-bold"
-                >
-                  {categories.map((cat) => (
-                    <option key={cat.id} value={cat.name}>
-                      {cat.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="text-[11px] font-bold text-slate-600 block mb-1">
-                  Sub Category <span className="text-red-500">*</span>
-                </label>
-                <select
-                  value={subCategory}
-                  onChange={(e) => setSubCategory(e.target.value)}
-                  className="w-full px-3 py-2 text-xs rounded-lg border border-slate-300 bg-white font-bold"
-                >
-                  {availableSubCats.map((sub, idx) => (
-                    <option key={idx} value={sub}>
-                      {sub}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="text-[11px] font-bold text-slate-600 block mb-1">
-                  Experience (Years)
-                </label>
-                <input
-                  type="number"
-                  min="0"
-                  max="40"
-                  value={experienceYears}
-                  onChange={(e) => setExperienceYears(Number(e.target.value))}
-                  className="w-full px-3 py-2 text-xs rounded-lg border border-slate-300 bg-white"
-                />
-              </div>
-
-              <div className="sm:col-span-3">
-                <label className="text-[11px] font-bold text-slate-600 block mb-1">
-                  Key Skills & Highlights (comma separated)
-                </label>
-                <input
-                  type="text"
-                  placeholder="e.g. Candid Shots, Low Light, S-Log3, Gimbal Fly, FPV Drone"
-                  value={skillsStr}
-                  onChange={(e) => setSkillsStr(e.target.value)}
-                  className="w-full px-3 py-2 text-xs rounded-lg border border-slate-300 bg-white"
-                />
-              </div>
-
-              <div>
-                <label className="text-[11px] font-bold text-slate-600 block mb-1">
-                  Camera Bodies / Details
-                </label>
-                <input
-                  type="text"
-                  placeholder="e.g. Sony FX3, Sony A7IV x2"
-                  value={cameraDetails}
-                  onChange={(e) => setCameraDetails(e.target.value)}
-                  className="w-full px-3 py-2 text-xs rounded-lg border border-slate-300 bg-white"
-                />
-              </div>
-
-              <div>
-                <label className="text-[11px] font-bold text-slate-600 block mb-1">
-                  Lens Set Details
-                </label>
-                <input
-                  type="text"
-                  placeholder="e.g. 35mm f/1.4, 85mm f/1.4, 24-70mm f/2.8"
-                  value={lensDetails}
-                  onChange={(e) => setLensDetails(e.target.value)}
-                  className="w-full px-3 py-2 text-xs rounded-lg border border-slate-300 bg-white"
-                />
-              </div>
-
-              <div>
-                <label className="text-[11px] font-bold text-slate-600 block mb-1">
-                  Lighting & Gimbal / Other Gear
-                </label>
-                <input
-                  type="text"
-                  placeholder="e.g. Godox AD200, DJI RS3 Gimbal, Rode Wireless Mics"
-                  value={otherEquipment}
-                  onChange={(e) => setOtherEquipment(e.target.value)}
-                  className="w-full px-3 py-2 text-xs rounded-lg border border-slate-300 bg-white"
-                />
-              </div>
-
-              <div className="sm:col-span-3">
-                <label className="text-[11px] font-bold text-slate-600 block mb-1">
-                  Overall Equipment Overview
-                </label>
-                <input
-                  type="text"
-                  placeholder="Brief summary of complete shooting gear owned"
-                  value={equipmentAvailable}
-                  onChange={(e) => setEquipmentAvailable(e.target.value)}
-                  className="w-full px-3 py-2 text-xs rounded-lg border border-slate-300 bg-white"
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Section 3: Rate Card / Charges */}
-          <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-4">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-indigo-900 flex items-center gap-1.5 border-b border-slate-200 pb-2">
-              <DollarSign className="w-4 h-4 text-indigo-600" />
-              <span>3. Rate Card & Charges Structure (₹)</span>
-            </h3>
-
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              <div>
-                <label className="text-[11px] font-bold text-slate-600 block mb-1">
-                  Full Event Charges (₹)
-                </label>
-                <input
-                  type="number"
-                  min="0"
-                  step="500"
-                  value={perDayCharges}
-                  onChange={(e) => setPerDayCharges(Number(e.target.value))}
-                  className="w-full px-3 py-2 text-xs rounded-lg border border-slate-300 bg-white font-bold text-indigo-700"
-                />
-              </div>
-
-              <div>
-                <label className="text-[11px] font-bold text-slate-600 block mb-1">
-                  Small Event Charges (₹)
-                </label>
-                <input
-                  type="number"
-                  min="0"
-                  step="500"
-                  value={halfDayCharges}
-                  onChange={(e) => setHalfDayCharges(Number(e.target.value))}
-                  className="w-full px-3 py-2 text-xs rounded-lg border border-slate-300 bg-white"
-                />
-              </div>
-
-              <div>
-                <label className="text-[11px] font-bold text-slate-600 block mb-1">
-                  Full Day Event Charges (₹)
-                </label>
-                <input
-                  type="number"
-                  min="0"
-                  step="500"
-                  value={eventCharges}
-                  onChange={(e) => setEventCharges(Number(e.target.value))}
-                  className="w-full px-3 py-2 text-xs rounded-lg border border-slate-300 bg-white"
-                />
-              </div>
-
-              <div className="col-span-2 sm:col-span-4">
-                <label className="text-[11px] font-bold text-slate-600 block mb-1">
-                  Special Rate Card Notes / Terms
-                </label>
-                <input
-                  type="text"
-                  placeholder="e.g. Requires 30% advance for flight bookings. Food and lodging borne by client."
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
-                  className="w-full px-3 py-2 text-xs rounded-lg border border-slate-300 bg-white"
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Section 4: Bank / Payment Details */}
-          <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-4">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-indigo-900 flex items-center gap-1.5 border-b border-slate-200 pb-2">
-              <CreditCard className="w-4 h-4 text-indigo-600" />
-              <span>4. Bank & Payment Information</span>
-            </h3>
-
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <div>
-                <label className="text-[11px] font-bold text-slate-600 block mb-1">
-                  Preferred Payment Method
-                </label>
-                <select
-                  value={paymentMethod}
-                  onChange={(e) => setPaymentMethod(e.target.value as any)}
-                  className="w-full px-3 py-2 text-xs rounded-lg border border-slate-300 bg-white font-bold"
-                >
-                  <option value="UPI">UPI (GPay/PhonePe/Paytm)</option>
-                  <option value="Bank Transfer">Bank Transfer (NEFT/IMPS)</option>
-                  <option value="Cash">Cash Settlement</option>
-                  <option value="Other">Other</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="text-[11px] font-bold text-slate-600 block mb-1">
-                  UPI ID / QR Mobile
-                </label>
-                <input
-                  type="text"
-                  placeholder="e.g. name@okicici or 9876500000@paytm"
-                  value={upiId}
-                  onChange={(e) => setUpiId(e.target.value)}
-                  className="w-full px-3 py-2 text-xs rounded-lg border border-slate-300 bg-white font-mono"
-                />
-              </div>
-
-              <div>
-                <label className="text-[11px] font-bold text-slate-600 block mb-1">
-                  Bank Name
-                </label>
-                <input
-                  type="text"
-                  placeholder="e.g. HDFC Bank / ICICI Bank"
-                  value={bankName}
-                  onChange={(e) => setBankName(e.target.value)}
-                  className="w-full px-3 py-2 text-xs rounded-lg border border-slate-300 bg-white"
-                />
-              </div>
-
-              <div>
-                <label className="text-[11px] font-bold text-slate-600 block mb-1">
-                  Account Holder Name
-                </label>
-                <input
-                  type="text"
-                  placeholder="Name as per bank passbook"
-                  value={accountHolderName}
-                  onChange={(e) => setAccountHolderName(e.target.value)}
-                  className="w-full px-3 py-2 text-xs rounded-lg border border-slate-300 bg-white"
-                />
-              </div>
-
-              <div>
-                <label className="text-[11px] font-bold text-slate-600 block mb-1">
-                  Account Number
-                </label>
-                <input
-                  type="text"
-                  placeholder="Bank Account Number"
-                  value={accountNumber}
-                  onChange={(e) => setAccountNumber(e.target.value)}
-                  className="w-full px-3 py-2 text-xs rounded-lg border border-slate-300 bg-white font-mono"
-                />
-              </div>
-
-              <div>
-                <label className="text-[11px] font-bold text-slate-600 block mb-1">
-                  IFSC Code
-                </label>
-                <input
-                  type="text"
-                  placeholder="e.g. HDFC0001234"
-                  value={ifsc}
-                  onChange={(e) => setIfsc(e.target.value)}
-                  className="w-full px-3 py-2 text-xs rounded-lg border border-slate-300 bg-white font-mono uppercase"
-                />
-              </div>
-
-              <div className="sm:col-span-3">
-                <label className="text-[11px] font-bold text-slate-600 block mb-1">
-                  Payment Notes / Remarks
-                </label>
-                <input
-                  type="text"
-                  placeholder="e.g. Accounts department approval required before final clearance."
-                  value={paymentNotes}
-                  onChange={(e) => setPaymentNotes(e.target.value)}
-                  className="w-full px-3 py-2 text-xs rounded-lg border border-slate-300 bg-white"
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Form Actions */}
-          <div className="flex justify-end gap-3 pt-2 border-t border-slate-200">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-5 py-2.5 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-bold transition"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              className="px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-extrabold uppercase tracking-wider transition shadow-sm flex items-center gap-2"
-            >
-              <Check className="w-4 h-4" />
-              <span>{existingFreelancer ? 'Update Freelancer Profile' : 'Save Freelancer Profile'}</span>
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
+      </form>
+    </Modal>
   );
 };

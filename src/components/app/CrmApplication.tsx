@@ -19,6 +19,7 @@ import {
   LeaveRequest
 } from '@/types';
 import { INITIAL_PROJECTS, INITIAL_TEAM, INITIAL_ATTENDANCE, INITIAL_TASKS } from '@/data/mockData';
+import { mergeFreelancerCategories } from '@/features/freelancers/freelancerDomain';
 import { 
   INITIAL_FREELANCER_CATEGORIES, 
   INITIAL_FREELANCERS, 
@@ -51,6 +52,8 @@ import { TeamAttendance, MemberDashboardModal } from '@/features/team';
 import { DeliveriesManager } from '@/features/deliveries';
 import { FreelancerTeamManager } from '@/features/freelancers';
 import { ExpenseManagement } from '@/features/expenses';
+import { expenseService } from '@/features/expenses/services/expenseService';
+import type { Expense } from '@/features/expenses/types';
 import { Lock, ShieldAlert, ShieldCheck, ArrowRight } from 'lucide-react';
 import { ToastProvider } from '@/components/common';
 
@@ -135,16 +138,12 @@ export default function App() {
     if (saved) {
       try {
         const parsed: FreelancerCategory[] = JSON.parse(saved);
-        const names = parsed.map((c) => c.name);
-        if (!names.includes('Videographer') || !names.includes('Assistant') || !names.includes('Other')) {
-          return INITIAL_FREELANCER_CATEGORIES;
-        }
-        return parsed;
+        return mergeFreelancerCategories(Array.isArray(parsed) ? parsed : INITIAL_FREELANCER_CATEGORIES);
       } catch (e) {
         return INITIAL_FREELANCER_CATEGORIES;
       }
     }
-    return INITIAL_FREELANCER_CATEGORIES;
+    return mergeFreelancerCategories(INITIAL_FREELANCER_CATEGORIES);
   });
 
   const [freelancers, setFreelancers] = useState<Freelancer[]>(() => {
@@ -409,11 +408,12 @@ export default function App() {
 
   // Freelancer Handlers
   const handleSaveFreelancer = (freelancer: Freelancer) => {
-    const exists = freelancers.some((f) => f.id === freelancer.id);
-    if (exists) {
-      setFreelancers(freelancers.map((f) => (f.id === freelancer.id ? freelancer : f)));
+    const existing = freelancers.find((f) => f.id === freelancer.id);
+    const merged: Freelancer = existing ? { ...existing, ...freelancer } : freelancer;
+    if (existing) {
+      setFreelancers(freelancers.map((f) => (f.id === freelancer.id ? merged : f)));
     } else {
-      setFreelancers([freelancer, ...freelancers]);
+      setFreelancers([merged, ...freelancers]);
     }
   };
 
@@ -453,12 +453,11 @@ export default function App() {
   const handleSaveFreelancerPayment = (payment: FreelancerPayment) => {
     setFreelancerPayments([payment, ...freelancerPayments]);
 
-    // Recalculate advancePaid / pendingAmount on associated assignment
     if (payment.assignmentId) {
       setFreelancerAssignments(
         freelancerAssignments.map((a) => {
           if (a.id === payment.assignmentId) {
-            const newPaid = a.advancePaid + payment.amountPaid;
+            const newPaid = (a.advancePaid || 0) + payment.amountPaid;
             const newPending = Math.max(0, a.totalAgreedAmount - newPaid);
             const newStatus =
               newPaid >= a.totalAgreedAmount ? 'paid' : newPaid > 0 ? 'partially_paid' : 'unpaid';
@@ -472,6 +471,42 @@ export default function App() {
           return a;
         })
       );
+    }
+
+    try {
+      const assignment = freelancerAssignments.find((a) => a.id === payment.assignmentId);
+      const expenses = expenseService.list();
+      if (expenses.some((e) => e.freelancerPaymentId === payment.id)) return;
+      const agreed = assignment?.totalAgreedAmount || payment.agreedAmount || payment.amountPaid;
+      const now = new Date().toISOString();
+      const expense: Expense = {
+        id: `EXP-FL-${payment.id}`,
+        date: payment.paymentDate,
+        category: 'Freelancer',
+        subcategory: assignment?.category || 'Freelancer payment',
+        description: `${payment.freelancerName} — ${assignment?.projectName || payment.projectName || 'Freelancer production cost'}`,
+        amount: agreed,
+        paidAmount: payment.amountPaid,
+        projectId: assignment?.projectId,
+        payee: payment.freelancerName,
+        freelancerId: payment.freelancerId,
+        freelancerPaymentId: payment.id,
+        role: assignment?.role || assignment?.subCategory,
+        workDate: assignment?.shootDate || payment.shootDate,
+        paymentMethod: (['Cash', 'UPI', 'Bank Transfer'].includes(payment.paymentMethod)
+          ? payment.paymentMethod
+          : 'Other') as Expense['paymentMethod'],
+        paymentStatus: payment.amountPaid >= agreed ? 'Paid' : payment.amountPaid > 0 ? 'Partially Paid' : 'Unpaid',
+        approvalStatus: 'Approved',
+        addedBy: payment.createdBy || 'Accounts Admin',
+        createdAt: now,
+        updatedAt: now,
+        notes: payment.notes,
+        payments: [{ id: `PAY-${payment.id}`, amount: payment.amountPaid, date: payment.paymentDate, method: (['Cash', 'UPI', 'Bank Transfer'].includes(payment.paymentMethod) ? payment.paymentMethod : 'Other') as Expense['paymentMethod'] }],
+      };
+      expenseService.save([expense, ...expenses]);
+    } catch {
+      /* expense module unavailable — freelancer ledger still saved */
     }
   };
 

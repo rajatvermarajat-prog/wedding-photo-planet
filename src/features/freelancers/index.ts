@@ -1,6 +1,9 @@
 export { FreelancerTeamManager } from './components/FreelancerTeamManager';
+export * from './freelancerDomain';
+export * from './freelancerPortal';
 export { FreelancerDashboardView } from './components/FreelancerDashboardView';
 export { AllFreelancersView } from './components/AllFreelancersView';
+export { FreelancerApplicationsView } from './components/FreelancerApplicationsView';
 export { ShootAssignmentsView } from './components/ShootAssignmentsView';
 export { ShootCalendarView } from './components/ShootCalendarView';
 export { FreelancerPaymentsView } from './components/FreelancerPaymentsView';

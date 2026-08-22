@@ -1,42 +1,55 @@
+'use client';
+
 import React, { useState } from 'react';
-import { 
-  Freelancer, 
-  FreelancerAssignment, 
-  FreelancerPayment, 
-  FreelancerAttendance, 
-  FreelancerDataReceived, 
-  FreelancerCategory, 
+import {
+  Freelancer,
+  FreelancerAssignment,
+  FreelancerPayment,
+  FreelancerAttendance,
+  FreelancerDataReceived,
+  FreelancerCategory,
   FreelancerActivityLog,
   Project,
-  FreelancerDocument
+  FreelancerDocument,
 } from '@/types';
-
 import { FreelancerDashboardView } from './FreelancerDashboardView';
 import { AllFreelancersView } from './AllFreelancersView';
+import { FreelancerApplicationsView } from './FreelancerApplicationsView';
 import { ShootAssignmentsView } from './ShootAssignmentsView';
 import { ShootCalendarView } from './ShootCalendarView';
 import { FreelancerPaymentsView } from './FreelancerPaymentsView';
 import { FreelancerAttendanceView } from './FreelancerAttendanceView';
 import { FreelancerDataReceivedView } from './FreelancerDataReceivedView';
 import { FreelancerReportsView } from './FreelancerReportsView';
-
 import { CategoriesManagerModal } from './CategoriesManagerModal';
 import { FreelancerFormModal } from './FreelancerFormModal';
 import { FreelancerProfileModal } from './FreelancerProfileModal';
-
-import { 
-  Users, 
-  LayoutDashboard, 
-  Film, 
-  Calendar as CalendarIcon, 
-  CreditCard, 
-  Clock, 
-  HardDrive, 
-  BarChart3, 
-  Tag, 
-  Plus, 
-  UserPlus 
+import {
+  BarChart3,
+  Calendar,
+  ClipboardList,
+  CreditCard,
+  Film,
+  HardDrive,
+  LayoutDashboard,
+  Tag,
+  Timer,
+  UserPlus,
+  Users,
 } from 'lucide-react';
+import { BTN_CREAM, BTN_GHOST, CARD, TOGGLE_ACTIVE, TOGGLE_IDLE } from '@/features/team/components/TeamUiKit';
+import { isPendingApplication } from '../freelancerDomain';
+
+type FreelancerTab =
+  | 'dashboard'
+  | 'all_freelancers'
+  | 'applications'
+  | 'assignments'
+  | 'calendar'
+  | 'payments'
+  | 'attendance'
+  | 'data_received'
+  | 'reports';
 
 interface FreelancerTeamManagerProps {
   freelancers: Freelancer[];
@@ -61,39 +74,48 @@ interface FreelancerTeamManagerProps {
   onDeleteAssignment?: (assignmentId: string) => void;
 }
 
-export const FreelancerTeamManager: React.FC<FreelancerTeamManagerProps> = ({
-  freelancers,
-  categories,
-  assignments,
-  payments,
-  attendanceRecords,
-  dataReceivedList,
-  activityLogs,
-  projects,
-  onSaveFreelancer,
-  onSaveCategories,
-  onSaveAssignments,
-  onUpdateAssignmentStatus,
-  onSavePayment,
-  onSaveAttendance,
-  onUpdateAvailability,
-  onSaveDataReceived,
-  onUpdateDataStatus,
-  onUpdateDocument,
-  onDeleteFreelancer,
-  onDeleteAssignment,
-}) => {
-  // Active Sub-tab State
-  const [activeSubTab, setActiveSubTab] = useState<
-    'dashboard' | 'all_freelancers' | 'assignments' | 'calendar' | 'payments' | 'attendance' | 'data_received' | 'reports'
-  >('dashboard');
+const TABS: Array<{ id: FreelancerTab; label: string; icon: typeof Users }> = [
+  { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { id: 'all_freelancers', label: 'Freelancers', icon: Users },
+  { id: 'applications', label: 'Applications', icon: ClipboardList },
+  { id: 'calendar', label: 'Calendar', icon: Calendar },
+  { id: 'assignments', label: 'Assignments', icon: Film },
+  { id: 'payments', label: 'Payments', icon: CreditCard },
+  { id: 'attendance', label: 'Work Logs', icon: Timer },
+  { id: 'data_received', label: 'Footage', icon: HardDrive },
+  { id: 'reports', label: 'Reports', icon: BarChart3 },
+];
 
-  // Modal States
+export const FreelancerTeamManager: React.FC<FreelancerTeamManagerProps> = (props) => {
+  const {
+    freelancers,
+    categories,
+    assignments,
+    payments,
+    attendanceRecords,
+    dataReceivedList,
+    activityLogs,
+    projects,
+    onSaveFreelancer,
+    onSaveCategories,
+    onSaveAssignments,
+    onUpdateAssignmentStatus,
+    onSavePayment,
+    onSaveAttendance,
+    onUpdateAvailability,
+    onSaveDataReceived,
+    onUpdateDataStatus,
+    onUpdateDocument,
+    onDeleteFreelancer,
+    onDeleteAssignment,
+  } = props;
+
+  const [activeSubTab, setActiveSubTab] = useState<FreelancerTab>('dashboard');
   const [showCategoriesModal, setShowCategoriesModal] = useState(false);
   const [showFreelancerFormModal, setShowFreelancerFormModal] = useState(false);
   const [editingFreelancer, setEditingFreelancer] = useState<Freelancer | null>(null);
-
   const [selectedProfileFreelancer, setSelectedProfileFreelancer] = useState<Freelancer | null>(null);
+  const pendingApps = freelancers.filter(isPendingApplication).length;
 
   const handleOpenAddForm = () => {
     setEditingFreelancer(null);
@@ -112,48 +134,59 @@ export const FreelancerTeamManager: React.FC<FreelancerTeamManagerProps> = ({
   };
 
   return (
-    <div className="space-y-6">
-      {/* Module Navigation Sub-Header */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-3 flex items-center justify-between gap-2 overflow-x-auto">
-        <div className="flex items-center gap-1.5 overflow-x-auto">
-          {[
-            { id: 'dashboard', label: '1. Dashboard', icon: LayoutDashboard },
-            { id: 'all_freelancers', label: `2. All Freelancers (${freelancers.length})`, icon: Users },
-            { id: 'calendar', label: '3. Shoot Calendar', icon: CalendarIcon },
-            { id: 'payments', label: `4. Payments (${payments.length})`, icon: CreditCard },
-            { id: 'reports', label: `5. Reports`, icon: BarChart3 },
-          ].map((tab) => {
-            const Icon = tab.icon;
-            const isActive = activeSubTab === tab.id;
-
-            return (
-              <button
-                key={tab.id}
-                onClick={() => setActiveSubTab(tab.id as any)}
-                className={`py-2 px-3.5 rounded-xl text-xs font-black transition flex items-center gap-2 whitespace-nowrap ${
-                  isActive
-                    ? 'bg-slate-900 text-white shadow-xs'
-                    : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
-                }`}
-              >
-                <Icon className={`w-4 h-4 ${isActive ? 'text-indigo-400' : 'text-slate-500'}`} />
-                <span>{tab.label}</span>
-              </button>
-            );
-          })}
+    <div className="space-y-6 pb-12">
+      <section className="relative overflow-hidden rounded-3xl border border-[#ddc89c]/35 bg-[radial-gradient(circle_at_88%_8%,rgba(221,200,156,.2),transparent_30%),linear-gradient(125deg,#704758,#55333f_50%,#38262d)] p-5 text-white shadow-xl sm:p-7">
+        <div className="absolute -bottom-20 -right-10 size-64 rounded-full border-[34px] border-white/[.04]" />
+        <div className="relative flex flex-col justify-between gap-5 xl:flex-row xl:items-center">
+          <div className="max-w-3xl">
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-white/20 bg-white/10 px-3 py-1 text-xs font-extrabold uppercase tracking-[.14em] text-[#f0dce3]">
+              Studio Production Network
+            </span>
+            <h1 className="mt-3 flex items-center gap-3 text-2xl font-black tracking-tight sm:text-3xl">
+              <span className="grid size-11 place-items-center rounded-2xl bg-white/10">
+                <UserPlus className="size-6 text-[#f1c8d5]" />
+              </span>
+              Freelancer Team
+            </h1>
+            <p className="mt-2 text-sm font-medium leading-relaxed text-[#eadfe2] sm:text-base">
+              Talent directory, shoot invitations, availability and freelancer payouts — one production desk for Wedding Photo Planet.
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <button type="button" onClick={() => setShowCategoriesModal(true)} className={BTN_GHOST + ' !border-white/20 !bg-white/10 !text-white hover:!bg-white/15'}>
+              <Tag className="size-3.5" /> Categories
+            </button>
+            <button type="button" onClick={handleOpenAddForm} className={BTN_CREAM}>
+              <UserPlus className="size-4" />
+              Add Freelancer
+            </button>
+          </div>
         </div>
+      </section>
 
-        {/* Categories Manager Button */}
-        <button
-          onClick={() => setShowCategoriesModal(true)}
-          className="px-3.5 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-extrabold rounded-xl transition flex items-center gap-1.5 whitespace-nowrap border border-indigo-200"
-        >
-          <Tag className="w-3.5 h-3.5" />
-          <span>Categories ({categories.length})</span>
-        </button>
-      </div>
+      <section className={`${CARD} p-3 sm:p-4`}>
+        <nav className="flex items-center gap-1 overflow-x-auto rounded-2xl border border-[#e2d9d3] bg-[#f6f1ee] p-1.5" aria-label="Freelancer sections">
+          {TABS.map(({ id, label, icon: Icon }) => (
+            <button
+              key={id}
+              type="button"
+              onClick={() => setActiveSubTab(id)}
+              className={`relative flex flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-xl border px-3 py-2.5 text-xs font-extrabold transition sm:flex-none ${
+                activeSubTab === id ? TOGGLE_ACTIVE : TOGGLE_IDLE
+              }`}
+              aria-current={activeSubTab === id ? 'page' : undefined}
+            >
+              <Icon className="size-3.5" />
+              {label}
+              {id === 'all_freelancers' && <span className="text-[10px] font-black opacity-60">({freelancers.length})</span>}
+              {id === 'applications' && pendingApps > 0 && (
+                <span className="rounded-full bg-amber-500 px-1.5 text-[10px] font-black text-white">{pendingApps}</span>
+              )}
+            </button>
+          ))}
+        </nav>
+      </section>
 
-      {/* RENDER ACTIVE SECTION */}
       {activeSubTab === 'dashboard' && (
         <FreelancerDashboardView
           freelancers={freelancers}
@@ -162,7 +195,7 @@ export const FreelancerTeamManager: React.FC<FreelancerTeamManagerProps> = ({
           dataReceivedList={dataReceivedList}
           categories={categories}
           projects={projects}
-          onTabChange={(tab) => setActiveSubTab(tab as any)}
+          onTabChange={(tab) => setActiveSubTab(tab as FreelancerTab)}
           onAddFreelancerClick={handleOpenAddForm}
           onAssignShootClick={() => setActiveSubTab('assignments')}
           onRecordPaymentClick={() => setActiveSubTab('payments')}
@@ -186,6 +219,15 @@ export const FreelancerTeamManager: React.FC<FreelancerTeamManagerProps> = ({
         />
       )}
 
+      {activeSubTab === 'applications' && (
+        <FreelancerApplicationsView
+          freelancers={freelancers}
+          onOpenProfile={(f) => setSelectedProfileFreelancer(f)}
+          onSaveFreelancer={onSaveFreelancer}
+          onAddFreelancerClick={handleOpenAddForm}
+        />
+      )}
+
       {activeSubTab === 'assignments' && (
         <ShootAssignmentsView
           assignments={assignments}
@@ -197,20 +239,10 @@ export const FreelancerTeamManager: React.FC<FreelancerTeamManagerProps> = ({
         />
       )}
 
-      {activeSubTab === 'calendar' && (
-        <ShootCalendarView
-          assignments={assignments}
-          freelancers={freelancers}
-        />
-      )}
+      {activeSubTab === 'calendar' && <ShootCalendarView assignments={assignments} freelancers={freelancers} />}
 
       {activeSubTab === 'payments' && (
-        <FreelancerPaymentsView
-          payments={payments}
-          assignments={assignments}
-          freelancers={freelancers}
-          onSavePayment={onSavePayment}
-        />
+        <FreelancerPaymentsView payments={payments} assignments={assignments} freelancers={freelancers} onSavePayment={onSavePayment} />
       )}
 
       {activeSubTab === 'attendance' && (
@@ -242,7 +274,6 @@ export const FreelancerTeamManager: React.FC<FreelancerTeamManagerProps> = ({
         />
       )}
 
-      {/* MODALS */}
       {showCategoriesModal && (
         <CategoriesManagerModal
           categories={categories}
@@ -265,7 +296,7 @@ export const FreelancerTeamManager: React.FC<FreelancerTeamManagerProps> = ({
 
       {selectedProfileFreelancer && (
         <FreelancerProfileModal
-          freelancer={selectedProfileFreelancer}
+          freelancer={freelancers.find((f) => f.id === selectedProfileFreelancer.id) || selectedProfileFreelancer}
           assignments={assignments}
           payments={payments}
           attendanceRecords={attendanceRecords}

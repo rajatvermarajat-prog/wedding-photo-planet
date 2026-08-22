@@ -48,10 +48,18 @@ export const FreelancerReportsView: React.FC<FreelancerReportsViewProps> = ({
     return matchesFl && matchesCat && matchesPayStatus && matchesFromDate && matchesToDate;
   });
 
-  // Calculate aggregated totals
-  const totalReportAgreed = filteredAssignments.reduce((sum, a) => sum + a.totalAgreedAmount, 0);
-  const totalReportPaid = filteredAssignments.reduce((sum, a) => sum + a.advancePaid, 0);
+  const paidForAssignment = (assignmentId: string) =>
+    payments.filter((p) => p.assignmentId === assignmentId).reduce((sum, p) => sum + (p.amountPaid || 0), 0);
+  const totalReportAgreed = filteredAssignments.reduce((sum, a) => sum + (a.totalAgreedAmount || 0), 0);
+  const totalReportPaid = filteredAssignments.reduce((sum, a) => sum + paidForAssignment(a.id), 0);
   const totalReportPending = Math.max(0, totalReportAgreed - totalReportPaid);
+  const categoryCost = categories.map((c) => ({
+    name: c.name,
+    cost: filteredAssignments.filter((a) => a.category === c.name).reduce((s, a) => s + (a.totalAgreedAmount || 0), 0),
+  }));
+  const upcomingCommitments = assignments
+    .filter((a) => a.assignmentStatus !== 'cancelled' && a.assignmentStatus !== 'completed')
+    .reduce((s, a) => s + Math.max(0, (a.totalAgreedAmount || 0) - paidForAssignment(a.id)), 0);
 
   // Export CSV Function
   const handleExportCSV = () => {
@@ -108,7 +116,7 @@ export const FreelancerReportsView: React.FC<FreelancerReportsViewProps> = ({
       {/* Top Header Controls */}
       <div className="flex flex-col sm:flex-row items-center justify-between gap-4 bg-white p-4 rounded-2xl border border-slate-200 shadow-xs print:hidden">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-indigo-600 flex items-center justify-center font-bold text-white shadow-xs">
+          <div className="w-10 h-10 rounded-xl bg-[#8f3655] flex items-center justify-center font-bold text-white shadow-xs">
             <BarChart3 className="w-5 h-5 text-white" />
           </div>
           <div>
@@ -139,7 +147,7 @@ export const FreelancerReportsView: React.FC<FreelancerReportsViewProps> = ({
       {/* Filter Toolbar */}
       <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs space-y-3 print:hidden">
         <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
-          <Filter className="w-3.5 h-3.5 text-indigo-600" />
+          <Filter className="w-3.5 h-3.5 text-[#8f3655]" />
           <span>Report Filters</span>
         </h3>
 
@@ -229,6 +237,24 @@ export const FreelancerReportsView: React.FC<FreelancerReportsViewProps> = ({
           <h3 className="text-xl font-black text-red-600 font-mono">₹{totalReportPending.toLocaleString('en-IN')}</h3>
         </div>
       </div>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <div className="rounded-2xl border border-[#e2d9d3] bg-white p-4">
+          <p className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500">Upcoming commitments</p>
+          <p className="mt-1 text-lg font-black text-slate-900">₹{upcomingCommitments.toLocaleString('en-IN')}</p>
+        </div>
+        <div className="rounded-2xl border border-[#e2d9d3] bg-white p-4">
+          <p className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500">Category-wise cost</p>
+          <div className="mt-2 space-y-1">
+            {categoryCost.filter((c) => c.cost > 0).map((c) => (
+              <p key={c.name} className="flex justify-between text-xs font-bold text-slate-700">
+                <span>{c.name}</span>
+                <span>₹{c.cost.toLocaleString('en-IN')}</span>
+              </p>
+            ))}
+            {categoryCost.every((c) => c.cost === 0) && <p className="text-xs text-slate-500">No category spend in this filter.</p>}
+          </div>
+        </div>
+      </div>
 
       {/* Report Detailed Table */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
@@ -274,10 +300,10 @@ export const FreelancerReportsView: React.FC<FreelancerReportsViewProps> = ({
                       ₹{a.totalAgreedAmount.toLocaleString('en-IN')}
                     </td>
                     <td className="p-3.5 text-right font-black text-emerald-600 font-mono">
-                      ₹{a.advancePaid.toLocaleString('en-IN')}
+                      ₹{paidForAssignment(a.id).toLocaleString('en-IN')}
                     </td>
                     <td className="p-3.5 text-right font-black text-red-600 font-mono">
-                      ₹{a.pendingAmount.toLocaleString('en-IN')}
+                      ₹{Math.max(0, (a.totalAgreedAmount || 0) - paidForAssignment(a.id)).toLocaleString('en-IN')}
                     </td>
                     <td className="p-3.5 text-center">
                       <span className={`px-2 py-0.5 text-[9px] font-black rounded uppercase ${

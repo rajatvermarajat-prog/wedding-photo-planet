@@ -1,25 +1,17 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Freelancer, FreelancerCategory, FreelancerAssignment, FreelancerPayment } from '@/types';
 import { ConfirmDeleteModal } from '@/components/common/ConfirmDeleteModal';
-import { 
-  Users, 
-  Plus, 
-  Search, 
-  Filter, 
-  Phone, 
-  Mail, 
-  MapPin, 
-  Award, 
-  DollarSign, 
-  Eye, 
-  Edit3, 
-  ExternalLink,
-  Tag,
-  Grid,
-  List,
-  MessageSquare,
-  Trash2
-} from 'lucide-react';
+import { CalendarCheck, Film, LayoutGrid, List, MapPin, MessageCircle, Search, Star, UserPlus } from 'lucide-react';
+import { Badge, BTN_GHOST, BTN_PRIMARY, CARD, EmptyState, FIELD, LABEL, TD, TH } from '@/features/team/components/TeamUiKit';
+import {
+  formatInr,
+  freelancerLedger,
+  freelancerPerformance,
+  getWorkingStatus,
+  isVerifiedFreelancer,
+  matchesTalentSearch,
+  WORKING_LABELS,
+} from '../freelancerDomain';
 
 interface AllFreelancersViewProps {
   freelancers: Freelancer[];
@@ -34,6 +26,8 @@ interface AllFreelancersViewProps {
   onDeleteFreelancer?: (freelancerId: string) => void;
 }
 
+type SortKey = 'name' | 'rating' | 'experience' | 'joining' | 'shoots' | 'availability' | 'pending';
+
 export const AllFreelancersView: React.FC<AllFreelancersViewProps> = ({
   freelancers,
   categories,
@@ -43,319 +37,296 @@ export const AllFreelancersView: React.FC<AllFreelancersViewProps> = ({
   onEditFreelancer,
   onAddFreelancerClick,
   onAssignShootClick,
-  onRecordPaymentClick,
   onDeleteFreelancer,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('all');
+  const [subFilter, setSubFilter] = useState('all');
+  const [cityFilter, setCityFilter] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [availabilityFilter, setAvailabilityFilter] = useState('all');
+  const [minExp, setMinExp] = useState('');
+  const [minRating, setMinRating] = useState('');
+  const [maxRate, setMaxRate] = useState('');
+  const [dateFilter, setDateFilter] = useState('');
+  const [sortKey, setSortKey] = useState<SortKey>('name');
   const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid');
   const [deletingFreelancer, setDeletingFreelancer] = useState<Freelancer | null>(null);
+  const [inviteOpen, setInviteOpen] = useState(false);
 
-  const filteredFreelancers = freelancers.filter((f) => {
-    const matchesSearch =
-      f.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      f.freelancerId.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      f.mobile.includes(searchQuery) ||
-      f.subCategory.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      f.city.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      f.skills.some((s) => s.toLowerCase().includes(searchQuery.toLowerCase()));
+  const subOptions = categories.find((c) => c.name === categoryFilter)?.subCategories || [];
 
-    const matchesCategory = categoryFilter === 'all' || f.mainCategory === categoryFilter;
+  const filtered = useMemo(() => {
+    const list = freelancers.filter((f) =>
+      matchesTalentSearch(
+        f,
+        {
+          text: searchQuery,
+          category: categoryFilter,
+          subCategory: subFilter,
+          city: cityFilter,
+          minExperience: minExp ? Number(minExp) : undefined,
+          minRating: minRating ? Number(minRating) : undefined,
+          availability: availabilityFilter,
+          dateKey: dateFilter || undefined,
+          maxRate: maxRate ? Number(maxRate) : undefined,
+        },
+        assignments
+      ) && (statusFilter === 'all' || getWorkingStatus(f) === statusFilter)
+    );
+    return [...list].sort((a, b) => {
+      if (sortKey === 'rating') return (b.rating || 0) - (a.rating || 0);
+      if (sortKey === 'experience') return (b.experienceYears || 0) - (a.experienceYears || 0);
+      if (sortKey === 'joining') return (b.joiningDate || '').localeCompare(a.joiningDate || '');
+      if (sortKey === 'shoots') {
+        return freelancerPerformance(b, assignments, payments).totalShoots - freelancerPerformance(a, assignments, payments).totalShoots;
+      }
+      if (sortKey === 'availability') return (a.availabilityStatus || '').localeCompare(b.availabilityStatus || '');
+      if (sortKey === 'pending') return freelancerLedger(b.id, assignments, payments).pending - freelancerLedger(a.id, assignments, payments).pending;
+      return a.name.localeCompare(b.name);
+    });
+  }, [freelancers, searchQuery, categoryFilter, subFilter, cityFilter, minExp, minRating, availabilityFilter, dateFilter, maxRate, statusFilter, sortKey, assignments, payments]);
 
-    return matchesSearch && matchesCategory;
-  });
+  const inviteText = 'Wedding Photo Planet is building its freelance production network. Share your profile with studio admin to join the talent roster.';
 
   return (
-    <div className="space-y-6">
-      {/* Header controls bar */}
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-4 bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-indigo-600 flex items-center justify-center font-bold text-white shadow-xs">
-            <Users className="w-5 h-5 text-white" />
-          </div>
+    <div className="space-y-5">
+      <div className={`${CARD} space-y-4 p-4`}>
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <h2 className="text-base font-black text-slate-900 tracking-tight">
-              All Production Freelancers ({freelancers.length})
-            </h2>
-            <p className="text-xs text-slate-500">Photographers, Cinematographers, Drone Pilots & Operators Directory</p>
+            <h2 className="text-base font-black text-slate-900">All Freelancers</h2>
+            <p className="text-xs font-medium text-slate-500">Search talent by role, city, availability and rate.</p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button type="button" onClick={() => setInviteOpen(true)} className={BTN_GHOST}>
+              Invite Freelancers
+            </button>
+            <button type="button" onClick={onAddFreelancerClick} className={BTN_PRIMARY}>
+              <UserPlus className="size-3.5" /> Add Freelancer
+            </button>
           </div>
         </div>
 
-        <button
-          onClick={onAddFreelancerClick}
-          className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl transition shadow-xs flex items-center gap-2 justify-center"
-        >
-          <Plus className="w-4 h-4 stroke-[3]" />
-          <span>+ Add New Freelancer</span>
-        </button>
-      </div>
-
-      {/* Filter and View Toggles */}
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
-        <div className="relative flex-1 w-full">
-          <Search className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
+        <div className="relative">
+          <Search className="pointer-events-none absolute left-3 top-3 size-4 text-slate-400" />
           <input
-            type="text"
-            placeholder="Search name, FL-ID, mobile, skills, city..."
+            type="search"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-9 pr-4 py-2 text-xs rounded-xl border border-slate-200 bg-white focus:outline-hidden focus:ring-2 focus:ring-indigo-500"
+            placeholder="Search name, ID, phone, WhatsApp, email, city or skills"
+            className={`${FIELD} pl-10`}
+            aria-label="Search freelancers"
           />
         </div>
 
-        <div className="flex items-center gap-2 w-full sm:w-auto">
-          <div className="flex items-center gap-1.5 bg-white p-1 rounded-xl border border-slate-200">
-            <Filter className="w-3.5 h-3.5 text-slate-400 ml-2" />
-            <select
-              value={categoryFilter}
-              onChange={(e) => setCategoryFilter(e.target.value)}
-              className="px-2 py-1 text-xs bg-transparent font-bold text-slate-700 focus:outline-hidden"
-            >
-              <option value="all">All Categories</option>
-              {categories.map((c) => (
-                <option key={c.id} value={c.name}>
-                  {c.name}
-                </option>
-              ))}
+        <div className="grid grid-cols-2 gap-2 lg:grid-cols-6">
+          <label>
+            <span className={LABEL}>Category</span>
+            <select className={FIELD} value={categoryFilter} onChange={(e) => { setCategoryFilter(e.target.value); setSubFilter('all'); }}>
+              <option value="all">All</option>
+              {categories.map((c) => <option key={c.id} value={c.name}>{c.name}</option>)}
             </select>
-          </div>
-
-          <div className="flex items-center bg-white p-1 rounded-xl border border-slate-200">
-            <button
-              onClick={() => setViewMode('grid')}
-              className={`p-1.5 rounded-lg transition ${viewMode === 'grid' ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-slate-700'}`}
-              title="Grid View"
-            >
-              <Grid className="w-4 h-4" />
+          </label>
+          <label>
+            <span className={LABEL}>Subcategory</span>
+            <select className={FIELD} value={subFilter} onChange={(e) => setSubFilter(e.target.value)}>
+              <option value="all">All</option>
+              {subOptions.map((s) => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </label>
+          <label>
+            <span className={LABEL}>Working status</span>
+            <select className={FIELD} value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+              <option value="all">All</option>
+              <option value="active">Active</option>
+              <option value="inactive">Inactive</option>
+              <option value="unavailable">Unavailable</option>
+              <option value="suspended">Suspended</option>
+            </select>
+          </label>
+          <label>
+            <span className={LABEL}>Availability</span>
+            <select className={FIELD} value={availabilityFilter} onChange={(e) => setAvailabilityFilter(e.target.value)}>
+              <option value="all">All</option>
+              <option value="Available">Available</option>
+              <option value="Busy">Busy</option>
+              <option value="On Shoot">On Shoot</option>
+              <option value="Leave">On Leave</option>
+              <option value="Unavailable">Unavailable</option>
+            </select>
+          </label>
+          <label>
+            <span className={LABEL}>City</span>
+            <input className={FIELD} value={cityFilter} onChange={(e) => setCityFilter(e.target.value)} placeholder="Jaipur" />
+          </label>
+          <label>
+            <span className={LABEL}>Available on</span>
+            <input type="date" className={FIELD} value={dateFilter} onChange={(e) => setDateFilter(e.target.value)} />
+          </label>
+          <label>
+            <span className={LABEL}>Min experience</span>
+            <input className={FIELD} type="number" min={0} value={minExp} onChange={(e) => setMinExp(e.target.value)} placeholder="Years" />
+          </label>
+          <label>
+            <span className={LABEL}>Min rating</span>
+            <input className={FIELD} type="number" min={0} max={5} step={0.1} value={minRating} onChange={(e) => setMinRating(e.target.value)} placeholder="4" />
+          </label>
+          <label>
+            <span className={LABEL}>Max day rate</span>
+            <input className={FIELD} type="number" min={0} value={maxRate} onChange={(e) => setMaxRate(e.target.value)} placeholder="₹" />
+          </label>
+          <label>
+            <span className={LABEL}>Sort</span>
+            <select className={FIELD} value={sortKey} onChange={(e) => setSortKey(e.target.value as SortKey)}>
+              <option value="name">Name</option>
+              <option value="rating">Rating</option>
+              <option value="experience">Experience</option>
+              <option value="joining">Recent registration</option>
+              <option value="shoots">Most shoots</option>
+              <option value="availability">Availability</option>
+              <option value="pending">Pending balance</option>
+            </select>
+          </label>
+          <div className="flex items-end gap-1">
+            <button type="button" onClick={() => setViewMode('grid')} className={`${BTN_GHOST} ${viewMode === 'grid' ? 'border-rose-300 bg-[#fbfaf8]' : ''}`} aria-pressed={viewMode === 'grid'} aria-label="Card view">
+              <LayoutGrid className="size-3.5" /> Cards
             </button>
-            <button
-              onClick={() => setViewMode('table')}
-              className={`p-1.5 rounded-lg transition ${viewMode === 'table' ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-slate-700'}`}
-              title="Table View"
-            >
-              <List className="w-4 h-4" />
+            <button type="button" onClick={() => setViewMode('table')} className={`${BTN_GHOST} ${viewMode === 'table' ? 'border-rose-300 bg-[#fbfaf8]' : ''}`} aria-pressed={viewMode === 'table'} aria-label="Table view">
+              <List className="size-3.5" /> Table
             </button>
           </div>
         </div>
       </div>
 
-      {/* Grid or Table View */}
-      {viewMode === 'grid' ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-          {filteredFreelancers.map((freelancer) => {
-            const flAssignments = assignments.filter((a) => a?.freelancerId === freelancer.id);
-            const flPayments = payments.filter((p) => p?.freelancerId === freelancer.id);
-            const totalAmount = flAssignments.reduce((sum, a) => sum + (a?.totalAgreedAmount || 0), 0);
-            const totalPaid = flPayments.reduce((sum, p) => sum + (p?.amountPaid || 0), 0);
-            const balance = Math.max(0, totalAmount - totalPaid);
-
+      {filtered.length === 0 ? (
+        <div className={CARD}>
+          <EmptyState
+            icon={UserPlus}
+            title={freelancers.length === 0 ? 'No freelancers yet' : 'No matching freelancers'}
+            message={
+              freelancers.length === 0
+                ? 'Build your freelance production network by adding photographers, cinematographers, drone operators and editors.'
+                : 'Try a different role, city or date. Double-booked talent is hidden when a shoot date is selected.'
+            }
+            action={
+              <div className="flex flex-wrap justify-center gap-2">
+                <button type="button" onClick={onAddFreelancerClick} className={BTN_PRIMARY}>
+                  <UserPlus className="size-3.5" /> Add Freelancer
+                </button>
+                <button type="button" onClick={() => setInviteOpen(true)} className={BTN_GHOST}>
+                  Invite Freelancers
+                </button>
+              </div>
+            }
+          />
+        </div>
+      ) : viewMode === 'grid' ? (
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+          {filtered.map((freelancer) => {
+            const stats = freelancerPerformance(freelancer, assignments, payments);
+            const lastShoot = [...assignments.filter((a) => a.freelancerId === freelancer.id)].sort((a, b) => (b.shootDate || '').localeCompare(a.shootDate || ''))[0];
             return (
-              <div
-                key={freelancer.id}
-                className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs hover:shadow-md transition flex flex-col justify-between space-y-4"
-              >
-                <div
-                  onClick={() => onOpenProfile(freelancer)}
-                  className="cursor-pointer group"
-                >
-                  {/* Header */}
-                  <div className="flex items-start gap-3.5">
-                    <img
-                      src={freelancer.profilePhoto || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=300'}
-                      alt={freelancer.name}
-                      className="w-14 h-14 rounded-2xl object-cover border-2 border-indigo-500 shadow-2xs flex-shrink-0"
-                    />
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between gap-1">
-                        <h3 className="font-black text-sm text-slate-900 truncate">{freelancer.name}</h3>
-                        <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 bg-slate-100 rounded text-slate-600">
-                          {freelancer.freelancerId}
-                        </span>
-                      </div>
-
-                      <p className="text-xs font-bold text-indigo-600 mt-0.5">{freelancer.subCategory}</p>
-
-                      <div className="flex items-center gap-2 mt-1">
-                        <span className="text-[10px] font-bold text-slate-500">
-                          {freelancer.experienceYears} Yrs Exp • {freelancer.city || 'Jaipur'}
-                        </span>
-                        <span
-                          className={`w-2 h-2 rounded-full ${
-                            freelancer.status === 'active' ? 'bg-emerald-500' : 'bg-slate-300'
-                          }`}
-                        />
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Rate & Financials Badge */}
-                  <div className="mt-4 bg-slate-50 p-2.5 rounded-xl border border-slate-100 flex items-center justify-between">
-                    <span className="text-[10px] font-bold text-slate-400 uppercase">Per Day Rate</span>
-                    <span className="font-black text-indigo-700 text-sm font-mono">
-                      ₹{freelancer.perDayCharges.toLocaleString('en-IN')}
-                    </span>
-                  </div>
-
-                  <div className="mt-2 grid grid-cols-3 gap-1 bg-slate-50 p-2 rounded-xl border border-slate-100 text-[10px]">
-                    <div className="text-center">
-                      <span className="text-slate-400 font-extrabold block uppercase text-[9px]">Total</span>
-                      <span className="font-black text-slate-900 font-mono">₹{totalAmount.toLocaleString('en-IN')}</span>
-                    </div>
-                    <div className="text-center">
-                      <span className="text-slate-400 font-extrabold block uppercase text-[9px]">Paid</span>
-                      <span className="font-black text-emerald-600 font-mono">₹{totalPaid.toLocaleString('en-IN')}</span>
-                    </div>
-                    <div className="text-center">
-                      <span className="text-slate-400 font-extrabold block uppercase text-[9px]">Balance</span>
-                      <span className={`font-black font-mono ${balance > 0 ? 'text-red-600' : 'text-slate-600'}`}>
-                        ₹{balance.toLocaleString('en-IN')}
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Skills Badges */}
-                  <div className="mt-3 flex flex-wrap gap-1">
-                    {freelancer.skills.slice(0, 3).map((skill, sIdx) => (
-                      <span
-                        key={sIdx}
-                        className="px-2 py-0.5 bg-indigo-50 text-indigo-700 border border-indigo-100 rounded text-[10px] font-semibold"
-                      >
-                        {skill}
-                      </span>
-                    ))}
-                    {freelancer.skills.length > 3 && (
-                      <span className="text-[10px] text-slate-400 font-bold self-center">
-                        +{freelancer.skills.length - 3}
-                      </span>
+              <article key={freelancer.id} className={`${CARD} flex flex-col p-5`}>
+                <button type="button" onClick={() => onOpenProfile(freelancer)} className="flex items-start gap-3 text-left">
+                  <span className="grid size-14 shrink-0 place-items-center overflow-hidden rounded-2xl bg-[#f0dce3] text-sm font-black text-[#6d2f45]">
+                    {freelancer.profilePhoto ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={freelancer.profilePhoto} alt="" className="size-14 object-cover" />
+                    ) : (
+                      freelancer.name.slice(0, 2).toUpperCase()
                     )}
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="flex items-center gap-2">
+                      <span className="truncate text-sm font-black text-slate-900">{freelancer.name}</span>
+                      {isVerifiedFreelancer(freelancer) && <Badge className="border-emerald-200 bg-emerald-50 text-emerald-800">Verified</Badge>}
+                    </span>
+                    <span className="mt-0.5 block text-xs font-bold text-[#8f3655]">{freelancer.subCategory || freelancer.mainCategory}</span>
+                    <span className="mt-1 flex flex-wrap items-center gap-2 text-[11px] font-medium text-slate-500">
+                      <span className="inline-flex items-center gap-1"><MapPin className="size-3" />{freelancer.city || '—'}</span>
+                      <span>{freelancer.experienceYears || 0} yrs</span>
+                      {(freelancer.rating || 0) > 0 && (
+                        <span className="inline-flex items-center gap-1"><Star className="size-3 text-amber-500" />{freelancer.rating}</span>
+                      )}
+                    </span>
+                  </span>
+                </button>
+                <div className="mt-3 flex flex-wrap gap-1">
+                  {(freelancer.skills || []).slice(0, 3).map((skill) => (
+                    <Badge key={skill}>{skill}</Badge>
+                  ))}
+                </div>
+                <div className="mt-3 grid grid-cols-3 gap-2 rounded-xl bg-[#fbfaf8] p-2 text-center text-[10px]">
+                  <div>
+                    <p className="font-bold uppercase text-slate-400">Availability</p>
+                    <p className="font-extrabold text-slate-800">{freelancer.availabilityStatus || 'Available'}</p>
+                  </div>
+                  <div>
+                    <p className="font-bold uppercase text-slate-400">Shoots</p>
+                    <p className="font-extrabold text-slate-800">{stats.totalShoots}</p>
+                  </div>
+                  <div>
+                    <p className="font-bold uppercase text-slate-400">Rate</p>
+                    <p className="font-extrabold text-slate-800">{formatInr(freelancer.perDayCharges)}</p>
                   </div>
                 </div>
-
-                {/* Action Buttons */}
-                <div className="pt-3 border-t border-slate-100 flex items-center gap-2">
-                  <button
-                    onClick={() => onOpenProfile(freelancer)}
-                    className="flex-1 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-extrabold rounded-xl transition flex items-center justify-center gap-1"
-                  >
-                    <Eye className="w-3.5 h-3.5" />
-                    <span>Profile</span>
-                  </button>
-
-                  <button
-                    onClick={() => onAssignShootClick(freelancer.id)}
-                    className="flex-1 py-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-extrabold rounded-xl transition flex items-center justify-center gap-1"
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                    <span>Assign</span>
-                  </button>
-
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onEditFreelancer(freelancer);
-                    }}
-                    className="p-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-xl transition flex-shrink-0 cursor-pointer"
-                    title="Edit Freelancer Profile"
-                  >
-                    <Edit3 className="w-4 h-4" />
-                  </button>
-
-                  <a
-                    href={`https://wa.me/${(freelancer.whatsapp || freelancer.mobile || '').replace(/[^0-9]/g, '')}`}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="p-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-xl transition flex-shrink-0"
-                    title="WhatsApp Freelancer"
-                  >
-                    <MessageSquare className="w-4 h-4" />
+                <p className="mt-2 text-[11px] font-medium text-slate-500">Last shoot: {lastShoot?.projectName || 'None yet'}</p>
+                <Badge className="mt-2 w-fit border-[#ded5cf] bg-white text-slate-700">{WORKING_LABELS[getWorkingStatus(freelancer)]}</Badge>
+                <div className="mt-4 flex flex-wrap gap-2 border-t border-[#eee7e2] pt-3">
+                  <button type="button" onClick={() => onOpenProfile(freelancer)} className={BTN_PRIMARY}>View Profile</button>
+                  <button type="button" onClick={() => onAssignShootClick(freelancer.id)} className={BTN_GHOST}><Film className="size-3.5" /> Assign</button>
+                  <a className={BTN_GHOST} href={`https://wa.me/${(freelancer.whatsapp || freelancer.mobile || '').replace(/[^0-9]/g, '')}`} target="_blank" rel="noreferrer">
+                    <MessageCircle className="size-3.5" /> Contact
                   </a>
-
+                  <button type="button" onClick={() => onOpenProfile(freelancer)} className={BTN_GHOST}><CalendarCheck className="size-3.5" /> Availability</button>
+                  <button type="button" onClick={() => onEditFreelancer(freelancer)} className={BTN_GHOST}>Edit</button>
                   {onDeleteFreelancer && (
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setDeletingFreelancer(freelancer);
-                      }}
-                      className="p-2 bg-red-50 hover:bg-red-100 text-red-600 rounded-xl transition flex-shrink-0"
-                      title="Delete Freelancer"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
+                    <button type="button" onClick={() => setDeletingFreelancer(freelancer)} className={BTN_GHOST}>Delete</button>
                   )}
                 </div>
-              </div>
+              </article>
             );
           })}
         </div>
       ) : (
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
-          <table className="w-full text-left text-xs">
-            <thead className="bg-slate-900 text-white font-extrabold text-[10px] uppercase tracking-wider">
+        <div className={`${CARD} overflow-x-auto`}>
+          <table className="min-w-[900px] w-full text-left">
+            <thead className="bg-[#f6f1ee]">
               <tr>
-                <th className="p-3.5">Freelancer</th>
-                <th className="p-3.5">Category & Sub</th>
-                <th className="p-3.5">Mobile</th>
-                <th className="p-3.5">City</th>
-                <th className="p-3.5">Per Day Charge</th>
-                <th className="p-3.5 text-right">Total Amount</th>
-                <th className="p-3.5 text-right">Paid</th>
-                <th className="p-3.5 text-right">Balance</th>
-                <th className="p-3.5">Status</th>
-                <th className="p-3.5 text-right">Actions</th>
+                <TH>Freelancer</TH>
+                <TH>Role</TH>
+                <TH>City</TH>
+                <TH>Availability</TH>
+                <TH>Rate</TH>
+                <TH>Shoots</TH>
+                <TH>Status</TH>
+                <TH>Actions</TH>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
-              {filteredFreelancers.map((f) => {
-                const flAssignments = assignments.filter((a) => a?.freelancerId === f.id);
-                const flPayments = payments.filter((p) => p?.freelancerId === f.id);
-                const totalAmount = flAssignments.reduce((sum, a) => sum + (a?.totalAgreedAmount || 0), 0);
-                const totalPaid = flPayments.reduce((sum, p) => sum + (p?.amountPaid || 0), 0);
-                const balance = Math.max(0, totalAmount - totalPaid);
-
+            <tbody>
+              {filtered.map((f) => {
+                const stats = freelancerPerformance(f, assignments, payments);
                 return (
-                  <tr key={f.id} className="hover:bg-slate-50 transition">
-                    <td className="p-3.5 font-extrabold text-slate-900 flex items-center gap-2">
-                      <img src={f.profilePhoto || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=300'} alt={f.name} className="w-7 h-7 rounded-full object-cover" />
-                      <span>{f.name}</span>
-                    </td>
-                    <td className="p-3.5 text-slate-700">
-                      <strong>{f.mainCategory}</strong> ({f.subCategory})
-                    </td>
-                    <td className="p-3.5 font-bold text-slate-800">{f.mobile}</td>
-                    <td className="p-3.5 text-slate-600">{f.city || 'Jaipur'}</td>
-                    <td className="p-3.5 font-black text-indigo-700 font-mono">₹{f.perDayCharges.toLocaleString('en-IN')}</td>
-                    <td className="p-3.5 font-black text-slate-900 font-mono text-right">₹{totalAmount.toLocaleString('en-IN')}</td>
-                    <td className="p-3.5 font-black text-emerald-600 font-mono text-right">₹{totalPaid.toLocaleString('en-IN')}</td>
-                    <td className={`p-3.5 font-black font-mono text-right ${balance > 0 ? 'text-red-600' : 'text-slate-600'}`}>
-                      ₹{balance.toLocaleString('en-IN')}
-                    </td>
-                    <td className="p-3.5">
-                      <span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 text-[10px] font-bold rounded-full uppercase">
-                        {f.status}
-                      </span>
-                    </td>
-                    <td className="p-3.5 text-right space-x-1">
-                      <button
-                        onClick={() => onOpenProfile(f)}
-                        className="px-2.5 py-1 bg-indigo-50 text-indigo-700 font-bold rounded hover:bg-indigo-100"
-                      >
-                        View
+                  <tr key={f.id} className="border-t border-[#eee7e2]">
+                    <TD>
+                      <button type="button" onClick={() => onOpenProfile(f)} className="font-extrabold text-slate-900">
+                        {f.name}
                       </button>
-                      <button
-                        onClick={() => onEditFreelancer(f)}
-                        className="px-2.5 py-1 bg-slate-100 text-slate-700 font-bold rounded hover:bg-slate-200"
-                      >
-                        Edit
-                      </button>
-                      {onDeleteFreelancer && (
-                        <button
-                          onClick={() => setDeletingFreelancer(f)}
-                          className="px-2.5 py-1 bg-red-50 text-red-600 font-bold rounded hover:bg-red-100"
-                        >
-                          Delete
-                        </button>
-                      )}
-                    </td>
+                      <p className="text-[10px] font-bold text-slate-400">{f.freelancerId}</p>
+                    </TD>
+                    <TD>{f.subCategory}</TD>
+                    <TD>{f.city || '—'}</TD>
+                    <TD>{f.availabilityStatus || 'Available'}</TD>
+                    <TD className="font-mono font-bold">{formatInr(f.perDayCharges)}</TD>
+                    <TD>{stats.totalShoots}</TD>
+                    <TD>{WORKING_LABELS[getWorkingStatus(f)]}</TD>
+                    <TD>
+                      <div className="flex flex-wrap gap-1">
+                        <button type="button" onClick={() => onOpenProfile(f)} className={BTN_GHOST}>View</button>
+                        <button type="button" onClick={() => onAssignShootClick(f.id)} className={BTN_GHOST}>Assign</button>
+                        <button type="button" onClick={() => onEditFreelancer(f)} className={BTN_GHOST}>Edit</button>
+                      </div>
+                    </TD>
                   </tr>
                 );
               })}
@@ -364,16 +335,41 @@ export const AllFreelancersView: React.FC<AllFreelancersViewProps> = ({
         </div>
       )}
 
-      {/* Custom Confirmation Modal */}
+      {inviteOpen && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-[#24171c]/70 p-4">
+          <div className={`${CARD} w-full max-w-md p-5`}>
+            <h3 className="text-base font-black text-slate-900">Invite Freelancers</h3>
+            <p className="mt-2 text-xs font-medium text-slate-500">
+              The freelancer portal is not live yet. Share this note, or add the person here with application status Applied.
+            </p>
+            <textarea readOnly className={`${FIELD} mt-3 min-h-24`} value={inviteText} />
+            <div className="mt-3 flex flex-wrap gap-2">
+              <button
+                type="button"
+                className={BTN_PRIMARY}
+                onClick={() => {
+                  void navigator.clipboard?.writeText(inviteText);
+                  setInviteOpen(false);
+                }}
+              >
+                Copy invite note
+              </button>
+              <button type="button" className={BTN_GHOST} onClick={() => { setInviteOpen(false); onAddFreelancerClick(); }}>
+                Add manually
+              </button>
+              <button type="button" className={BTN_GHOST} onClick={() => setInviteOpen(false)}>Close</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <ConfirmDeleteModal
         isOpen={!!deletingFreelancer}
         title="Delete Freelancer Profile"
         itemTitle={deletingFreelancer?.name}
-        message={deletingFreelancer ? `Are you sure you want to permanently delete freelancer profile "${deletingFreelancer.name}" (${deletingFreelancer.freelancerId})? All assigned shoots and details will be removed.` : ''}
+        message={deletingFreelancer ? `Delete "${deletingFreelancer.name}" (${deletingFreelancer.freelancerId})? Assignments for this freelancer will also be removed.` : ''}
         onConfirm={() => {
-          if (deletingFreelancer && onDeleteFreelancer) {
-            onDeleteFreelancer(deletingFreelancer.id);
-          }
+          if (deletingFreelancer && onDeleteFreelancer) onDeleteFreelancer(deletingFreelancer.id);
           setDeletingFreelancer(null);
         }}
         onCancel={() => setDeletingFreelancer(null)}

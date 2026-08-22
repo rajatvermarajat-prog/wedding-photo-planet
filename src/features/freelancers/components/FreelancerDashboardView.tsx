@@ -1,24 +1,23 @@
 import React from 'react';
 import { Freelancer, FreelancerAssignment, FreelancerPayment, FreelancerDataReceived, FreelancerCategory, Project } from '@/types';
-import { 
-  Users, 
-  Camera, 
-  Video, 
-  Navigation, 
-  UserCheck, 
-  Layers, 
-  Film, 
-  DollarSign, 
-  HardDrive, 
-  Plus, 
-  Tag, 
-  Calendar, 
-  ChevronRight, 
-  AlertCircle,
-  TrendingUp,
-  CheckCircle2,
-  PieChart
+import {
+  Users,
+  Camera,
+  Video,
+  Navigation,
+  UserCheck,
+  Layers,
+  Film,
+  HardDrive,
+  CalendarDays,
+  Clock,
+  CreditCard,
+  ClipboardList,
+  IndianRupee,
+  UserPlus,
 } from 'lucide-react';
+import { Badge, BTN_GHOST, BTN_PRIMARY, CARD, EmptyState, KpiCard } from '@/features/team/components/TeamUiKit';
+import { formatInr, getFreelancerKpis, todayKey } from '../freelancerDomain';
 
 interface FreelancerDashboardViewProps {
   freelancers: Freelancer[];
@@ -49,513 +48,228 @@ export const FreelancerDashboardView: React.FC<FreelancerDashboardViewProps> = (
   onManageCategoriesClick,
   onOpenProfile,
 }) => {
-  // KPI Metrics
-  const totalFreelancers = freelancers.length;
-  const activeFreelancers = freelancers.filter((f) => f.status === 'active').length;
-
-  const photographersCount = freelancers.filter((f) => {
-    const main = (f.mainCategory || '').toLowerCase();
-    const sub = (f.subCategory || '').toLowerCase();
-    return main.includes('photo') || sub.includes('photo');
-  }).length;
-
-  const videographersCount = freelancers.filter((f) => {
-    const main = (f.mainCategory || '').toLowerCase();
-    const sub = (f.subCategory || '').toLowerCase();
-    return main.includes('cinema') || main.includes('video') || sub.includes('video') || sub.includes('cinema');
-  }).length;
-
-  const droneOperatorsCount = freelancers.filter((f) => {
-    const main = (f.mainCategory || '').toLowerCase();
-    const sub = (f.subCategory || '').toLowerCase();
-    return main.includes('drone') || sub.includes('drone') || sub.includes('fpv') || main.includes('pilot') || sub.includes('pilot');
-  }).length;
-
-  const assistantsCount = freelancers.filter((f) => {
-    const main = (f.mainCategory || '').toLowerCase();
-    const sub = (f.subCategory || '').toLowerCase();
-    return (
-      main.includes('assist') ||
-      main.includes('support') ||
-      sub.includes('assist') ||
-      sub.includes('helper') ||
-      sub.includes('lighting') ||
-      sub.includes('gimbal')
-    );
-  }).length;
-
-  const othersCount = freelancers.filter((f) => {
-    const main = (f.mainCategory || '').toLowerCase();
-    const sub = (f.subCategory || '').toLowerCase();
-    const isPhoto = main.includes('photo') || sub.includes('photo');
-    const isVideo = main.includes('cinema') || main.includes('video') || sub.includes('video') || sub.includes('cinema');
-    const isDrone = main.includes('drone') || sub.includes('drone') || sub.includes('fpv') || main.includes('pilot') || sub.includes('pilot');
-    const isAssist = main.includes('assist') || main.includes('support') || sub.includes('assist') || sub.includes('helper') || sub.includes('lighting') || sub.includes('gimbal');
-    return !isPhoto && !isVideo && !isDrone && !isAssist;
-  }).length;
-
-  const totalShootsAssigned = (assignments || []).length;
+  const kpis = getFreelancerKpis(freelancers, assignments, payments, todayKey());
   const totalAgreedCost = (assignments || []).reduce((sum, a) => sum + (a?.totalAgreedAmount || 0), 0);
   const totalPaidSum = (payments || []).reduce((sum, p) => sum + (p?.amountPaid || 0), 0);
-  const totalPendingSum = Math.max(0, totalAgreedCost - totalPaidSum);
 
-  const pendingDataCount = (dataReceivedList || []).filter((d) => d?.dataStatus === 'pending' || d?.dataStatus === 'partial').length;
+  const photographersCount = freelancers.filter((f) => /photo/i.test(`${f.mainCategory} ${f.subCategory}`)).length;
+  const videographersCount = freelancers.filter((f) => /cinema|video/i.test(`${f.mainCategory} ${f.subCategory}`)).length;
+  const droneOperatorsCount = freelancers.filter((f) => /drone|fpv|pilot/i.test(`${f.mainCategory} ${f.subCategory}`)).length;
+  const assistantsCount = freelancers.filter((f) => /assist|support|helper|lighting|gimbal/i.test(`${f.mainCategory} ${f.subCategory}`)).length;
+  const othersCount = Math.max(0, freelancers.length - photographersCount - videographersCount - droneOperatorsCount - assistantsCount);
 
-  // Calculate shoot events stats: Total Events, Team Finalized, Team Pending
+  const safeLower = (str: string | undefined | null) => (str || '').toLowerCase().trim();
   let totalEventsCount = 0;
   let teamFinalizedEventsCount = 0;
   let teamPendingEventsCount = 0;
 
-  const safeLower = (str: string | undefined | null) => (str || '').toLowerCase().trim();
-
-  if (projects && projects.length > 0) {
+  if (projects.length > 0) {
     projects.forEach((proj) => {
-      const projShoots = proj.shoots || [];
-      projShoots.forEach((s) => {
+      (proj.shoots || []).forEach((s) => {
         totalEventsCount++;
         const sTitleLower = safeLower(s.title);
         const matchedAssignments = (assignments || []).filter((a) => {
           if (!a) return false;
-          if (a.projectId && a.projectId === proj.id) {
-            return safeLower(a.eventName) === sTitleLower || a.shootDate === s.date;
-          }
-          return (
-            safeLower(a.projectName) === safeLower(proj.clientWeddingTitle) &&
-            (safeLower(a.eventName) === sTitleLower || a.shootDate === s.date)
-          );
+          if (a.projectId && a.projectId === proj.id) return safeLower(a.eventName) === sTitleLower || a.shootDate === s.date;
+          return safeLower(a.projectName) === safeLower(proj.clientWeddingTitle) && (safeLower(a.eventName) === sTitleLower || a.shootDate === s.date);
         });
-
         const hasCrew =
           matchedAssignments.length > 0 ||
           (s.crewAssignments && s.crewAssignments.length > 0) ||
           !!s.leadPhotographer ||
           !!s.cinematographer ||
           !!s.droneOperator;
-
-        if (hasCrew) {
-          teamFinalizedEventsCount++;
-        } else {
-          teamPendingEventsCount++;
-        }
+        if (hasCrew) teamFinalizedEventsCount++;
+        else teamPendingEventsCount++;
       });
     });
-
-    // Check orphan assignments not in any project shoot
-    const orphanKeys = new Set<string>();
-    (assignments || []).forEach((a) => {
-      if (!a) return;
-      let isCovered = false;
-      const aEventLower = safeLower(a.eventName);
-      const aProjLower = safeLower(a.projectName);
-
-      projects.forEach((proj) => {
-        const projWeddingLower = safeLower(proj.clientWeddingTitle);
-        (proj.shoots || []).forEach((s) => {
-          const sTitleLower = safeLower(s.title);
-          if (
-            (a.projectId && a.projectId === proj.id && (aEventLower === sTitleLower || a.shootDate === s.date)) ||
-            (aProjLower === projWeddingLower && (aEventLower === sTitleLower || a.shootDate === s.date))
-          ) {
-            isCovered = true;
-          }
-        });
-      });
-
-      if (!isCovered) {
-        const key = `${a.projectId || a.projectName || 'proj'}_${aEventLower}_${a.shootDate || 'date'}`;
-        orphanKeys.add(key);
-      }
-    });
-
-    totalEventsCount += orphanKeys.size;
-    teamFinalizedEventsCount += orphanKeys.size;
   } else {
-    // If projects not passed or empty, group assignments into shoot events
     const eventGroupMap = new Set<string>();
     (assignments || []).forEach((a) => {
       if (!a) return;
-      const key = `${a.projectId || a.projectName || 'proj'}_${safeLower(a.eventName)}_${a.shootDate || 'date'}`;
-      eventGroupMap.add(key);
+      eventGroupMap.add(`${a.projectId || a.projectName || 'proj'}_${safeLower(a.eventName)}_${a.shootDate || 'date'}`);
     });
-
     totalEventsCount = eventGroupMap.size;
     teamFinalizedEventsCount = eventGroupMap.size;
-    teamPendingEventsCount = 0;
   }
 
-  // Data Received & Pending calculations across shoot events and logs
-  const receivedDataLogCount = (dataReceivedList || []).filter(
-    (d) => d && (d.dataStatus === 'received' || d.dataStatus === 'verified' || d.dataStatus === 'backed_up' || d.dataStatus === 'backup_completed')
+  const receivedDataLogCount = (dataReceivedList || []).filter((d) =>
+    ['received', 'verified', 'backed_up', 'backup_completed'].includes(d?.dataStatus)
+  ).length;
+  const pendingDataLogCount = (dataReceivedList || []).filter((d) =>
+    ['pending', 'partial', 'partially_received'].includes(d?.dataStatus)
   ).length;
 
-  const pendingDataLogCount = (dataReceivedList || []).filter(
-    (d) => d && (d.dataStatus === 'pending' || d.dataStatus === 'partial' || d.dataStatus === 'partially_received')
-  ).length;
-
-  let eventsDataReceivedCount = 0;
-  let eventsDataPendingCount = 0;
-
-  if (projects && projects.length > 0) {
-    projects.forEach((proj) => {
-      const weddingLower = safeLower(proj.clientWeddingTitle);
-      const projNameLower = safeLower(proj.projectName);
-
-      (proj.shoots || []).forEach((s) => {
-        const crewList = s.crewAssignments || [];
-        const hasReceivedInList = (dataReceivedList || []).some((d) => {
-          if (!d) return false;
-          const dProjLower = safeLower(d.projectName);
-          const isMatchProj = dProjLower === weddingLower || dProjLower === projNameLower;
-          const isRecdStatus = d.dataStatus === 'received' || d.dataStatus === 'verified' || d.dataStatus === 'backed_up' || d.dataStatus === 'backup_completed';
-          return isMatchProj && isRecdStatus;
-        });
-
-        const crewDataReceived = crewList.length > 0 && crewList.every((c) => !!c?.dataReceived);
-
-        if (crewDataReceived || hasReceivedInList) {
-          eventsDataReceivedCount++;
-        } else {
-          eventsDataPendingCount++;
-        }
-      });
-    });
-  } else {
-    eventsDataReceivedCount = receivedDataLogCount;
-    eventsDataPendingCount = pendingDataLogCount;
-  }
-
-  const dataReceivedEvents = totalEventsCount > 0 ? eventsDataReceivedCount : receivedDataLogCount;
-  const dataPendingEvents = totalEventsCount > 0 ? eventsDataPendingCount : pendingDataLogCount;
-
-  // Upcoming shoots (next 7 days or assigned)
-  const upcomingAssignments = assignments.slice(0, 5);
+  const today = todayKey();
+  const upcomingAssignments = assignments
+    .filter((a) => a.shootDate >= today && a.assignmentStatus !== 'cancelled')
+    .sort((a, b) => a.shootDate.localeCompare(b.shootDate))
+    .slice(0, 5);
 
   return (
     <div className="space-y-6">
-      {/* Quick Actions Bar */}
-      <div className="flex flex-wrap items-center justify-between gap-3 bg-slate-900 text-white p-4 rounded-2xl shadow-sm">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-indigo-600 flex items-center justify-center font-extrabold text-white">
-            <Users className="w-5 h-5 text-white" />
-          </div>
-          <div>
-            <h2 className="text-base font-black tracking-tight">Freelancer Team Command Center</h2>
-            <p className="text-xs text-indigo-200">Production staff management, shoots, attendance & payroll hub</p>
-          </div>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2">
-          <button
-            onClick={onAddFreelancerClick}
-            className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl transition shadow-xs flex items-center gap-1.5"
-          >
-            <Plus className="w-4 h-4 stroke-[3]" />
-            <span>+ Add Freelancer</span>
-          </button>
-
-          <button
-            onClick={onAssignShootClick}
-            className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold rounded-xl border border-slate-700 transition flex items-center gap-1.5"
-          >
-            <Film className="w-4 h-4 text-indigo-400" />
-            <span>Assign Shoot</span>
-          </button>
-
-          <button
-            onClick={onRecordPaymentClick}
-            className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl transition shadow-xs flex items-center gap-1.5"
-          >
-            <DollarSign className="w-4 h-4" />
-            <span>Record Payment</span>
-          </button>
-
-          <button
-            onClick={onManageCategoriesClick}
-            className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-xs font-bold rounded-xl border border-slate-700 transition flex items-center gap-1.5"
-          >
-            <Tag className="w-4 h-4 text-indigo-400" />
-            <span>Categories</span>
-          </button>
-        </div>
+      <div className="flex flex-wrap items-center gap-2">
+        <button type="button" onClick={onAddFreelancerClick} className={BTN_PRIMARY}>
+          <UserPlus className="size-3.5" /> Add Freelancer
+        </button>
+        <button type="button" onClick={onAssignShootClick} className={BTN_GHOST}>
+          <Film className="size-3.5" /> Assign Shoot
+        </button>
+        <button type="button" onClick={onRecordPaymentClick} className={BTN_GHOST}>
+          <CreditCard className="size-3.5" /> Record Payment
+        </button>
+        <button type="button" onClick={onManageCategoriesClick} className={BTN_GHOST}>
+          Categories
+        </button>
       </div>
 
-      {/* KPI Role Breakdown Cards Grid */}
-      <div className="space-y-3">
-        <div className="flex items-center justify-between">
-          <h3 className="text-xs font-extrabold uppercase tracking-wider text-slate-500">
-            Freelancer Staff Overview
-          </h3>
-          <button
-            onClick={() => onTabChange('all_freelancers')}
-            className="text-xs font-bold text-indigo-600 hover:text-indigo-800 transition flex items-center gap-1"
-          >
-            <span>View All ({totalFreelancers})</span>
-            <ChevronRight className="w-3.5 h-3.5" />
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <KpiCard label="Total Freelancers" value={kpis.total} hint="Registered talent" icon={Users} tone="rose" onClick={() => onTabChange('all_freelancers')} />
+        <KpiCard label="Active Freelancers" value={kpis.active} hint="Approved and working" icon={UserCheck} tone="emerald" onClick={() => onTabChange('all_freelancers')} />
+        <KpiCard label="Available Today" value={kpis.availableToday} hint="Ready to assign" icon={Clock} tone="blue" onClick={() => onTabChange('all_freelancers')} />
+        <KpiCard label="On Shoot Today" value={kpis.onShootToday} hint="Assigned today" icon={Film} tone="amber" onClick={() => onTabChange('assignments')} />
+        <KpiCard label="Pending Applications" value={kpis.pendingApplications} hint="Waiting for review" icon={ClipboardList} tone="violet" onClick={() => onTabChange('applications')} />
+        <KpiCard label="Upcoming Shoots" value={kpis.upcomingShoots} hint="Confirmed assignments" icon={CalendarDays} tone="stone" onClick={() => onTabChange('calendar')} />
+        <KpiCard label="Pending Payments" value={formatInr(kpis.pendingPayments)} hint={`Paid ${formatInr(totalPaidSum)} of ${formatInr(totalAgreedCost)}`} icon={CreditCard} tone="red" onClick={() => onTabChange('payments')} />
+        <KpiCard label="This Month's Cost" value={formatInr(kpis.monthCost)} hint="Freelancer spend this month" icon={IndianRupee} tone="purple" onClick={() => onTabChange('reports')} />
+      </div>
+
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+        {[
+          { label: 'Photographers', value: photographersCount, icon: Camera },
+          { label: 'Videographers', value: videographersCount, icon: Video },
+          { label: 'Drone', value: droneOperatorsCount, icon: Navigation },
+          { label: 'Assistants', value: assistantsCount, icon: UserCheck },
+          { label: 'Editors & Other', value: othersCount, icon: Layers },
+        ].map((item) => (
+          <button key={item.label} type="button" onClick={() => onTabChange('all_freelancers')} className={`${CARD} p-4 text-left transition hover:border-rose-200`}>
+            <item.icon className="mb-2 size-4 text-[#8f3655]" />
+            <p className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500">{item.label}</p>
+            <p className="mt-1 text-xl font-black text-slate-900">{item.value}</p>
           </button>
-        </div>
-
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3.5">
-          {/* Total Freelancers */}
-          <div
-            onClick={() => onTabChange('all_freelancers')}
-            className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs hover:border-indigo-400 transition cursor-pointer space-y-1 group"
-          >
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] font-extrabold uppercase text-slate-400 block tracking-wider">
-                Total Freelance
-              </span>
-              <Users className="w-4 h-4 text-indigo-500 group-hover:scale-110 transition-transform" />
-            </div>
-            <div className="flex items-baseline justify-between pt-1">
-              <h3 className="text-2xl font-black text-slate-900">{totalFreelancers}</h3>
-              <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded-md border border-emerald-200/60">
-                {activeFreelancers} Active
-              </span>
-            </div>
-          </div>
-
-          {/* Photographers */}
-          <div
-            onClick={() => onTabChange('all_freelancers')}
-            className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs hover:border-indigo-400 transition cursor-pointer space-y-1 group"
-          >
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] font-extrabold uppercase text-slate-400 block tracking-wider">
-                Photographers
-              </span>
-              <Camera className="w-4 h-4 text-purple-500 group-hover:scale-110 transition-transform" />
-            </div>
-            <h3 className="text-2xl font-black text-purple-700 pt-1">{photographersCount}</h3>
-            <span className="text-[10px] font-medium text-slate-500 block truncate">Candid & Traditional</span>
-          </div>
-
-          {/* Videographers */}
-          <div
-            onClick={() => onTabChange('all_freelancers')}
-            className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs hover:border-indigo-400 transition cursor-pointer space-y-1 group"
-          >
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] font-extrabold uppercase text-slate-400 block tracking-wider">
-                Videographers
-              </span>
-              <Video className="w-4 h-4 text-blue-500 group-hover:scale-110 transition-transform" />
-            </div>
-            <h3 className="text-2xl font-black text-blue-700 pt-1">{videographersCount}</h3>
-            <span className="text-[10px] font-medium text-slate-500 block truncate">Cinematographers</span>
-          </div>
-
-          {/* Drone Operators */}
-          <div
-            onClick={() => onTabChange('all_freelancers')}
-            className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs hover:border-indigo-400 transition cursor-pointer space-y-1 group"
-          >
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] font-extrabold uppercase text-slate-400 block tracking-wider">
-                Drone Operators
-              </span>
-              <Navigation className="w-4 h-4 text-teal-500 group-hover:scale-110 transition-transform" />
-            </div>
-            <h3 className="text-2xl font-black text-teal-700 pt-1">{droneOperatorsCount}</h3>
-            <span className="text-[10px] font-medium text-slate-500 block truncate">4K & FPV Pilots</span>
-          </div>
-
-          {/* Assistants */}
-          <div
-            onClick={() => onTabChange('all_freelancers')}
-            className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs hover:border-indigo-400 transition cursor-pointer space-y-1 group"
-          >
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] font-extrabold uppercase text-slate-400 block tracking-wider">
-                Assistants
-              </span>
-              <UserCheck className="w-4 h-4 text-emerald-500 group-hover:scale-110 transition-transform" />
-            </div>
-            <h3 className="text-2xl font-black text-emerald-700 pt-1">{assistantsCount}</h3>
-            <span className="text-[10px] font-medium text-slate-500 block truncate">Lighting & Support</span>
-          </div>
-
-          {/* Others */}
-          <div
-            onClick={() => onTabChange('all_freelancers')}
-            className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs hover:border-indigo-400 transition cursor-pointer space-y-1 group"
-          >
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] font-extrabold uppercase text-slate-400 block tracking-wider">
-                Others
-              </span>
-              <Layers className="w-4 h-4 text-amber-500 group-hover:scale-110 transition-transform" />
-            </div>
-            <h3 className="text-2xl font-black text-amber-700 pt-1">{othersCount}</h3>
-            <span className="text-[10px] font-medium text-slate-500 block truncate">Editors & Misc</span>
-          </div>
-        </div>
+        ))}
       </div>
 
-      {/* Production & Financial Stats */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        {/* Payments, Paid & Outstanding Balance Card */}
-        <div
-          onClick={() => onTabChange('payments')}
-          className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs hover:border-red-400 transition cursor-pointer space-y-3 group flex flex-col justify-between"
-        >
-          <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-            <div>
-              <span className="text-[10px] font-extrabold uppercase text-slate-400 block tracking-wider">
-                Total Payment & Balance
-              </span>
-              <div className="flex items-baseline gap-1.5 pt-0.5">
-                <h3 className="text-2xl font-black text-red-600 font-mono">₹{totalPendingSum.toLocaleString('en-IN')}</h3>
-                <span className="text-xs font-bold text-red-500">Pending Balance</span>
-              </div>
-            </div>
-            <div className="w-10 h-10 rounded-xl bg-red-50 border border-red-100 flex items-center justify-center text-red-600 group-hover:scale-110 transition-transform">
-              <DollarSign className="w-5 h-5" />
-            </div>
-          </div>
-
-          {/* Breakdown Badges: Paid vs Total */}
-          <div className="grid grid-cols-2 gap-2 text-xs">
-            <div className="bg-emerald-50 border border-emerald-200/70 p-2 rounded-xl flex items-center justify-between">
-              <div className="flex items-center gap-1">
-                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                <span className="font-bold text-[11px] text-emerald-900">Paid</span>
-              </div>
-              <span className="font-extrabold text-xs text-emerald-700 font-mono">₹{totalPaidSum.toLocaleString('en-IN')}</span>
-            </div>
-
-            <div className="bg-slate-50 border border-slate-200/70 p-2 rounded-xl flex items-center justify-between">
-              <div className="flex items-center gap-1">
-                <DollarSign className="w-3.5 h-3.5 text-slate-600 shrink-0" />
-                <span className="font-bold text-[11px] text-slate-700">Total</span>
-              </div>
-              <span className="font-extrabold text-xs text-slate-900 font-mono">₹{totalAgreedCost.toLocaleString('en-IN')}</span>
-            </div>
-          </div>
-
-          <div className="flex items-center justify-between text-[10px] text-slate-500 font-medium pt-0.5">
-            <span>Outstanding Balance: <strong className="text-red-600 font-mono">₹{totalPendingSum.toLocaleString('en-IN')}</strong></span>
-            <span className="text-red-600 font-bold group-hover:underline flex items-center gap-0.5">
-              Payments <ChevronRight className="w-3 h-3" />
-            </span>
-          </div>
-        </div>
-
-        {/* Raw Data & Footage Logs Card */}
-        <div
-          onClick={() => onTabChange('data_received')}
-          className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs hover:border-amber-400 transition cursor-pointer space-y-3 group flex flex-col justify-between"
-        >
-          <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-            <div>
-              <span className="text-[10px] font-extrabold uppercase text-slate-400 block tracking-wider">
-                Raw Data & Footage Status
-              </span>
-              <div className="flex items-baseline gap-1.5 pt-0.5">
-                <h3 className="text-2xl font-black text-amber-600">{dataPendingEvents}</h3>
-                <span className="text-xs font-bold text-amber-600">Events Pending</span>
-              </div>
-            </div>
-            <div className="w-10 h-10 rounded-xl bg-amber-50 border border-amber-100 flex items-center justify-center text-amber-600 group-hover:scale-110 transition-transform">
-              <HardDrive className="w-5 h-5" />
-            </div>
-          </div>
-
-          {/* Breakdown Badges: Received vs Pending */}
-          <div className="grid grid-cols-2 gap-2 text-xs">
-            <div className="bg-emerald-50 border border-emerald-200/70 p-2 rounded-xl flex items-center justify-between">
-              <div className="flex items-center gap-1">
-                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                <span className="font-bold text-[11px] text-emerald-900">Received</span>
-              </div>
-              <span className="font-extrabold text-xs text-emerald-700 font-mono">{dataReceivedEvents}</span>
-            </div>
-
-            <div className="bg-amber-50 border border-amber-200/70 p-2 rounded-xl flex items-center justify-between">
-              <div className="flex items-center gap-1">
-                <AlertCircle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
-                <span className="font-bold text-[11px] text-amber-900">Pending</span>
-              </div>
-              <span className="font-extrabold text-xs text-amber-700 font-mono">{dataPendingEvents}</span>
-            </div>
-          </div>
-
-          <div className="flex items-center justify-between text-[10px] text-slate-500 font-medium pt-0.5">
-            <span>Footage Logs: <strong className="text-slate-800">{dataReceivedList.length} Records</strong></span>
-            <span className="text-amber-600 font-bold group-hover:underline flex items-center gap-0.5">
-              Data Logs <ChevronRight className="w-3 h-3" />
-            </span>
-          </div>
-        </div>
-      </div>
-
-      {/* Main Grid: Category Distribution & Upcoming Shoots */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Category Breakdown & Payment Overview */}
-        <div className="lg:col-span-1 space-y-6">
-          {/* Category Distribution Card */}
-          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs space-y-4">
-            <h3 className="text-xs font-extrabold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
-              <PieChart className="w-4 h-4 text-indigo-600" />
-              <span>Category Breakdown</span>
-            </h3>
-
-            <div className="space-y-3">
-              {categories.map((cat) => {
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+        <section className={`${CARD} p-5 lg:col-span-1`}>
+          <h3 className="text-xs font-extrabold uppercase tracking-wider text-slate-700">Category mix</h3>
+          <div className="mt-4 space-y-3">
+            {categories.length === 0 ? (
+              <p className="text-xs text-slate-500">No categories yet.</p>
+            ) : (
+              categories.map((cat) => {
                 const count = freelancers.filter((f) => f.mainCategory === cat.name).length;
-                const percentage = totalFreelancers > 0 ? Math.round((count / totalFreelancers) * 100) : 0;
-
+                const percentage = freelancers.length > 0 ? Math.round((count / freelancers.length) * 100) : 0;
                 return (
                   <div key={cat.id} className="space-y-1">
                     <div className="flex justify-between text-xs">
                       <span className="font-bold text-slate-800">{cat.name}</span>
-                      <span className="font-extrabold text-indigo-600">{count} ({percentage}%)</span>
+                      <span className="font-extrabold text-[#8f3655]">{count}</span>
                     </div>
-                    <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
-                      <div
-                        className="bg-indigo-600 h-full rounded-full transition-all duration-500"
-                        style={{ width: `${percentage}%` }}
-                      />
+                    <div className="h-2 overflow-hidden rounded-full bg-[#f6f1ee]">
+                      <div className="h-full rounded-full bg-[#8f3655]" style={{ width: `${percentage}%` }} />
                     </div>
                   </div>
                 );
-              })}
+              })
+            )}
+          </div>
+          <div className="mt-4 grid grid-cols-2 gap-2 text-xs">
+            <div className="rounded-xl border border-[#eee7e2] bg-[#fbfaf8] p-2">
+              <p className="font-bold text-slate-500">Events</p>
+              <p className="font-black text-slate-900">{totalEventsCount}</p>
+            </div>
+            <div className="rounded-xl border border-[#eee7e2] bg-[#fbfaf8] p-2">
+              <p className="font-bold text-slate-500">Crew pending</p>
+              <p className="font-black text-slate-900">{teamPendingEventsCount}</p>
             </div>
           </div>
+        </section>
 
-
-        </div>
-
-        {/* Upcoming Shoots & Recent Activity */}
-        <div className="lg:col-span-2 space-y-6">
-          {/* Quick Freelancers Directory Highlights */}
-          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="text-xs font-extrabold uppercase tracking-wider text-slate-700">Top Freelancer Roster</h3>
-              <button
-                onClick={() => onTabChange('all_freelancers')}
-                className="text-xs font-bold text-indigo-600 hover:underline"
-              >
-                View Full Roster ({freelancers.length})
-              </button>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {freelancers.slice(0, 4).map((f) => (
-                <div
-                  key={f.id}
-                  onClick={() => onOpenProfile(f)}
-                  className="p-3 bg-slate-50 rounded-xl border border-slate-200 hover:border-indigo-300 transition cursor-pointer flex items-center gap-3"
-                >
-                  <img src={f.profilePhoto || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=300'} alt={f.name} className="w-10 h-10 rounded-full object-cover border border-indigo-500" />
+        <section className={`${CARD} p-5 lg:col-span-2`}>
+          <div className="flex items-center justify-between gap-2">
+            <h3 className="text-xs font-extrabold uppercase tracking-wider text-slate-700">Upcoming assignments</h3>
+            <button type="button" onClick={() => onTabChange('calendar')} className="text-xs font-bold text-[#8f3655]">
+              Open calendar
+            </button>
+          </div>
+          {upcomingAssignments.length === 0 ? (
+            <EmptyState
+              icon={Film}
+              title="No upcoming freelancer shoots"
+              message="Assign photographers and cinematographers to booked weddings."
+              action={
+                <button type="button" onClick={onAssignShootClick} className={BTN_PRIMARY}>
+                  <Film className="size-3.5" /> Assign Shoot
+                </button>
+              }
+            />
+          ) : (
+            <ul className="mt-3 divide-y divide-[#eee7e2]">
+              {upcomingAssignments.map((a) => (
+                <li key={a.id} className="flex flex-wrap items-center justify-between gap-2 py-3">
                   <div>
-                    <h4 className="font-bold text-xs text-slate-900">{f.name}</h4>
-                    <p className="text-[10px] text-slate-500">{f.subCategory} • ₹{f.perDayCharges}/day</p>
+                    <p className="text-sm font-extrabold text-slate-900">{a.projectName}</p>
+                    <p className="text-xs font-medium text-slate-500">
+                      {a.freelancerName} · {a.role || a.subCategory} · {a.shootLocation || a.venue}
+                    </p>
                   </div>
-                </div>
+                  <Badge>{a.shootDate} · {a.startTime}</Badge>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <button type="button" onClick={() => onTabChange('data_received')} className={`${CARD} p-5 text-left`}>
+          <HardDrive className="mb-2 size-4 text-[#8f3655]" />
+          <p className="text-xs font-extrabold uppercase tracking-wider text-slate-500">Footage status</p>
+          <p className="mt-1 text-2xl font-black text-slate-900">{pendingDataLogCount} pending</p>
+          <p className="mt-1 text-xs font-medium text-slate-500">{receivedDataLogCount} received · {teamFinalizedEventsCount} events crewed</p>
+        </button>
+        <section className={`${CARD} p-5`}>
+          <div className="flex items-center justify-between">
+            <h3 className="text-xs font-extrabold uppercase tracking-wider text-slate-700">Roster</h3>
+            <button type="button" onClick={() => onTabChange('all_freelancers')} className="text-xs font-bold text-[#8f3655]">
+              View all
+            </button>
+          </div>
+          {freelancers.length === 0 ? (
+            <EmptyState
+              icon={Users}
+              title="No freelancers yet"
+              message="Build your freelance production network by adding photographers, cinematographers, drone operators and editors."
+              action={
+                <button type="button" onClick={onAddFreelancerClick} className={BTN_PRIMARY}>
+                  <UserPlus className="size-3.5" /> Add Freelancer
+                </button>
+              }
+            />
+          ) : (
+            <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+              {freelancers.slice(0, 4).map((f) => (
+                <button key={f.id} type="button" onClick={() => onOpenProfile(f)} className="flex items-center gap-3 rounded-xl border border-[#eee7e2] bg-[#fbfaf8] p-3 text-left hover:border-rose-200">
+                  <span className="grid size-10 place-items-center overflow-hidden rounded-full bg-[#f0dce3] text-xs font-black text-[#6d2f45]">
+                    {f.profilePhoto ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={f.profilePhoto} alt="" className="size-10 object-cover" />
+                    ) : (
+                      f.name.slice(0, 2).toUpperCase()
+                    )}
+                  </span>
+                  <span>
+                    <span className="block text-xs font-extrabold text-slate-900">{f.name}</span>
+                    <span className="block text-[11px] font-medium text-slate-500">
+                      {f.subCategory} · {formatInr(f.perDayCharges)}/day
+                    </span>
+                  </span>
+                </button>
               ))}
             </div>
-          </div>
-        </div>
+          )}
+        </section>
       </div>
     </div>
   );

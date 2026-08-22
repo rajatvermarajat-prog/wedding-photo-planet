@@ -433,11 +433,54 @@ export interface FreelancerCategory {
 export interface FreelancerDocument {
   id: string;
   title: string;
-  type: 'id_proof' | 'agreement' | 'bank_details' | 'other';
+  type: 'id_proof' | 'agreement' | 'contract' | 'bank_details' | 'invoice' | 'receipt' | 'tax' | 'other';
   fileUrl: string;
   fileName?: string;
   status: 'uploaded' | 'missing' | 'verified';
   uploadDate: string;
+  expiryDate?: string;
+}
+
+export type FreelancerInvitationStatus = 'none' | 'invited' | 'accepted' | 'rejected' | 'question';
+export type FreelancerAgreementStatus = 'not_sent' | 'sent' | 'signed' | 'expired';
+export type FreelancerPaymentLedgerStatus = 'unpaid' | 'partially_paid' | 'paid' | 'overdue' | 'cancelled';
+
+export type FreelancerApplicationStatus =
+  | 'applied'
+  | 'under_review'
+  | 'shortlisted'
+  | 'verification'
+  | 'approved'
+  | 'rejected'
+  | 'changes_requested';
+
+export type FreelancerWorkingStatus = 'active' | 'inactive' | 'unavailable' | 'suspended';
+
+export type FreelancerPreferredTier = 'preferred' | 'backup' | 'new' | 'under_review';
+
+export interface FreelancerVerification {
+  mobile?: boolean;
+  email?: boolean;
+  identity?: boolean;
+  portfolio?: boolean;
+  agreement?: boolean;
+  bank?: boolean;
+}
+
+export interface FreelancerPortfolioItem {
+  id: string;
+  kind: 'image' | 'video' | 'link';
+  title?: string;
+  url: string;
+}
+
+export interface FreelancerReview {
+  id: string;
+  shootId?: string;
+  projectName?: string;
+  overall: number;
+  notes?: string;
+  createdAt: string;
 }
 
 export interface Freelancer {
@@ -453,6 +496,27 @@ export interface Freelancer {
   emergencyContact: string;
   joiningDate: string;
   status: 'active' | 'inactive';
+  applicationStatus?: FreelancerApplicationStatus;
+  workingStatus?: FreelancerWorkingStatus;
+  preferredTier?: FreelancerPreferredTier;
+  bio?: string;
+  languages?: string[];
+  preferredLocations?: string[];
+  rating?: number;
+  verification?: FreelancerVerification;
+  portfolio?: FreelancerPortfolioItem[];
+  reviews?: FreelancerReview[];
+  internalNotes?: string;
+  instagramUrl?: string;
+  websiteUrl?: string;
+  travelAvailability?: boolean;
+  maxShootsPerDay?: number;
+  agreementStatus?: FreelancerAgreementStatus;
+  agreementStartDate?: string;
+  agreementEndDate?: string;
+  agreementSignedDate?: string;
+  gstNumber?: string;
+  panNumber?: string;
 
   // Professional Information
   mainCategory: string; // "Photographer" | "Cinematographer" | string
@@ -517,6 +581,8 @@ export interface FreelancerAssignment {
 
   paymentStatus: 'unpaid' | 'partially_paid' | 'paid' | 'overpaid';
   assignmentStatus: 'assigned' | 'confirmed' | 'on_shoot' | 'completed' | 'cancelled';
+  invitationStatus?: FreelancerInvitationStatus;
+  proposedAmount?: number;
   notes?: string;
   createdAt: string;
 }
@@ -549,6 +615,8 @@ export interface FreelancerPayment {
   receiptScreenshot?: string;
   receiptUrl?: string;
   createdBy?: string;
+  ledgerStatus?: FreelancerPaymentLedgerStatus;
+  expenseId?: string;
 }
 
 export interface FreelancerAttendance {

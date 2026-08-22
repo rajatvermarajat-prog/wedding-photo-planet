@@ -32,6 +32,7 @@ export interface Expense {
   client?: string;
   payee?: string;
   freelancerId?: string;
+  freelancerPaymentId?: string;
   vendor?: string;
   role?: string;
   workDate?: string;
