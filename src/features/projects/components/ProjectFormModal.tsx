@@ -66,8 +66,8 @@ export const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
 
   const [weddingFunctionDates, setWeddingFunctionDates] = useState(existingProject?.weddingFunctionDates || '');
   const [finalDeliveryDeadline, setFinalDeliveryDeadline] = useState(existingProject?.finalDeliveryDeadline || '');
-  const [totalBudget, setTotalBudget] = useState<number>(existingProject?.totalBudget || 0);
-  const [advanceReceived, setAdvanceReceived] = useState<number>(existingProject?.advanceReceived || 0);
+  const [totalBudget, setTotalBudget] = useState<number | ''>(existingProject?.totalBudget ? existingProject.totalBudget : '');
+  const [advanceReceived, setAdvanceReceived] = useState<number | ''>(existingProject?.advanceReceived ? existingProject.advanceReceived : '');
   const [quotationLink, setQuotationLink] = useState(existingProject?.quotationLink || '');
   const [specialNotesMusicPreferences, setSpecialNotesMusicPreferences] = useState(existingProject?.specialNotesMusicPreferences || '');
   const [status, setStatus] = useState<ProjectStatus>(existingProject?.status || 'new_project');
@@ -156,7 +156,7 @@ export const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
       : [
           {
             id: `shoot-${Date.now()}-1`,
-            title: 'Main Wedding Shoot',
+            title: '',
             date: existingProject?.weddingFunctionDates || '',
             time: '06:00 PM',
             venue: existingProject?.venueLocation || '',
@@ -336,40 +336,40 @@ export const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
             id: `task-${Date.now()}-1`,
             taskName: 'Cinematic Teaser Video (1-2 Min)',
             quantity: 1,
-            unit: 'Video',
-            assignedTo: 'Vikram Sharma',
+            unit: '',
+            assignedTo: 'Unassigned',
             status: 'not_started',
           },
           {
             id: `task-${Date.now()}-2`,
             taskName: 'Instagram Reels / Shorts',
             quantity: 5,
-            unit: 'Reels',
-            assignedTo: 'Rahul Editor',
+            unit: '',
+            assignedTo: 'Unassigned',
             status: 'not_started',
           },
           {
             id: `task-${Date.now()}-3`,
             taskName: 'Wedding Film / Long Video',
             quantity: 1,
-            unit: 'Video',
-            assignedTo: 'Amit Editor',
+            unit: '',
+            assignedTo: 'Unassigned',
             status: 'not_started',
           },
           {
             id: `task-${Date.now()}-4`,
             taskName: 'Photo Selection & Retouching',
             quantity: 100,
-            unit: 'Photos',
-            assignedTo: 'Pooja Verma',
+            unit: '',
+            assignedTo: 'Unassigned',
             status: 'not_started',
           },
           {
             id: `task-${Date.now()}-5`,
             taskName: 'Wedding Albums (12x36)',
             quantity: 2,
-            unit: 'Albums',
-            assignedTo: 'Rajat Verma',
+            unit: '',
+            assignedTo: 'Unassigned',
             status: 'not_started',
           }
         ]
@@ -381,8 +381,8 @@ export const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
       {
         id: `task-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
         taskName: '',
-        quantity: 1,
-        unit: 'Pcs',
+        quantity: 0,
+        unit: '',
         assignedTo: 'Unassigned',
         status: 'not_started',
       }
@@ -424,13 +424,21 @@ export const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
   });
 
   // Balance due calculation
-  const balanceDue = Math.max(0, totalBudget - advanceReceived);
+  const balanceDue = Math.max(0, Number(totalBudget || 0) - Number(advanceReceived || 0));
+  const hasFinancialAmount = totalBudget !== '' || advanceReceived !== '';
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = (e?: React.SyntheticEvent) => {
+    e?.preventDefault();
 
     if (!clientWeddingTitle.trim()) {
       showToast('Please enter the Client / Wedding Title.', { variant: 'error' });
+      setActiveStep(1);
+      return;
+    }
+
+    if (selectedService === 'Other' && !customServiceType.trim()) {
+      showToast('Please enter the custom service name.', { variant: 'error' });
+      setActiveStep(1);
       return;
     }
 
@@ -771,7 +779,7 @@ export const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
                   step="1000"
                   placeholder="e.g. 350000"
                   value={totalBudget}
-                  onChange={(e) => setTotalBudget(Number(e.target.value))}
+                  onChange={(e) => setTotalBudget(e.target.value === '' ? '' : Number(e.target.value))}
                   className="w-full bg-white border border-slate-200 rounded px-3 py-1.5 text-slate-800 focus:outline-none focus:ring-1 focus:ring-indigo-500 transition"
                 />
               </div>
@@ -787,7 +795,7 @@ export const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
                   step="1000"
                   placeholder="e.g. 100000"
                   value={advanceReceived}
-                  onChange={(e) => setAdvanceReceived(Number(e.target.value))}
+                  onChange={(e) => setAdvanceReceived(e.target.value === '' ? '' : Number(e.target.value))}
                   className="w-full bg-white border border-slate-200 rounded px-3 py-1.5 text-slate-800 focus:outline-none focus:ring-1 focus:ring-indigo-500 transition"
                 />
               </div>
@@ -798,7 +806,7 @@ export const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
                   Balance Due (₹) <span className="text-slate-400 font-normal">(Auto)</span>
                 </label>
                 <div className="w-full bg-slate-50 border border-slate-200 rounded px-3 py-1.5 text-red-600 font-bold text-xs">
-                  ₹{balanceDue.toLocaleString('en-IN')}
+                  {hasFinancialAmount ? `₹${balanceDue.toLocaleString('en-IN')}` : <span className="font-medium text-slate-400">Calculated automatically</span>}
                 </div>
               </div>
 
@@ -966,22 +974,40 @@ export const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
                       {/* Quantity (Kitne bane) */}
                       <div>
                         <label className="block text-[9px] font-bold text-slate-500 uppercase mb-0.5">Quantity</label>
-                        <div className="flex items-center gap-1">
+                        <div className="flex items-center overflow-hidden rounded-xl border border-slate-200 bg-white focus-within:border-[#9b4865] focus-within:ring-4 focus-within:ring-rose-100">
+                          <button
+                            type="button"
+                            aria-label="Decrease quantity"
+                            onClick={() => handleTaskChange(index, 'quantity', Math.max(0, Number(task.quantity || 0) - 1))}
+                            disabled={!task.quantity}
+                            className="grid h-10 w-10 shrink-0 place-items-center border-r border-slate-200 text-lg font-bold text-[#7b344d] transition hover:bg-rose-50 disabled:cursor-not-allowed disabled:text-slate-300"
+                          >
+                            −
+                          </button>
                           <input
                             type="number"
-                            min="1"
-                            value={task.quantity}
-                            onChange={(e) => handleTaskChange(index, 'quantity', Number(e.target.value))}
-                            className="w-full bg-white border border-slate-200 rounded px-2 py-1 text-xs text-slate-800 font-bold"
+                            min="0"
+                            placeholder="Qty"
+                            value={task.quantity || ''}
+                            onChange={(e) => handleTaskChange(index, 'quantity', e.target.value === '' ? 0 : Math.max(0, Number(e.target.value)))}
+                            className="h-10 min-w-0 flex-1 appearance-none border-0 bg-white px-2 text-center text-sm font-bold text-slate-800 outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                           />
-                          <input
-                            type="text"
-                            placeholder="e.g. Pcs/Reels"
-                            value={task.unit || ''}
-                            onChange={(e) => handleTaskChange(index, 'unit', e.target.value)}
-                            className="w-16 bg-white border border-slate-200 rounded px-1.5 py-1 text-[10px] text-slate-600"
-                          />
+                          <button
+                            type="button"
+                            aria-label="Increase quantity"
+                            onClick={() => handleTaskChange(index, 'quantity', Number(task.quantity || 0) + 1)}
+                            className="grid h-10 w-10 shrink-0 place-items-center border-l border-slate-200 text-lg font-bold text-[#7b344d] transition hover:bg-rose-50"
+                          >
+                            +
+                          </button>
                         </div>
+                        <input
+                          type="text"
+                          placeholder="Unit: Pcs / Reels"
+                          value={task.unit || ''}
+                          onChange={(e) => handleTaskChange(index, 'unit', e.target.value)}
+                          className="mt-1.5 w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-[11px] font-semibold text-slate-600"
+                        />
                       </div>
 
                       {/* Assigned To (Kon Assigned hai) */}
@@ -1057,7 +1083,8 @@ export const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
             }} className="flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#8f3655] to-[#6d2f45] px-6 py-2.5 text-sm font-extrabold text-white shadow-[0_8px_20px_rgba(109,47,69,.25)] transition hover:-translate-y-0.5 hover:shadow-lg"><span>{`Save & Next: ${['Shoot Plan','Budget','Documents','Tasks'][activeStep - 1]}`}</span><ArrowRight className="size-4"/></button> :
             <button
               key="wizard-submit"
-              type="submit"
+              type="button"
+              onClick={handleSubmit}
               className="group flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#8f3655] to-[#6d2f45] px-6 py-2.5 text-sm font-extrabold text-white shadow-[0_8px_20px_rgba(109,47,69,.25)] transition hover:-translate-y-0.5 hover:shadow-lg"
             >
               <Save className="size-4" />

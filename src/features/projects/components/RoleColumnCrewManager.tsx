@@ -244,7 +244,9 @@ export const RoleColumnCrewManager: React.FC<RoleColumnCrewManagerProps> = ({
               <div className="flex items-center gap-1 bg-slate-50 border border-slate-200 rounded-lg px-1.5 py-0.5 hover:border-indigo-300 transition">
                 <input
                   type="text"
-                  placeholder="Custom role..."
+                  placeholder="Custom Role Name"
+                  aria-label="Custom Role Name"
+                  title="Enter a custom crew role name"
                   value={customRoleInput}
                   onChange={(e) => {
                     setCustomRoleInput(e.target.value);
@@ -413,4 +415,3 @@ export const RoleColumnCrewManager: React.FC<RoleColumnCrewManagerProps> = ({
     </div>
   );
 };
-
