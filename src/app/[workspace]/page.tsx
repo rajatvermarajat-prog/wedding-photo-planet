@@ -9,6 +9,7 @@ const WORKSPACES = new Set([
   'leads',
   'projects',
   'shoots',
+  'expenses',
   'data-management',
   'team',
   'freelancers',

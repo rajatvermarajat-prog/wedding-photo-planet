@@ -8,7 +8,6 @@ import {
   Film, 
   HardDrive, 
   Users, 
-  Truck, 
   Menu,
   X,
   CheckCircle2,
@@ -22,11 +21,12 @@ import {
   UserCheck,
   Crown,
   Target,
+  Banknote,
   MoreHorizontal
 } from 'lucide-react';
 import { ProjectStatus, TeamMember } from '@/types';
 
-export type TabType = 'dashboard' | 'roles' | 'projects' | 'shoots' | 'data' | 'team' | 'freelancers' | 'deliveries' | 'owner_workspace' | 'equipment' | 'leads';
+export type TabType = 'dashboard' | 'roles' | 'projects' | 'shoots' | 'expenses' | 'data' | 'team' | 'freelancers' | 'deliveries' | 'owner_workspace' | 'equipment' | 'leads';
 
 interface SidebarProps {
   activeTab: TabType;
@@ -59,6 +59,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     ...(canSeeLeads ? [{ id: 'leads' as TabType, label: 'Leads & Inquiries', icon: Target }] : []),
     { id: 'projects' as TabType, label: 'Projects', icon: FolderKanban },
     { id: 'shoots' as TabType, label: 'Shoot Management', icon: Film },
+    { id: 'expenses' as TabType, label: 'Expenses', icon: Banknote },
     ...(isFullAdmin ? [
       { id: 'data' as TabType, label: 'Data Management', icon: HardDrive },
       { id: 'team' as TabType, label: 'Team & Attendance', icon: Users },
@@ -66,7 +67,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
     ] : [
       { id: 'freelancers' as TabType, label: 'Freelancer Team', icon: UserCheck },
     ]),
-    { id: 'deliveries' as TabType, label: 'Deliveries', icon: Truck },
   ];
 
   const userInitials = currentUser?.name
@@ -230,6 +230,7 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
     roles: 'Role Workspaces',
     projects: 'Projects',
     shoots: 'Shoot Management',
+    expenses: 'Expense Management',
     data: 'Data Management',
     team: 'Team & Attendance',
     freelancers: 'Freelancer Team',

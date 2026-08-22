@@ -4,9 +4,9 @@ import { Camera, CreditCard, FolderPlus, Receipt } from 'lucide-react';
 export function QuickActionsPanel() {
   const actions = [
     { label: 'New Project', icon: FolderPlus, href: '/projects/new', accent: 'bg-rose-50 text-rose-700' },
-    { label: 'Schedule Shoot', icon: Camera, href: '/shoots/schedule', accent: 'text-rose-700 bg-rose-50' },
+    { label: 'Schedule Shoot', icon: Camera, href: '/shoots', accent: 'text-rose-700 bg-rose-50' },
     { label: 'Record Payment', icon: CreditCard, href: '/payments/new', accent: 'text-emerald-700 bg-emerald-50' },
-    { label: 'Add Expense', icon: Receipt, href: '/expenses/new', accent: 'text-amber-700 bg-amber-50' },
+    { label: 'Add Expense', icon: Receipt, href: '/expenses', accent: 'text-amber-700 bg-amber-50' },
   ] as const;
 
   return (

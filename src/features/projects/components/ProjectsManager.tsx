@@ -113,7 +113,7 @@ export const ProjectsManager: React.FC<ProjectsManagerProps> = ({
     const matchesStatus = 
       statusFilter === 'all' ||
       (statusFilter === 'running' && (effStatus === 'running' || effStatus === 'new_project' || effStatus === 'pending' || effStatus === 'urgent')) ||
-      (statusFilter === 'completed' && effStatus === 'completed') ||
+      (statusFilter === 'completed' && (effStatus === 'completed' || effStatus === 'ready_to_deliver')) ||
       (statusFilter === 'ready_to_deliver' && effStatus === 'ready_to_deliver') ||
       effStatus === statusFilter;
 
@@ -523,4 +523,3 @@ export const ProjectsManager: React.FC<ProjectsManagerProps> = ({
     </div>
   );
 };
-

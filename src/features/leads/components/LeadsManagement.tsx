@@ -9,6 +9,7 @@ import { LeadBookingModal, LeadHistoryModal, LeadNoteModal } from './LeadSeconda
 import { LeadQuotationPreview } from './LeadQuotationPreview';
 import { LeadTargetsModal } from './LeadTargetsModal';
 import { LeadDeleteConfirmModal } from './LeadDeleteConfirmModal';
+import { LeadAnalyticsDashboard } from './LeadAnalyticsDashboard';
 import { 
   Target, 
   Plus, 
@@ -760,7 +761,7 @@ export const LeadsManagement: React.FC<LeadsManagementProps> = ({ currentUser })
       <LeadsHeader userName={userName} userRole={userRole} isOwner={isOwner} activeView={activeSubTab} onViewChange={setActiveSubTab} onAddLead={handleOpenAddModal} />
 
       {/* YEARLY & MONTHLY TARGETING & GOALS WIDGET (Visible to Owner & Managers only) */}
-      {isOwner && (
+      {isOwner && activeSubTab === 'list' && (
         <div className="space-y-4 rounded-3xl border border-[#ddc89c]/30 bg-[linear-gradient(135deg,#422a34,#302329_55%,#241b1f)] p-5 text-white shadow-xl md:p-6">
           <div className="flex flex-col items-start justify-between gap-3 border-b border-rose-300/15 pb-3.5 sm:flex-row sm:items-center">
             <div className="flex items-center gap-2.5">
@@ -957,13 +958,14 @@ export const LeadsManagement: React.FC<LeadsManagementProps> = ({ currentUser })
         </div>
       )}
 
-      <LeadsKpiGrid totalLeads={totalLeadsCount} activeLeads={activeCount} bookedDeals={bookedCount} bookedRevenue={bookedRevenue} quotations={totalQuotationsCount} pipelineValue={totalPipelineRevenue} isOwner={isOwner} />
+      {activeSubTab === 'list' && <LeadsKpiGrid totalLeads={totalLeadsCount} activeLeads={activeCount} bookedDeals={bookedCount} bookedRevenue={bookedRevenue} quotations={totalQuotationsCount} pipelineValue={totalPipelineRevenue} isOwner={isOwner} />}
 
       {/* SUB TAB VIEW SWITCH: LIST VS OWNER ANALYTICS */}
       {activeSubTab === 'analytics' && isOwner ? (
         <div className="space-y-6">
+          <LeadAnalyticsDashboard leads={accessibleLeads} targets={targets} />
           {/* OWNER REPORTING SECTION */}
-          <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-xs space-y-6">
+          <div className="hidden bg-white rounded-3xl border border-slate-200 p-6 shadow-xs space-y-6">
             <div className="flex items-center justify-between border-b border-slate-100 pb-4">
               <div>
                 <h3 className="text-lg font-black text-slate-900 flex items-center gap-2">

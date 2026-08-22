@@ -49,6 +49,7 @@ import { DataManagement } from '@/features/data-management';
 import { TeamAttendance, MemberDashboardModal } from '@/features/team';
 import { DeliveriesManager } from '@/features/deliveries';
 import { FreelancerTeamManager } from '@/features/freelancers';
+import { ExpenseManagement } from '@/features/expenses';
 import { Lock, ShieldAlert, ShieldCheck, ArrowRight } from 'lucide-react';
 import { ToastProvider } from '@/components/common';
 
@@ -60,6 +61,7 @@ const TAB_ROUTES: Record<TabType, string> = {
   leads: '/leads',
   projects: '/projects',
   shoots: '/shoots',
+  expenses: '/expenses',
   data: '/data-management',
   team: '/team',
   freelancers: '/freelancers',
@@ -649,6 +651,10 @@ export default function App() {
               onUpdateProject={handleUpdateProject}
               onOpenAllPaymentsModal={() => router.push('/payments/new')}
               setActiveTab={setActiveTab}
+              onProjectStatusNavigate={(status) => {
+                setStatusFilter(status);
+                setActiveTab('projects');
+              }}
               team={team}
               attendance={attendance}
               tasks={tasks}
@@ -733,6 +739,14 @@ export default function App() {
               onUpdateProject={handleUpdateProject}
               onSelectProject={(project) => handleSelectProject(project)}
               team={team}
+            />
+          )}
+
+          {activeTab === 'expenses' && (
+            <ExpenseManagement
+              projects={projects}
+              freelancers={freelancers.map((freelancer) => ({ id: freelancer.id, name: freelancer.name, role: freelancer.mainCategory }))}
+              currentUser={currentUser}
             />
           )}
 

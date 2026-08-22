@@ -2,16 +2,16 @@ interface Props {
   totalRevenue: number; totalAdvanceReceived: number; totalBalanceDue: number;
   allProjectsCount: number; runningProjectsCount: number; readyToDeliverCount: number;
   deliveredProjectsCount: number; pendingProjectsCount: number; urgentProjectsCount: number;
-  onPayments?: () => void; onProjects: () => void; onDeliveries: () => void;
+  onPayments?: () => void; onProjects: () => void; onCompleted: () => void; onUrgent: () => void;
 }
 
 export function DashboardKpiGrid(props: Props) {
   const cards = [
     ['All Projects', props.allProjectsCount, `${props.runningProjectsCount} Currently Running`, props.onProjects, 'to-[#faf4f6]'],
-    ['Ready to Deliver', props.readyToDeliverCount, 'Films & Albums Ready', props.onDeliveries, 'to-[#f3f7fa]'],
+    ['Ready to Deliver', props.readyToDeliverCount, 'Films & Albums Ready', props.onCompleted, 'to-[#f3f7fa]'],
     ['Delivered', props.deliveredProjectsCount, 'Completed Archive', props.onProjects, 'to-[#f2f8f5]'],
     ['Pending', props.pendingProjectsCount, 'Awaiting Shoots/Edits', props.onProjects, 'to-[#fcf7ed]'],
-    ['Urgent', props.urgentProjectsCount, 'Deadline Approaching', props.onProjects, 'to-red-50'],
+    ['Urgent', props.urgentProjectsCount, 'Deadline Approaching', props.onUrgent, 'to-red-50'],
   ] as const;
   return <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-6">
     <button onClick={props.onPayments} className="group min-h-32 rounded-2xl border border-[#dfd9d2] bg-linear-to-br from-white to-[#fcf8ef] p-4 text-left shadow-sm transition hover:-translate-y-1 hover:shadow-lg"><span className="text-xs font-extrabold uppercase tracking-[.12em] text-slate-500">Total Revenue</span><strong className="mt-3 block text-2xl text-slate-900">₹{props.totalRevenue.toLocaleString('en-IN')}</strong><span className="mt-1 flex justify-between text-xs font-bold"><i className="not-italic text-emerald-600">Adv: ₹{props.totalAdvanceReceived.toLocaleString('en-IN')}</i><i className="not-italic text-red-500">Due: ₹{props.totalBalanceDue.toLocaleString('en-IN')}</i></span></button>

@@ -1,4 +1,4 @@
-import { AttendanceRecord, Project, TeamMember, TeamTask } from '@/types';
+import { AttendanceRecord, Project, ProjectStatus, TeamMember, TeamTask } from '@/types';
 
 export interface SalaryInstallment {
   id: string;
@@ -28,6 +28,7 @@ export interface OwnerDashboardProps {
   onUpdateProject: (updated: Project) => void;
   onOpenAllPaymentsModal?: () => void;
   setActiveTab: (tab: 'dashboard' | 'projects' | 'shoots' | 'data' | 'team' | 'deliveries') => void;
+  onProjectStatusNavigate?: (status: ProjectStatus | 'all') => void;
   team?: TeamMember[];
   attendance?: AttendanceRecord[];
   tasks?: TeamTask[];
