@@ -173,8 +173,56 @@ export type TeamRole =
   | 'Social Media Handler' 
   | 'Sales Team'
   | 'Studio Manager'
+  | 'Photographer'
+  | 'Cinematographer'
+  | 'Drone Operator'
+  | 'Assistant Photographer'
+  | 'Assistant Cinematographer'
+  | 'Editor'
+  | 'Album Designer'
+  | 'Retoucher'
+  | 'Coordinator'
+  | 'Admin'
   | 'Other'
   | string;
+
+/** Wedding-specific department buckets used to group the roster. */
+export type TeamDepartment =
+  | 'Production'
+  | 'Post Production'
+  | 'Management'
+  | 'Sales & Marketing'
+  | 'Operations'
+  | 'Other'
+  | (string & {});
+
+export type EmploymentType = 'Full Time' | 'Part Time' | 'Freelancer' | 'Contract' | 'Intern';
+
+export type TeamMemberStatus = 'active' | 'inactive' | 'on_leave' | 'suspended';
+
+/** Where a member is expected to work — drives how attendance is judged. */
+export type AttendanceMode = 'Office' | 'WFH' | 'Hybrid' | 'Field';
+
+/** Live workforce availability used when building a shoot crew. */
+export type AvailabilityStatus =
+  | 'Available'
+  | 'On Shoot'
+  | 'Busy'
+  | 'On Leave'
+  | 'WFH'
+  | 'Unavailable';
+
+export type TeamDocumentType = 'id_proof' | 'contract' | 'agreement' | 'bank_details' | 'other';
+
+export interface TeamDocument {
+  id: string;
+  title: string;
+  type: TeamDocumentType;
+  fileName?: string;
+  fileUrl?: string;
+  uploadDate: string;
+  notes?: string;
+}
 
 export interface TeamTask {
   id: string;
@@ -205,8 +253,31 @@ export interface TeamMember {
   dailyRate?: number; // Per shoot / per day rate (₹)
   payType?: 'daily' | 'monthly';
   monthlySalary?: number; // Fixed monthly salary (₹)
-  status?: 'active' | 'inactive';
+  status?: TeamMemberStatus;
   skills?: string[];
+
+  // ---- Identity & HR profile (all optional; older records stay valid) ----
+  employeeId?: string;            // e.g. "WPP-007" — falls back to a derived code
+  profilePhoto?: string;          // Base64 data URL or image link
+  department?: TeamDepartment;
+  employmentType?: EmploymentType;
+  joiningDate?: string;           // YYYY-MM-DD
+  dateOfBirth?: string;           // YYYY-MM-DD
+  gender?: 'Male' | 'Female' | 'Other' | 'Prefer not to say' | (string & {});
+  address?: string;
+  reportingManagerId?: string;
+  reportingManager?: string;      // Name fallback when no id is linked
+  emergencyContact?: string;
+
+  // ---- Attendance configuration ----
+  attendanceMode?: AttendanceMode;   // Office / WFH / Hybrid / Field
+  shift?: string;                    // e.g. "General (09:30 AM - 07:30 PM)"
+  attendanceRequired?: boolean;      // false for crew tracked only via shoots
+  /** Manual availability override; when unset it is derived from shoots, leave & attendance. */
+  availabilityStatus?: AvailabilityStatus;
+
+  // ---- Documents (UI is API-ready; storage stays local for now) ----
+  documents?: TeamDocument[];
   
   // Software assignment & Monitoring (Up to 2-3 permitted softwares)
   assignedSoftware?: string; // Legacy fallback single string
@@ -224,6 +295,24 @@ export interface TeamMember {
   completedTasksCount?: number;
 }
 
+/**
+ * How a working day is classified. `present_office` / `present_shoot` are the
+ * original values and remain the canonical office & shoot markers.
+ */
+export type AttendanceStatus =
+  | 'present'
+  | 'present_shoot'
+  | 'present_office'
+  | 'present_wfh'
+  | 'half_day'
+  | 'absent'
+  | 'leave'
+  | 'weekly_off'
+  | 'holiday';
+
+/** Human-facing bucket shown in the attendance UI. */
+export type AttendanceType = 'Office' | 'WFH' | 'On Shoot' | 'Leave' | 'Holiday' | 'Weekly Off';
+
 export interface AttendanceRecord {
   id: string;
   date: string; // YYYY-MM-DD
@@ -232,13 +321,47 @@ export interface AttendanceRecord {
   role: TeamRole;
   projectId?: string;
   projectTitle?: string;
-  status: 'present' | 'present_shoot' | 'present_office' | 'half_day' | 'absent';
+  status: AttendanceStatus;
   inTime?: string; // e.g. "09:30 AM"
   outTime?: string; // e.g. "07:00 PM"
   lunchTime?: string;
   payAmount: number;
   paidStatus: 'paid' | 'pending';
   notes?: string;
+
+  // ---- Extended shift detail (optional) ----
+  shootId?: string;        // Links the day to a ShootEvent inside a Project
+  shootTitle?: string;
+  location?: string;       // "Studio Office", "Jaipur", "Home" ...
+  workingHours?: number;   // Decimal hours, derived from in/out when available
+  isLate?: boolean;
+  isEarlyDeparture?: boolean;
+  markedBy?: string;
+}
+
+// ----------------------------------------------------
+// LEAVE MANAGEMENT
+// ----------------------------------------------------
+
+export type LeaveType = 'Casual' | 'Sick' | 'Personal' | 'Emergency' | 'Other' | (string & {});
+
+export type LeaveStatus = 'pending' | 'approved' | 'rejected' | 'cancelled';
+
+export interface LeaveRequest {
+  id: string;
+  teamMemberId: string;
+  teamMemberName: string;
+  role: TeamRole;
+  leaveType: LeaveType;
+  startDate: string; // YYYY-MM-DD
+  endDate: string;   // YYYY-MM-DD
+  days: number;
+  reason: string;
+  status: LeaveStatus;
+  appliedOn: string;
+  reviewedBy?: string;
+  reviewedOn?: string;
+  reviewNote?: string;
 }
 
 export interface OfficeExpense {

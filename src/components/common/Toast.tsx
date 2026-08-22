@@ -1,7 +1,24 @@
 'use client';
 
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
-import { CheckCircle2, RotateCcw, TriangleAlert, X } from 'lucide-react';
+import { CheckCircle2, Lock, LogIn, LogOut, RotateCcw, TriangleAlert, X } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
+
+function cleanToastMessage(message: string) {
+  return message
+    .replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE0F}]/gu, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function toastIcon(message: string, variant: 'success' | 'error'): LucideIcon {
+  const m = message.toLowerCase();
+  if (m.includes('logged out') || m.includes('clock-out') || m.includes('clock out')) return LogOut;
+  if (m.includes('logged in') || m.includes('clock-in') || m.includes('clock in') || m.includes('welcome')) return LogIn;
+  if (m.includes('lock') || m.includes('logout enforced') || m.includes('unlock')) return Lock;
+  if (variant === 'error' || m.includes('warning') || m.includes('invalid')) return TriangleAlert;
+  return CheckCircle2;
+}
 
 interface ToastAction {
   label: string;
@@ -53,7 +70,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   const showToast = useCallback((message: string, options: ToastOptions = {}) => {
     const id = `toast-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
     const variant = options.variant || 'success';
-    setToasts((prev) => [...prev, { id, message, variant, action: options.action }]);
+    setToasts((prev) => [...prev, { id, message: cleanToastMessage(message), variant, action: options.action }]);
     // A toast with an action (e.g. Undo) waits for the user; a plain
     // confirmation dismisses itself.
     if (!options.action) {
@@ -80,10 +97,15 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
                 : 'bg-slate-900/95 border-slate-700 text-white'
             }`}
           >
-            <span className={`p-1.5 rounded-lg ${t.variant === 'error' ? 'bg-red-500/20 text-red-300' : 'bg-emerald-500/20 text-emerald-400'}`}>
-              {t.variant === 'error' ? <TriangleAlert className="w-3.5 h-3.5" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
-            </span>
-            <span className="font-bold">{t.message}</span>
+            {(() => {
+              const Icon = toastIcon(t.message, t.variant);
+              return (
+                <span className={`grid size-8 shrink-0 place-items-center rounded-xl ${t.variant === 'error' ? 'bg-red-500/20 text-red-300' : 'bg-white/10 text-[#f1c8d5]'}`}>
+                  <Icon className="size-4" />
+                </span>
+              );
+            })()}
+            <span className="flex-1 text-sm font-semibold leading-snug">{t.message}</span>
             {t.action && (
               <button
                 onClick={() => {

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { TeamMember, AttendanceRecord, Project, TeamTask, TeamRole } from '@/types';
@@ -204,7 +205,7 @@ export const MemberDashboardModal: React.FC<MemberDashboardModalProps> = ({
       };
       onRecordAttendance(newAtt);
     }
-    alert(`✅ ${member.name} has LOGGED IN (Clock-In: ${nowStr})!`);
+    alert(`${member.name} logged in · Clock-in ${nowStr}`);
   };
 
   // Logout (Clock Out) Handler
@@ -226,7 +227,7 @@ export const MemberDashboardModal: React.FC<MemberDashboardModalProps> = ({
       return a;
     });
     onUpdateAttendance(updatedAtt);
-    alert(`🔒 ${member.name} LOGGED OUT (Clock-Out: ${nowStr})!`);
+    alert(`${member.name} logged out · Clock-out ${nowStr}`);
   };
 
   // Save Shift Timings & Schedule Update
@@ -365,20 +366,21 @@ export const MemberDashboardModal: React.FC<MemberDashboardModalProps> = ({
     }
   };
 
-  return (
-    <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-xs z-50 flex items-center justify-center p-3 sm:p-5 overflow-y-auto">
-      <div className="bg-white rounded-3xl max-w-5xl xl:max-w-6xl w-full max-h-[92vh] flex flex-col shadow-2xl border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
-        
-        {/* Modal Header */}
-        <div className="bg-slate-900 text-white p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800 shrink-0">
-          <div className="flex items-center gap-4">
-            <div className="w-14 h-14 rounded-2xl bg-indigo-600 text-white font-black text-xl flex items-center justify-center border-2 border-indigo-400 shadow-md">
+  if (typeof document === 'undefined') return null;
+
+  return createPortal(
+    <div className="fixed inset-0 z-[80] flex items-center justify-center overflow-y-auto bg-[#24171c]/75 p-3 backdrop-blur-sm sm:p-5">
+      <div className="flex max-h-[92vh] w-full max-w-5xl flex-col overflow-hidden rounded-[2rem] border border-white/50 bg-white shadow-[0_30px_90px_rgba(26,13,19,.42)] animate-in fade-in zoom-in-95 duration-150 xl:max-w-6xl">
+        <div className="relative flex shrink-0 flex-col justify-between gap-4 overflow-hidden bg-[radial-gradient(circle_at_86%_10%,rgba(236,190,169,.24),transparent_32%),linear-gradient(125deg,#704758,#55333f_52%,#38262d)] p-5 text-white sm:flex-row sm:items-center">
+          <div className="absolute -bottom-16 -right-8 size-44 rounded-full border-[24px] border-white/5" />
+          <div className="relative z-10 flex items-center gap-4">
+            <div className="w-14 h-14 rounded-2xl bg-[#8f3655] text-white font-black text-xl flex items-center justify-center border-2 border-rose-300 shadow-md">
               {member.name.split(' ').map((n) => n[0]).join('').substring(0, 2).toUpperCase()}
             </div>
             <div>
               <div className="flex items-center gap-2">
                 <h2 className="text-xl font-black text-white">{member.name}</h2>
-                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-indigo-500/30 text-indigo-300 border border-indigo-400/30">
+                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-[#8f3655]/30 text-[#ecc8d3] border border-rose-300/30">
                   {member.role}
                 </span>
                 <button
@@ -397,7 +399,7 @@ export const MemberDashboardModal: React.FC<MemberDashboardModalProps> = ({
                     setEditLunchTime(member.lunchTime || '30 Mins');
                     setShowEditProfileModal(true);
                   }}
-                  className="px-2.5 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold text-[11px] flex items-center gap-1 border border-indigo-400/50 shadow-xs transition cursor-pointer"
+                  className="px-2.5 py-1 rounded-lg bg-[#8f3655] hover:bg-[#8f3655] text-white font-extrabold text-[11px] flex items-center gap-1 border border-rose-300/50 shadow-xs transition cursor-pointer"
                   title="Edit member details, role, salary & shift"
                 >
                   <Pencil className="w-3.5 h-3.5" />
@@ -406,18 +408,17 @@ export const MemberDashboardModal: React.FC<MemberDashboardModalProps> = ({
               </div>
               <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-300 mt-1">
                 <span className="flex items-center gap-1">
-                  <Mail className="w-3.5 h-3.5 text-indigo-400" /> {member.email}
+                  <Mail className="w-3.5 h-3.5 text-[#c4a0ad]" /> {member.email}
                 </span>
                 <span className="flex items-center gap-1">
-                  <Phone className="w-3.5 h-3.5 text-indigo-400" /> {member.phone}
+                  <Phone className="w-3.5 h-3.5 text-[#c4a0ad]" /> {member.phone}
                 </span>
               </div>
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
-            {/* Shift Timings Badge */}
-            <div className="bg-slate-800 border border-slate-700 rounded-xl px-3 py-1.5 text-right font-mono text-xs">
+          <div className="relative z-10 flex items-center gap-3">
+            <div className="rounded-xl border border-white/20 bg-black/20 px-3 py-1.5 text-right font-mono text-xs">
               <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">Shift & Schedule</span>
               <span className="text-emerald-400 font-bold">In: {member.inTime || '09:30 AM'}</span>
               <span className="text-slate-500 mx-1">|</span>
@@ -443,11 +444,11 @@ export const MemberDashboardModal: React.FC<MemberDashboardModalProps> = ({
             onClick={() => setActiveSubTab('timings')}
             className={`px-2.5 sm:px-4 py-2.5 rounded-t-xl text-[11px] sm:text-xs font-black uppercase tracking-wider flex items-center justify-center gap-1.5 sm:gap-2 border-b-2 transition ${
               activeSubTab === 'timings'
-                ? 'bg-white text-indigo-700 border-indigo-600 shadow-2xs'
+                ? 'bg-white text-[#6d2f45] border-[#8f3655] shadow-2xs'
                 : 'text-slate-600 hover:text-slate-900 border-transparent hover:bg-slate-200/60'
             }`}
           >
-            <Clock className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-indigo-600 shrink-0" />
+            <Clock className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#8f3655] shrink-0" />
             <span className="truncate">Login & Logout Timings</span>
           </button>
 
@@ -455,7 +456,7 @@ export const MemberDashboardModal: React.FC<MemberDashboardModalProps> = ({
             onClick={() => setActiveSubTab('salary')}
             className={`px-2.5 sm:px-4 py-2.5 rounded-t-xl text-[11px] sm:text-xs font-black uppercase tracking-wider flex items-center justify-center gap-1.5 sm:gap-2 border-b-2 transition ${
               activeSubTab === 'salary'
-                ? 'bg-white text-indigo-700 border-indigo-600 shadow-2xs'
+                ? 'bg-white text-[#6d2f45] border-[#8f3655] shadow-2xs'
                 : 'text-slate-600 hover:text-slate-900 border-transparent hover:bg-slate-200/60'
             }`}
           >
@@ -467,7 +468,7 @@ export const MemberDashboardModal: React.FC<MemberDashboardModalProps> = ({
             onClick={() => setActiveSubTab('tasks')}
             className={`px-2.5 sm:px-4 py-2.5 rounded-t-xl text-[11px] sm:text-xs font-black uppercase tracking-wider flex items-center justify-center gap-1.5 sm:gap-2 border-b-2 transition ${
               activeSubTab === 'tasks'
-                ? 'bg-white text-indigo-700 border-indigo-600 shadow-2xs'
+                ? 'bg-white text-[#6d2f45] border-[#8f3655] shadow-2xs'
                 : 'text-slate-600 hover:text-slate-900 border-transparent hover:bg-slate-200/60'
             }`}
           >
@@ -479,7 +480,7 @@ export const MemberDashboardModal: React.FC<MemberDashboardModalProps> = ({
             onClick={() => setActiveSubTab('software')}
             className={`px-2.5 sm:px-4 py-2.5 rounded-t-xl text-[11px] sm:text-xs font-black uppercase tracking-wider flex items-center justify-center gap-1.5 sm:gap-2 border-b-2 transition ${
               activeSubTab === 'software'
-                ? 'bg-white text-indigo-700 border-indigo-600 shadow-2xs'
+                ? 'bg-white text-[#6d2f45] border-[#8f3655] shadow-2xs'
                 : 'text-slate-600 hover:text-slate-900 border-transparent hover:bg-slate-200/60'
             }`}
           >
@@ -500,7 +501,7 @@ export const MemberDashboardModal: React.FC<MemberDashboardModalProps> = ({
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
                   <div>
                     <h3 className="text-sm font-black text-slate-900 uppercase tracking-tight flex items-center gap-2">
-                      <Clock className="w-4 h-4 text-indigo-600" /> Today's Shift Duty Status & Timings
+                      <Clock className="w-4 h-4 text-[#8f3655]" /> Today's Shift Duty Status & Timings
                     </h3>
                     <p className="text-xs text-slate-500 mt-0.5">Real-time attendance clock-in, clock-out and working status</p>
                   </div>
@@ -582,10 +583,10 @@ export const MemberDashboardModal: React.FC<MemberDashboardModalProps> = ({
                   <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs space-y-3">
                     <div className="flex items-center justify-between pb-2 border-b border-slate-100">
                       <h3 className="text-xs font-black text-slate-900 uppercase tracking-tight flex items-center gap-2">
-                        <Calendar className="w-4 h-4 text-indigo-600" />
+                        <Calendar className="w-4 h-4 text-[#8f3655]" />
                         <span>Assigned Wedding Events & Shoot Duty ({assignedShoots.length} Events)</span>
                       </h3>
-                      <span className="text-[10px] font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-100">
+                      <span className="text-[10px] font-bold text-[#8f3655] bg-rose-50 px-2 py-0.5 rounded border border-rose-100">
                         Auto-Synced Event Assignments
                       </span>
                     </div>
@@ -600,7 +601,7 @@ export const MemberDashboardModal: React.FC<MemberDashboardModalProps> = ({
                           <div key={s.id} className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-2 text-xs">
                             <div className="flex items-start justify-between">
                               <div>
-                                <span className="text-[10px] font-bold text-indigo-600 uppercase block">{s.clientWeddingTitle}</span>
+                                <span className="text-[10px] font-bold text-[#8f3655] uppercase block">{s.clientWeddingTitle}</span>
                                 <h4 className="font-bold text-slate-900">{s.title || 'Wedding Function'}</h4>
                               </div>
                               <span className="px-2 py-0.5 rounded text-[9px] font-black uppercase bg-emerald-100 text-emerald-800">
@@ -610,7 +611,7 @@ export const MemberDashboardModal: React.FC<MemberDashboardModalProps> = ({
 
                             <div className="text-[11px] text-slate-600 space-y-0.5 bg-white p-2 rounded border border-slate-200 font-medium">
                               <div>⏰ Time: <strong>{s.startTime && s.endTime ? `${s.startTime} - ${s.endTime}` : s.time}</strong></div>
-                              <div>📍 Venue: <strong>{s.venue || s.venueLocation}</strong></div>
+                              <div>Venue: <strong>{s.venue || s.venueLocation}</strong></div>
                             </div>
 
                             {s.crewAssignments && s.crewAssignments.length > 0 && (
@@ -622,7 +623,7 @@ export const MemberDashboardModal: React.FC<MemberDashboardModalProps> = ({
                                       key={c.id || idx}
                                       className={`px-1.5 py-0.5 rounded text-[9px] border ${
                                         c.name?.trim().toLowerCase() === member.name?.trim().toLowerCase()
-                                          ? 'bg-indigo-600 text-white font-bold border-indigo-700'
+                                          ? 'bg-[#8f3655] text-white font-bold border-[#6d2f45]'
                                           : 'bg-white text-slate-700 border-slate-200 font-medium'
                                       }`}
                                     >
@@ -645,7 +646,7 @@ export const MemberDashboardModal: React.FC<MemberDashboardModalProps> = ({
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-3 border-b border-slate-200">
                   <div>
                     <h3 className="text-xs font-black text-slate-900 uppercase tracking-tight flex items-center gap-2">
-                      <Calendar className="w-4 h-4 text-indigo-600" />
+                      <Calendar className="w-4 h-4 text-[#8f3655]" />
                       <span>Monthly Attendance & Duty Log ({memberLogs.length} Records)</span>
                     </h3>
                     <p className="text-[10px] text-slate-500 font-medium">Select date range to view attendance logs</p>
@@ -659,7 +660,7 @@ export const MemberDashboardModal: React.FC<MemberDashboardModalProps> = ({
                         type="date"
                         value={logStartDate}
                         onChange={(e) => setLogStartDate(e.target.value)}
-                        className="bg-white border border-slate-300 rounded-lg px-2 py-1 text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+                        className="bg-white border border-slate-300 rounded-lg px-2 py-1 text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#9b4865] cursor-pointer"
                       />
                     </div>
 
@@ -669,7 +670,7 @@ export const MemberDashboardModal: React.FC<MemberDashboardModalProps> = ({
                         type="date"
                         value={logEndDate}
                         onChange={(e) => setLogEndDate(e.target.value)}
-                        className="bg-white border border-slate-300 rounded-lg px-2 py-1 text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+                        className="bg-white border border-slate-300 rounded-lg px-2 py-1 text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#9b4865] cursor-pointer"
                       />
                     </div>
 
@@ -682,7 +683,7 @@ export const MemberDashboardModal: React.FC<MemberDashboardModalProps> = ({
                         }}
                         className={`px-2 py-1 rounded-lg text-[10px] font-bold transition ${
                           logStartDate === '2026-07-01' && logEndDate === '2026-07-31'
-                            ? 'bg-indigo-600 text-white shadow-2xs'
+                            ? 'bg-[#8f3655] text-white shadow-2xs'
                             : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
                         }`}
                       >
@@ -696,7 +697,7 @@ export const MemberDashboardModal: React.FC<MemberDashboardModalProps> = ({
                         }}
                         className={`px-2 py-1 rounded-lg text-[10px] font-bold transition ${
                           logStartDate === '2026-08-01' && logEndDate === '2026-08-31'
-                            ? 'bg-indigo-600 text-white shadow-2xs'
+                            ? 'bg-[#8f3655] text-white shadow-2xs'
                             : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
                         }`}
                       >
@@ -753,7 +754,7 @@ export const MemberDashboardModal: React.FC<MemberDashboardModalProps> = ({
                     {memberLogs.length > 0 && (
                       <tfoot className="bg-slate-900 text-white font-extrabold text-xs border-t-2 border-slate-800">
                         <tr>
-                          <td colSpan={3} className="p-3 text-right text-indigo-200 uppercase tracking-wide">
+                          <td colSpan={3} className="p-3 text-right text-[#eadfe2] uppercase tracking-wide">
                             Total Attendance Earned Salary ({memberLogs.length} Logged Days):
                           </td>
                           <td colSpan={2} className="p-3 text-left font-mono text-emerald-400 font-black text-sm bg-slate-950">
@@ -796,7 +797,7 @@ export const MemberDashboardModal: React.FC<MemberDashboardModalProps> = ({
               {/* Salary Overview Grid */}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs space-y-1">
-                  <span className="text-[10px] font-black uppercase text-indigo-600 tracking-wider">FIXED MONTHLY SALARY</span>
+                  <span className="text-[10px] font-black uppercase text-[#8f3655] tracking-wider">FIXED MONTHLY SALARY</span>
                   <div className="text-2xl font-black font-mono text-slate-900">
                     ₹{(monthlyBase).toLocaleString('en-IN')}
                   </div>
@@ -829,10 +830,10 @@ export const MemberDashboardModal: React.FC<MemberDashboardModalProps> = ({
               </div>
 
               {/* Salary Slip Generator Banner */}
-              <div className="bg-gradient-to-r from-indigo-900 to-slate-900 text-white rounded-2xl p-5 shadow-lg flex flex-col sm:flex-row sm:items-center justify-between gap-4 border border-indigo-800">
+              <div className="bg-gradient-to-r from-[#38262d] to-slate-900 text-white rounded-2xl p-5 shadow-lg flex flex-col sm:flex-row sm:items-center justify-between gap-4 border border-[#55333f]">
                 <div className="space-y-1">
                   <h3 className="text-base font-black flex items-center gap-2 text-white">
-                    <FileText className="w-5 h-5 text-indigo-400" /> Print Monthly Salary Slip for {member.name}
+                    <FileText className="w-5 h-5 text-[#c4a0ad]" /> Print Monthly Salary Slip for {member.name}
                   </h3>
                   <p className="text-xs text-slate-300">
                     Generate formatted official monthly salary slip with duty summary, attendance breakdown & studio stamp.
@@ -840,7 +841,7 @@ export const MemberDashboardModal: React.FC<MemberDashboardModalProps> = ({
                 </div>
                 <button
                   onClick={() => setShowSalarySlip(true)}
-                  className="px-5 py-2.5 rounded-xl bg-indigo-500 hover:bg-indigo-600 text-white font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-md transition"
+                  className="px-5 py-2.5 rounded-xl bg-[#8f3655] hover:bg-[#8f3655] text-white font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-md transition"
                 >
                   <Printer className="w-4 h-4" />
                   <span>View & Print Salary Slip</span>
@@ -849,7 +850,7 @@ export const MemberDashboardModal: React.FC<MemberDashboardModalProps> = ({
 
               {/* Printable Salary Slip Modal / View */}
               {showSalarySlip && (
-                <div className="bg-white border-2 border-indigo-600 rounded-2xl p-6 space-y-5 shadow-xl animate-in fade-in">
+                <div className="bg-white border-2 border-[#8f3655] rounded-2xl p-6 space-y-5 shadow-xl animate-in fade-in">
                   <div className="flex justify-between items-start border-b-2 border-slate-900 pb-4">
                     <div>
                       <h2 className="text-xl font-black text-slate-900 uppercase tracking-tight">WEDDING PHOTO PLANET CRM</h2>
@@ -872,7 +873,7 @@ export const MemberDashboardModal: React.FC<MemberDashboardModalProps> = ({
                     </div>
                     <div>
                       <span className="text-slate-400 font-bold uppercase text-[9px] block">DESIGNATION / ROLE</span>
-                      <span className="font-extrabold text-indigo-700 text-sm">{member.role}</span>
+                      <span className="font-extrabold text-[#6d2f45] text-sm">{member.role}</span>
                     </div>
                     <div>
                       <span className="text-slate-400 font-bold uppercase text-[9px] block">PAY STRUCTURE</span>
@@ -916,7 +917,7 @@ export const MemberDashboardModal: React.FC<MemberDashboardModalProps> = ({
                         </tr>
                         <tr className="bg-slate-50 font-black text-slate-900 text-sm border-t-2 border-slate-300">
                           <td colSpan={3} className="p-3 text-right uppercase">NET PAYABLE SALARY THIS MONTH:</td>
-                          <td className="p-3 text-right font-mono text-indigo-700 text-base">₹{earnedSalary.toLocaleString('en-IN')}</td>
+                          <td className="p-3 text-right font-mono text-[#6d2f45] text-base">₹{earnedSalary.toLocaleString('en-IN')}</td>
                         </tr>
                       </tbody>
                     </table>
@@ -967,7 +968,7 @@ export const MemberDashboardModal: React.FC<MemberDashboardModalProps> = ({
                           window.print();
                         }
                       }}
-                      className="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs uppercase tracking-wider flex items-center gap-1.5 shadow-sm cursor-pointer"
+                      className="px-5 py-2 rounded-xl bg-[#8f3655] hover:bg-[#6d2f45] text-white font-bold text-xs uppercase tracking-wider flex items-center gap-1.5 shadow-sm cursor-pointer"
                     >
                       <Download className="w-4 h-4" /> Download PDF Salary Slip
                     </button>
@@ -1002,7 +1003,7 @@ export const MemberDashboardModal: React.FC<MemberDashboardModalProps> = ({
 
                   <button
                     onClick={() => setShowAddTaskForm(!showAddTaskForm)}
-                    className="px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs uppercase tracking-wider flex items-center gap-1.5 shadow-xs transition"
+                    className="px-3.5 py-2 rounded-xl bg-[#8f3655] hover:bg-[#6d2f45] text-white font-bold text-xs uppercase tracking-wider flex items-center gap-1.5 shadow-xs transition"
                   >
                     <Plus className="w-4 h-4" /> Assign New Task
                   </button>
@@ -1011,9 +1012,9 @@ export const MemberDashboardModal: React.FC<MemberDashboardModalProps> = ({
 
               {/* Add New Task Form Modal Inline */}
               {showAddTaskForm && (
-                <form onSubmit={handleCreateTaskSubmit} className="bg-indigo-50/70 border-2 border-indigo-200 rounded-2xl p-5 space-y-4 animate-in fade-in">
-                  <h4 className="text-xs font-black text-indigo-950 uppercase tracking-wider flex items-center gap-2">
-                    <Sparkles className="w-4 h-4 text-indigo-600" /> Assign New Task to {member.name}
+                <form onSubmit={handleCreateTaskSubmit} className="bg-rose-50/70 border-2 border-rose-200 rounded-2xl p-5 space-y-4 animate-in fade-in">
+                  <h4 className="text-xs font-black text-[#38262d] uppercase tracking-wider flex items-center gap-2">
+                    <Sparkles className="w-4 h-4 text-[#8f3655]" /> Assign New Task to {member.name}
                   </h4>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -1036,23 +1037,23 @@ export const MemberDashboardModal: React.FC<MemberDashboardModalProps> = ({
                         onChange={(e) => setNewTaskCategory(e.target.value as any)}
                         className="w-full bg-white border border-slate-300 rounded-xl p-2.5 text-xs font-bold text-slate-900"
                       >
-                        <option value="sales_target">🎯 Monthly Booking Target & Revenue Goals</option>
-                        <option value="sales_lead">💼 Sales & Client Followup</option>
-                        <option value="social_media">🌐 Domain SEO & Social Media Posting</option>
-                        <option value="editing_video">🎬 Video Editing & Reels</option>
-                        <option value="editing_photo">📸 Photo Retouching & Culling</option>
-                        <option value="management">⚙️ Studio & Web Management</option>
+                        <option value="sales_target">Monthly Booking Target & Revenue Goals</option>
+                        <option value="sales_lead">Sales & Client Followup</option>
+                        <option value="social_media">Domain SEO & Social Media Posting</option>
+                        <option value="editing_video">Video Editing & Reels</option>
+                        <option value="editing_photo">Photo Retouching & Culling</option>
+                        <option value="management">Studio & Web Management</option>
                       </select>
                     </div>
 
                     {/* Sales Targets KPI Section */}
-                    <div className="p-3 bg-indigo-50/80 rounded-2xl border border-indigo-200 space-y-2.5">
+                    <div className="p-3 bg-rose-50/80 rounded-2xl border border-rose-200 space-y-2.5">
                       <div className="flex items-center justify-between">
-                        <label className="text-xs font-black text-indigo-950 flex items-center gap-1.5">
-                          <Target className="w-4 h-4 text-indigo-600 shrink-0" />
+                        <label className="text-xs font-black text-[#38262d] flex items-center gap-1.5">
+                          <Target className="w-4 h-4 text-[#8f3655] shrink-0" />
                           <span>Sales Targets & Monthly KPI</span>
                         </label>
-                        <span className="text-[10px] font-extrabold text-indigo-700 bg-indigo-100 px-2 py-0.5 rounded-full">
+                        <span className="text-[10px] font-extrabold text-[#6d2f45] bg-rose-100 px-2 py-0.5 rounded-full">
                           Sales Goal
                         </span>
                       </div>
@@ -1069,9 +1070,9 @@ export const MemberDashboardModal: React.FC<MemberDashboardModalProps> = ({
                             setNewTargetRevenue('500000');
                             setNewTargetLeadsCount('25');
                           }}
-                          className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-white hover:bg-indigo-100 text-indigo-800 border border-indigo-200 cursor-pointer shadow-2xs"
+                          className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-white hover:bg-rose-100 text-[#6d2f45] border border-rose-200 cursor-pointer shadow-2xs"
                         >
-                          🎯 5 Deals (₹5 Lakh)
+                          5 Deals (₹5 Lakh)
                         </button>
                         <button
                           type="button"
@@ -1080,41 +1081,41 @@ export const MemberDashboardModal: React.FC<MemberDashboardModalProps> = ({
                             setNewTaskCategory('sales_lead');
                             setNewTargetLeadsCount('20');
                           }}
-                          className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-white hover:bg-indigo-100 text-indigo-800 border border-indigo-200 cursor-pointer shadow-2xs"
+                          className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-white hover:bg-rose-100 text-[#6d2f45] border border-rose-200 cursor-pointer shadow-2xs"
                         >
-                          📞 20 Hot Lead Calls
+                          20 Hot Lead Calls
                         </button>
                       </div>
 
                       <div className="grid grid-cols-3 gap-2">
                         <div className="flex flex-col justify-end">
-                          <label className="text-[10px] font-bold text-indigo-900 mb-1 leading-tight min-h-[28px] flex items-end">Monthly Booking Target</label>
+                          <label className="text-[10px] font-bold text-[#55333f] mb-1 leading-tight min-h-[28px] flex items-end">Monthly Booking Target</label>
                           <input
                             type="number"
                             placeholder="e.g. 5 Deals"
                             value={newBookingTarget}
                             onChange={(e) => setNewBookingTarget(e.target.value)}
-                            className="w-full bg-white border border-indigo-200 rounded-lg p-2 text-xs font-bold text-indigo-950"
+                            className="w-full bg-white border border-rose-200 rounded-lg p-2 text-xs font-bold text-[#38262d]"
                           />
                         </div>
                         <div className="flex flex-col justify-end">
-                          <label className="text-[10px] font-bold text-indigo-900 mb-1 leading-tight min-h-[28px] flex items-end">Target Revenue (₹)</label>
+                          <label className="text-[10px] font-bold text-[#55333f] mb-1 leading-tight min-h-[28px] flex items-end">Target Revenue (₹)</label>
                           <input
                             type="number"
                             placeholder="e.g. 500000"
                             value={newTargetRevenue}
                             onChange={(e) => setNewTargetRevenue(e.target.value)}
-                            className="w-full bg-white border border-indigo-200 rounded-lg p-2 text-xs font-bold text-indigo-950"
+                            className="w-full bg-white border border-rose-200 rounded-lg p-2 text-xs font-bold text-[#38262d]"
                           />
                         </div>
                         <div className="flex flex-col justify-end">
-                          <label className="text-[10px] font-bold text-indigo-900 mb-1 leading-tight min-h-[28px] flex items-end">Calls / Leads Target</label>
+                          <label className="text-[10px] font-bold text-[#55333f] mb-1 leading-tight min-h-[28px] flex items-end">Calls / Leads Target</label>
                           <input
                             type="number"
                             placeholder="e.g. 20 Calls"
                             value={newTargetLeadsCount}
                             onChange={(e) => setNewTargetLeadsCount(e.target.value)}
-                            className="w-full bg-white border border-indigo-200 rounded-lg p-2 text-xs font-bold text-indigo-950"
+                            className="w-full bg-white border border-rose-200 rounded-lg p-2 text-xs font-bold text-[#38262d]"
                           />
                         </div>
                       </div>
@@ -1127,9 +1128,9 @@ export const MemberDashboardModal: React.FC<MemberDashboardModalProps> = ({
                         onChange={(e) => setNewTaskPriority(e.target.value as any)}
                         className="w-full bg-white border border-slate-300 rounded-xl p-2.5 text-xs font-bold text-slate-900"
                       >
-                        <option value="high">🔥 High Priority</option>
-                        <option value="medium">⚡ Medium Priority</option>
-                        <option value="low">☕ Low Priority</option>
+                        <option value="high">High Priority</option>
+                        <option value="medium">Medium Priority</option>
+                        <option value="low">Low Priority</option>
                       </select>
                     </div>
 
@@ -1165,7 +1166,7 @@ export const MemberDashboardModal: React.FC<MemberDashboardModalProps> = ({
                     </button>
                     <button
                       type="submit"
-                      className="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs uppercase tracking-wider shadow-sm transition"
+                      className="px-5 py-2 rounded-xl bg-[#8f3655] hover:bg-[#6d2f45] text-white font-bold text-xs uppercase tracking-wider shadow-sm transition"
                     >
                       Create & Assign Task
                     </button>
@@ -1208,7 +1209,7 @@ export const MemberDashboardModal: React.FC<MemberDashboardModalProps> = ({
                 const pendingLeadsCount = Math.max(0, totalLeadsGoal - completedLeadsCount);
 
                 return (
-                  <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-indigo-950 rounded-2xl p-4 text-white shadow-md space-y-3">
+                  <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-[#24171c] rounded-2xl p-4 text-white shadow-md space-y-3">
                     <div className="flex items-center justify-between border-b border-slate-700/60 pb-2">
                       <h4 className="text-xs font-black uppercase tracking-wider flex items-center gap-2 text-amber-400">
                         <Target className="w-4 h-4 text-amber-400" />
@@ -1232,7 +1233,7 @@ export const MemberDashboardModal: React.FC<MemberDashboardModalProps> = ({
                               <span className="text-xs font-black text-emerald-200">{completedDealsCount} Deals</span>
                             </div>
                             <div className="bg-amber-950/70 border border-amber-800/60 rounded-lg p-1.5">
-                              <span className="text-[9px] font-extrabold text-amber-400 uppercase block">Pending ⏳</span>
+                              <span className="text-[9px] font-extrabold text-amber-400 uppercase block">Pending</span>
                               <span className="text-xs font-black text-amber-200">{pendingDealsCount} Deals</span>
                             </div>
                           </div>
@@ -1251,7 +1252,7 @@ export const MemberDashboardModal: React.FC<MemberDashboardModalProps> = ({
                               <span className="text-xs font-black text-emerald-200 font-mono">₹{completedRevenueAchieved.toLocaleString('en-IN')}</span>
                             </div>
                             <div className="bg-amber-950/70 border border-amber-800/60 rounded-lg p-1.5">
-                              <span className="text-[9px] font-extrabold text-amber-400 uppercase block">Pending ⏳</span>
+                              <span className="text-[9px] font-extrabold text-amber-400 uppercase block">Pending</span>
                               <span className="text-xs font-black text-amber-200 font-mono">₹{pendingRevenueAmt.toLocaleString('en-IN')}</span>
                             </div>
                           </div>
@@ -1270,7 +1271,7 @@ export const MemberDashboardModal: React.FC<MemberDashboardModalProps> = ({
                               <span className="text-xs font-black text-emerald-200">{completedLeadsCount} Calls</span>
                             </div>
                             <div className="bg-amber-950/70 border border-amber-800/60 rounded-lg p-1.5">
-                              <span className="text-[9px] font-extrabold text-amber-400 uppercase block">Pending ⏳</span>
+                              <span className="text-[9px] font-extrabold text-amber-400 uppercase block">Pending</span>
                               <span className="text-xs font-black text-amber-200">{pendingLeadsCount} Calls</span>
                             </div>
                           </div>
@@ -1293,7 +1294,7 @@ export const MemberDashboardModal: React.FC<MemberDashboardModalProps> = ({
                   memberTasks.map((t) => (
                     <div
                       key={t.id}
-                      className="bg-white rounded-2xl border border-slate-200 p-4 shadow-2xs hover:border-indigo-300 transition flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+                      className="bg-white rounded-2xl border border-slate-200 p-4 shadow-2xs hover:border-rose-300 transition flex flex-col sm:flex-row sm:items-center justify-between gap-4"
                     >
                       <div className="space-y-1">
                         <div className="flex items-center gap-2 flex-wrap">
@@ -1309,8 +1310,8 @@ export const MemberDashboardModal: React.FC<MemberDashboardModalProps> = ({
                             {t.priority}
                           </span>
                           {t.domainName && (
-                            <span className="px-2 py-0.5 rounded text-[10px] font-black bg-indigo-100 text-indigo-800 border border-indigo-200 flex items-center gap-1">
-                              <Globe className="w-3 h-3 text-indigo-600" />
+                            <span className="px-2 py-0.5 rounded text-[10px] font-black bg-rose-100 text-[#6d2f45] border border-rose-200 flex items-center gap-1">
+                              <Globe className="w-3 h-3 text-[#8f3655]" />
                               {t.domainName}
                             </span>
                           )}
@@ -1393,7 +1394,7 @@ export const MemberDashboardModal: React.FC<MemberDashboardModalProps> = ({
                           <button
                             type="button"
                             onClick={() => handleSelectAllSoftware(!allSelected)}
-                            className="px-3 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-xs font-black uppercase tracking-wider transition"
+                            className="px-3 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-[#6d2f45] border border-rose-200 text-xs font-black uppercase tracking-wider transition"
                           >
                             {allSelected ? 'Unselect All (Clear)' : 'Select All'}
                           </button>
@@ -1490,10 +1491,10 @@ export const MemberDashboardModal: React.FC<MemberDashboardModalProps> = ({
       {/* EDIT MEMBER PROFILE OVERLAY MODAL */}
       {showEditProfileModal && (
         <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-xs z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-xl w-full p-6 space-y-4 shadow-2xl border border-indigo-200 animate-in fade-in zoom-in-95 duration-150 max-h-[90vh] overflow-y-auto">
+          <div className="bg-white rounded-3xl max-w-xl w-full p-6 space-y-4 shadow-2xl border border-rose-200 animate-in fade-in zoom-in-95 duration-150 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-slate-200 pb-3">
               <div className="flex items-center gap-2">
-                <div className="w-9 h-9 bg-indigo-100 text-indigo-700 rounded-xl flex items-center justify-center font-bold">
+                <div className="w-9 h-9 bg-rose-100 text-[#6d2f45] rounded-xl flex items-center justify-center font-bold">
                   <Pencil className="w-5 h-5" />
                 </div>
                 <div>
@@ -1518,7 +1519,7 @@ export const MemberDashboardModal: React.FC<MemberDashboardModalProps> = ({
                     type="text"
                     value={editName}
                     onChange={(e) => setEditName(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 font-bold text-slate-900 text-xs focus:ring-2 focus:ring-indigo-500 focus:bg-white"
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 font-bold text-slate-900 text-xs focus:ring-2 focus:ring-[#9b4865] focus:bg-white"
                     required
                   />
                 </div>
@@ -1528,7 +1529,7 @@ export const MemberDashboardModal: React.FC<MemberDashboardModalProps> = ({
                   <select
                     value={editRole}
                     onChange={(e) => setEditRole(e.target.value as TeamRole)}
-                    className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 font-bold text-slate-900 text-xs focus:ring-2 focus:ring-indigo-500 focus:bg-white"
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 font-bold text-slate-900 text-xs focus:ring-2 focus:ring-[#9b4865] focus:bg-white"
                   >
                     <option value="Studio Manager">Studio Manager (Full Access)</option>
                     <option value="Manager">Manager (Full Access)</option>
@@ -1573,7 +1574,7 @@ export const MemberDashboardModal: React.FC<MemberDashboardModalProps> = ({
 
               {/* Shift Timings */}
               <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200 space-y-3">
-                <div className="text-[10px] font-black uppercase text-indigo-700 tracking-wider">
+                <div className="text-[10px] font-black uppercase text-[#6d2f45] tracking-wider">
                   Shift Schedule & Timings
                 </div>
                 <div className="grid grid-cols-2 gap-3">
@@ -1624,8 +1625,8 @@ export const MemberDashboardModal: React.FC<MemberDashboardModalProps> = ({
               </div>
 
               {/* Pay Structure */}
-              <div className="p-3 bg-indigo-50/70 rounded-2xl border border-indigo-100 space-y-2">
-                <label className="block font-black text-indigo-950 uppercase text-[10px] tracking-wider">
+              <div className="p-3 bg-rose-50/70 rounded-2xl border border-rose-100 space-y-2">
+                <label className="block font-black text-[#38262d] uppercase text-[10px] tracking-wider">
                   Pay Structure & Salary
                 </label>
                 <div className="flex items-center gap-4 py-1">
@@ -1636,7 +1637,7 @@ export const MemberDashboardModal: React.FC<MemberDashboardModalProps> = ({
                       value="monthly"
                       checked={editPayType === 'monthly'}
                       onChange={() => setEditPayType('monthly')}
-                      className="accent-indigo-600"
+                      className="accent-[#8f3655]"
                     />
                     <span>Monthly Salary (₹)</span>
                   </label>
@@ -1647,7 +1648,7 @@ export const MemberDashboardModal: React.FC<MemberDashboardModalProps> = ({
                       value="daily"
                       checked={editPayType === 'daily'}
                       onChange={() => setEditPayType('daily')}
-                      className="accent-indigo-600"
+                      className="accent-[#8f3655]"
                     />
                     <span>Daily Rate (₹)</span>
                   </label>
@@ -1686,7 +1687,7 @@ export const MemberDashboardModal: React.FC<MemberDashboardModalProps> = ({
                 </button>
                 <button
                   type="submit"
-                  className="px-6 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-black text-xs uppercase tracking-wider shadow-md"
+                  className="px-6 py-2 rounded-xl bg-[#8f3655] hover:bg-[#6d2f45] text-white font-black text-xs uppercase tracking-wider shadow-md"
                 >
                   Save Changes
                 </button>
@@ -1705,6 +1706,7 @@ export const MemberDashboardModal: React.FC<MemberDashboardModalProps> = ({
         onConfirm={handleConfirmDelete}
         onCancel={() => setTaskToDelete(null)}
       />
-    </div>
+    </div>,
+    document.body
   );
 };

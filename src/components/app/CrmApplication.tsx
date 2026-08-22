@@ -15,7 +15,8 @@ import {
   FreelancerAttendance,
   FreelancerDataReceived,
   FreelancerActivityLog,
-  FreelancerDocument
+  FreelancerDocument,
+  LeaveRequest
 } from '@/types';
 import { INITIAL_PROJECTS, INITIAL_TEAM, INITIAL_ATTENDANCE, INITIAL_TASKS } from '@/data/mockData';
 import { 
@@ -114,6 +115,18 @@ export default function App() {
       }
     }
     return INITIAL_TASKS;
+  });
+
+  const [leaves, setLeaves] = useState<LeaveRequest[]>(() => {
+    // Leave requests power the Team module's attendance, availability and
+    // schedule views; they persist alongside the rest of the CRM state.
+    try {
+      const saved = localStorage.getItem('wpp_crm_leaves');
+      const list = saved ? JSON.parse(saved) : [];
+      return Array.isArray(list) ? list : [];
+    } catch (e) {
+      return [];
+    }
   });
 
   // Freelancer Module Persistent States
@@ -217,6 +230,10 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('wpp_crm_tasks', JSON.stringify(tasks));
   }, [tasks]);
+
+  useEffect(() => {
+    localStorage.setItem('wpp_crm_leaves', JSON.stringify(leaves));
+  }, [leaves]);
 
   useEffect(() => {
     localStorage.setItem('wpp_crm_freelancer_categories', JSON.stringify(freelancerCategories));
@@ -382,6 +399,14 @@ export default function App() {
     setTasks(tasks.filter((t) => t.id !== taskId));
   };
 
+  /** Upsert a leave request — new applications and approve/reject reviews. */
+  const handleSaveLeave = (leave: LeaveRequest) => {
+    setLeaves((prev) => {
+      const exists = prev.some((l) => l.id === leave.id);
+      return exists ? prev.map((l) => (l.id === leave.id ? leave : l)) : [leave, ...prev];
+    });
+  };
+
   // Freelancer Handlers
   const handleSaveFreelancer = (freelancer: Freelancer) => {
     const exists = freelancers.some((f) => f.id === freelancer.id);
@@ -496,6 +521,7 @@ export default function App() {
       team,
       attendance,
       tasks,
+      leaves,
       version: '1.0',
       exportedAt: new Date().toISOString()
     };
@@ -526,6 +552,9 @@ export default function App() {
         }
         if (parsed.tasks && Array.isArray(parsed.tasks)) {
           setTasks(parsed.tasks);
+        }
+        if (parsed.leaves && Array.isArray(parsed.leaves)) {
+          setLeaves(parsed.leaves);
         }
         alert('✓ CRM Data restored successfully!');
       } catch (err) {
@@ -798,6 +827,14 @@ export default function App() {
                 onAddTask={handleAddTask}
                 onUpdateTask={handleUpdateTask}
                 onDeleteTask={handleDeleteTask}
+                leaves={leaves}
+                onSaveLeave={handleSaveLeave}
+                onUpdateProject={handleUpdateProject}
+                freelancers={freelancers}
+                freelancerAssignments={freelancerAssignments}
+                freelancerPayments={freelancerPayments}
+                currentUser={currentUser}
+                onNavigateToFreelancers={() => setActiveTab('freelancers')}
               />
             ) : (
               <div className="bg-white rounded-3xl p-8 sm:p-12 text-center max-w-xl mx-auto border border-slate-200 shadow-xl space-y-5 my-12">

@@ -2301,7 +2301,7 @@ export const RoleDashboards: React.FC<RoleDashboardsProps> = ({
     }
 
     setShiftSeconds(0);
-    alert(`✅ Welcome ${activeMember.name}! You are now LOGGED IN for shift (Clock-In: ${nowStr}). Attendance logged.`);
+    alert(`${activeMember.name} logged in · Clock-in ${nowStr}`);
   };
 
   // Logout (Clock-Out) Handler
@@ -2330,7 +2330,7 @@ export const RoleDashboards: React.FC<RoleDashboardsProps> = ({
     });
     onUpdateAttendance(updatedAttendance);
 
-    alert(`🔒 ${activeMember.name} has LOGGED OUT! Shift ended at ${nowStr}. Duty off recorded.`);
+    alert(`${activeMember.name} logged out · Clock-out ${nowStr}`);
   };
 
   const myAttendanceHistory = attendance.filter((a) => a.teamMemberId === activeMember?.id);
