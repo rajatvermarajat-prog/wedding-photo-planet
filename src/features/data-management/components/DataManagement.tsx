@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Project } from '@/types';
-import { HardDrive, Cloud, ChevronDown, ChevronRight, CheckCircle2, Clock, ExternalLink } from 'lucide-react';
+import { HardDrive, Cloud, ChevronDown, ChevronRight, CheckCircle2, Clock, ExternalLink, Database, Search, SlidersHorizontal, Upload, ShieldCheck, AlertTriangle, MapPin, CalendarDays, BarChart3 } from 'lucide-react';
 
 interface DataManagementProps {
   projects: Project[];
@@ -10,6 +10,8 @@ interface DataManagementProps {
 
 export const DataManagement: React.FC<DataManagementProps> = ({ projects = [], onUpdateProject, onSelectProject }) => {
   const [expandedProjectId, setExpandedProjectId] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [backupFilter, setBackupFilter] = useState<'all' | 'pending' | 'secured' | 'cloud'>('all');
 
   const totalGB = (projects || []).reduce((acc, p) => {
     const backup: Partial<Project['dataBackup']> = p.dataBackup || {};
@@ -24,6 +26,16 @@ export const DataManagement: React.FC<DataManagementProps> = ({ projects = [], o
   const cardOffloadedCount = (projects || []).filter(p => p.dataBackup?.offloadedFromCards).length;
   const hdd2DoneCount = (projects || []).filter(p => p.dataBackup?.hardDrive2Done).length;
   const cloudDoneCount = (projects || []).filter(p => p.dataBackup?.cloudBackupDone).length;
+
+  const visibleProjects = useMemo(() => projects.filter((project) => {
+    const backup = project.dataBackup;
+    const text = `${project.clientWeddingTitle} ${project.name} ${project.primaryServiceType}`.toLowerCase();
+    if (searchQuery.trim() && !text.includes(searchQuery.trim().toLowerCase())) return false;
+    if (backupFilter === 'pending') return !backup?.hardDrive2Done;
+    if (backupFilter === 'secured') return Boolean(backup?.hardDrive2Done);
+    if (backupFilter === 'cloud') return Boolean(backup?.cloudBackupDone);
+    return true;
+  }), [projects, searchQuery, backupFilter]);
 
   const handleUpdateCrewData = (projectId: string, shootId: string, crewId: string, field: string, value: any) => {
     const project = projects.find((p) => p.id === projectId);
@@ -90,51 +102,22 @@ export const DataManagement: React.FC<DataManagementProps> = ({ projects = [], o
   return (
     <div className="space-y-5 pb-8 w-full">
       
-      {/* Title & Storage Summary */}
-      <div className="bg-white rounded-xl p-4 sm:p-5 border border-slate-200 shadow-xs space-y-3.5">
-        <div>
-          <h2 className="text-lg font-black text-slate-900 flex items-center gap-2">
-            <HardDrive className="w-5 h-5 text-indigo-600" />
-            <span>RAW Data & Storage Vault Management</span>
-          </h2>
-          <p className="text-xs text-slate-500 mt-0.5">
-            Memory card offloading, Primary Vault HDD 1, Mirror Backup HDD 2, Cloud NAS sync, and Event-wise Shooter Data Received Logs.
-          </p>
-        </div>
+      <section className="relative overflow-hidden rounded-3xl border border-[#ddc89c]/35 bg-[radial-gradient(circle_at_88%_8%,rgba(221,200,156,.2),transparent_30%),linear-gradient(125deg,#704758,#55333f_50%,#38262d)] p-5 text-white shadow-xl sm:p-7"><div className="absolute -bottom-20 -right-10 size-64 rounded-full border-[34px] border-white/[.04]" /><div className="relative flex flex-col justify-between gap-5 xl:flex-row xl:items-center"><div className="max-w-3xl"><span className="flex w-fit items-center gap-1.5 rounded-full border border-white/20 bg-white/10 px-3 py-1 text-xs font-extrabold uppercase tracking-[.14em] text-[#f0dce3]"><ShieldCheck className="size-4 text-emerald-300" />Storage control centre</span><h1 className="mt-3 flex items-center gap-3 text-2xl font-black tracking-tight sm:text-3xl"><span className="grid size-11 place-items-center rounded-2xl bg-white/10"><Database className="size-6 text-[#f1c8d5]" /></span>Data Management</h1><p className="mt-2 text-sm font-medium leading-relaxed text-[#eadfe2] sm:text-base">Track every RAW-data handover from memory card to primary drive, mirror drive, and cloud backup.</p></div><div className="rounded-2xl border border-white/20 bg-black/10 px-4 py-3 text-sm"><p className="text-[10px] font-black uppercase tracking-[.14em] text-rose-200">Studio storage</p><p className="mt-1 flex items-baseline gap-1 text-2xl font-black">{totalTB}<span className="text-sm text-[#eadfe2]">TB</span></p><p className="text-xs font-medium text-[#eadfe2]">{totalGB.toLocaleString()} GB logged</p></div></div></section>
 
-        {/* Stats Row */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
-          <div className="p-3 rounded-lg bg-slate-50 border border-slate-200">
-            <span className="text-[10px] text-slate-400 block font-bold uppercase">Total Studio RAW Data</span>
-            <span className="text-xl font-black text-indigo-600 mt-0.5 block">{totalTB} TB</span>
-            <span className="text-[10px] text-slate-500">({totalGB.toLocaleString()} GB)</span>
-          </div>
+      <section className="grid grid-cols-2 gap-3 sm:grid-cols-4">{[
+        { label: 'Total RAW data', value: `${totalTB} TB`, hint: `${totalGB.toLocaleString()} GB logged`, icon: Database, tone: 'text-slate-700 bg-white border-[#e2d9d3]' },
+        { label: 'Cards offloaded', value: `${cardOffloadedCount} / ${projects.length}`, hint: 'Primary copy complete', icon: Upload, tone: 'text-indigo-800 bg-indigo-50 border-indigo-200' },
+        { label: 'Mirror secured', value: `${hdd2DoneCount} / ${projects.length}`, hint: 'Second drive verified', icon: HardDrive, tone: 'text-emerald-800 bg-emerald-50 border-emerald-200' },
+        { label: 'Cloud synced', value: `${cloudDoneCount} / ${projects.length}`, hint: 'Off-site backup ready', icon: Cloud, tone: 'text-sky-800 bg-sky-50 border-sky-200' },
+      ].map(({ label, value, hint, icon: Icon, tone }) => <div key={label} className={`rounded-2xl border p-3.5 shadow-[0_8px_24px_rgba(48,44,46,.04)] ${tone}`}><div className="flex items-start justify-between gap-2"><div><p className="text-[10px] font-black uppercase tracking-[.12em] opacity-70">{label}</p><p className="mt-1 text-2xl font-black">{value}</p><p className="text-[11px] font-semibold opacity-75">{hint}</p></div><Icon className="size-5 opacity-70" /></div></div>)}</section>
 
-          <div className="p-3 rounded-lg bg-slate-50 border border-slate-200">
-            <span className="text-[10px] text-slate-400 block font-bold uppercase">Card Offloaded</span>
-            <span className="text-xl font-black text-green-600 mt-0.5 block">{cardOffloadedCount} / {projects.length}</span>
-            <span className="text-[10px] text-slate-500">Projects Offloaded</span>
-          </div>
-
-          <div className="p-3 rounded-lg bg-slate-50 border border-slate-200">
-            <span className="text-[10px] text-slate-400 block font-bold uppercase">Dual HDD Backed Up</span>
-            <span className="text-xl font-black text-indigo-600 mt-0.5 block">{hdd2DoneCount} / {projects.length}</span>
-            <span className="text-[10px] text-slate-500">Mirror Secured</span>
-          </div>
-
-          <div className="p-3 rounded-lg bg-slate-50 border border-slate-200">
-            <span className="text-[10px] text-slate-400 block font-bold uppercase">Cloud Synced</span>
-            <span className="text-xl font-black text-sky-600 mt-0.5 block">{cloudDoneCount} / {projects.length}</span>
-            <span className="text-[10px] text-slate-500">Google Drive / NAS</span>
-          </div>
-        </div>
-      </div>
+      <section className="rounded-2xl border border-[#e2d9d3] bg-white p-3 shadow-[0_8px_24px_rgba(48,44,46,.05)] sm:p-4"><div className="mb-3 flex items-center gap-2 text-sm font-extrabold text-slate-700"><SlidersHorizontal className="size-4 text-[#8f3655]" />Find project data</div><div className="grid grid-cols-1 gap-3 sm:grid-cols-2"><label className="relative"><Search className="absolute left-3 top-1/2 size-5 -translate-y-1/2 text-[#9b4865]" /><input value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} placeholder="Search client or project…" className="w-full rounded-xl border border-[#ded5cf] bg-[#fbfaf8] py-2.5 pl-10 pr-3 text-sm font-semibold text-slate-900 outline-none placeholder:text-slate-400 focus:border-[#9b4865] focus:ring-4 focus:ring-rose-100" /></label><label className="relative"><ShieldCheck className="pointer-events-none absolute left-3 top-1/2 size-5 -translate-y-1/2 text-[#9b4865]" /><select value={backupFilter} onChange={(event) => setBackupFilter(event.target.value as typeof backupFilter)} className="w-full appearance-none rounded-xl border border-[#ded5cf] bg-[#fbfaf8] py-2.5 pl-10 pr-3 text-sm font-bold text-slate-700 outline-none focus:border-[#9b4865] focus:ring-4 focus:ring-rose-100"><option value="all">All backup statuses</option><option value="pending">Needs mirror backup</option><option value="secured">Mirror drive secured</option><option value="cloud">Cloud backup completed</option></select></label></div></section>
 
       {/* Projects Storage Table */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
-        <div className="p-3 bg-slate-50 border-b border-slate-200 flex items-center justify-between font-bold text-xs text-slate-800 uppercase tracking-tight">
-          <span>RAW Data Ledger & Shooter Offload Log by Project</span>
-          <span className="text-[11px] text-slate-500 font-normal normal-case">Click project to expand shoot crew data log</span>
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#eee7e2] bg-[#fbfaf8] p-4">
+          <div><p className="flex items-center gap-2 text-sm font-extrabold text-slate-800"><HardDrive className="size-4 text-[#8f3655]" />Project data ledger</p><p className="mt-0.5 text-xs text-slate-500">Open a project to update each event’s crew-data handover.</p></div>
+          <span className="rounded-full border border-rose-200 bg-white px-3 py-1 text-xs font-bold text-[#8f3655]">{visibleProjects.length} shown</span>
         </div>
 
         <div className="overflow-x-auto">
@@ -150,7 +133,7 @@ export const DataManagement: React.FC<DataManagementProps> = ({ projects = [], o
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {(projects || []).map((p) => {
+              {visibleProjects.map((p) => {
                 const isExpanded = expandedProjectId === p.id;
                 const backup = p.dataBackup || {
                   offloadedFromCards: false,
@@ -317,10 +300,10 @@ export const DataManagement: React.FC<DataManagementProps> = ({ projects = [], o
                                   return (
                                     <div key={s.id} className="p-3 bg-slate-50 rounded-lg border border-slate-200 space-y-2">
                                       <div className="flex items-center justify-between text-xs font-bold text-slate-800">
-                                        <span>📅 {s.title || 'Wedding Event'} ({s.date})</span>
+                                        <span className="flex items-center gap-1.5"><CalendarDays className="size-4 text-[#8f3655]" />{s.title || 'Wedding Event'} ({s.date})</span>
                                         <div className="flex items-center gap-2">
                                           <span className="text-[10px] font-black text-indigo-900 bg-indigo-100 px-2 py-0.5 rounded border border-indigo-200">
-                                            ⚡ Event Total: {eventTotalGB >= 1000 ? `${parseFloat((eventTotalGB / 1000).toFixed(2))} TB` : `${eventTotalGB} GB`}
+                                            Event total: {eventTotalGB >= 1000 ? `${parseFloat((eventTotalGB / 1000).toFixed(2))} TB` : `${eventTotalGB} GB`}
                                           </span>
                                           <span className="text-[10px] text-indigo-600 font-semibold">{s.venue}</span>
                                         </div>
@@ -338,8 +321,8 @@ export const DataManagement: React.FC<DataManagementProps> = ({ projects = [], o
                                                 <th className="p-2">Role & Team Member</th>
                                                 <th className="p-2 text-center">Data Received</th>
                                                 <th className="p-2 w-28">Data Size (GB)</th>
-                                                <th className="p-2 min-w-[140px]">💾 Copy In HD</th>
-                                                <th className="p-2 min-w-[140px]">🛡️ Backup In HD</th>
+                                                <th className="p-2 min-w-[140px]">Primary copy drive</th>
+                                                <th className="p-2 min-w-[140px]">Mirror backup drive</th>
                                               </tr>
                                             </thead>
                                             <tbody className="divide-y divide-slate-100">
@@ -360,7 +343,7 @@ export const DataManagement: React.FC<DataManagementProps> = ({ projects = [], o
                                                       <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
                                                         c.dataReceived ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
                                                       }`}>
-                                                        {c.dataReceived ? 'Received ✓' : 'Pending ⏳'}
+                                                        {c.dataReceived ? 'Received' : 'Pending'}
                                                       </span>
                                                     </label>
                                                   </td>
@@ -400,7 +383,7 @@ export const DataManagement: React.FC<DataManagementProps> = ({ projects = [], o
                                             <tfoot className="bg-slate-100/90 border-t-2 border-slate-200 font-bold text-slate-800">
                                               <tr>
                                                 <td className="p-2 text-right text-slate-700 font-black text-[10px] uppercase tracking-tight" colSpan={2}>
-                                                  📊 Total Event Data Size:
+                                                  Total event data size:
                                                 </td>
                                                 <td className="p-2" colSpan={3}>
                                                   <div className="flex items-center gap-2">
@@ -433,7 +416,7 @@ export const DataManagement: React.FC<DataManagementProps> = ({ projects = [], o
                                   <div className="flex items-center gap-2.5">
                                     <HardDrive className="w-4 h-4 text-indigo-300" />
                                     <span className="text-xs font-black uppercase text-indigo-200 tracking-wider">
-                                      📊 ALL EVENTS GRAND TOTAL DATA SIZE:
+                                      All events grand total data size
                                     </span>
                                   </div>
                                   <div className="flex items-center gap-2">
@@ -462,4 +445,3 @@ export const DataManagement: React.FC<DataManagementProps> = ({ projects = [], o
     </div>
   );
 };
-

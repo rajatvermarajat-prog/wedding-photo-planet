@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Project, ShootEvent, TeamMember } from '@/types';
-import { Film, Calendar, MapPin, Users, CheckCircle2, ChevronDown, ChevronUp, ExternalLink, Clock, AlertCircle, Sparkles, UserPlus, Edit3, Plus, Trash2, X, UserCheck, BarChart2, FileText, Copy, Check, AlertTriangle } from 'lucide-react';
+import { Film, Calendar, CalendarDays, MapPin, Users, CheckCircle2, ChevronDown, ChevronUp, ExternalLink, Clock, AlertCircle, Sparkles, UserPlus, Edit3, Plus, Trash2, X, UserCheck, BarChart2, FileText, Copy, Check, AlertTriangle, Search, SlidersHorizontal, ListFilter, ClipboardCheck } from 'lucide-react';
 import { getShootDateInfo, getShootTrackingStats } from '@/utils/shootTracking';
 import { INITIAL_FREELANCERS } from '@/data/mockFreelancers';
 import { INITIAL_TEAM } from '@/data/mockData';
@@ -19,6 +19,7 @@ export const ShootManagement: React.FC<ShootManagementProps> = ({ projects, onUp
   const [filterStatus, setFilterStatus] = useState<'all' | 'scheduled' | 'completed'>('all');
   const [selectedMonth, setSelectedMonth] = useState<string>('all');
   const [selectedDate, setSelectedDate] = useState<string>('');
+  const [searchQuery, setSearchQuery] = useState('');
   
   // Track expanded project IDs. By default, first project or none can be expanded
   const [expandedProjectIds, setExpandedProjectIds] = useState<string[]>([]);
@@ -134,14 +135,20 @@ export const ShootManagement: React.FC<ShootManagementProps> = ({ projects, onUp
     return sortedKeys.map((key) => ({ value: key, label: map.get(key)! }));
   }, [projects]);
 
+  const overview = React.useMemo(() => {
+    const shoots = projects.flatMap((project) => project.shoots);
+    const status = shoots.map((shoot) => getShootDateInfo(shoot.date, shoot.status));
+    return {
+      total: shoots.length,
+      completed: status.filter((item) => item.isDone).length,
+      today: status.filter((item) => item.isToday).length,
+      upcoming: status.filter((item) => !item.isDone && !item.isToday).length,
+    };
+  }, [projects]);
+
   // Group projects and filter shoots by date-based tracking status, selected month, and selected date
   const projectsWithShoots = projects
     .map((p) => {
-      const isAllShootsCompleted = p.shoots.length > 0 && p.shoots.every((s) => {
-        const info = getShootDateInfo(s.date, s.status);
-        return info.isDone;
-      });
-
       const filteredShoots = p.shoots.filter((s) => {
         const info = getShootDateInfo(s.date, s.status);
 
@@ -169,15 +176,21 @@ export const ShootManagement: React.FC<ShootManagementProps> = ({ projects, onUp
       return {
         project: p,
         shoots: filteredShoots,
-        isAllShootsCompleted,
       };
     })
     .filter((item) => {
       if (selectedProjectId !== 'all' && item.project.id !== selectedProjectId) {
         return false;
       }
-      if (filterStatus === 'completed') {
-        return item.isAllShootsCompleted && item.shoots.length > 0;
+      if (searchQuery.trim()) {
+        const needle = searchQuery.toLowerCase();
+        const matchesProject = [item.project.clientWeddingTitle, item.project.name, item.project.venueLocation]
+          .filter(Boolean)
+          .some((value) => value.toLowerCase().includes(needle));
+        const matchesShoot = item.shoots.some((shoot) => [shoot.title, shoot.venue, shoot.location]
+          .filter(Boolean)
+          .some((value) => value!.toLowerCase().includes(needle)));
+        if (!matchesProject && !matchesShoot) return false;
       }
       return item.shoots && item.shoots.length > 0;
     });
@@ -405,141 +418,49 @@ export const ShootManagement: React.FC<ShootManagementProps> = ({ projects, onUp
     });
   };
 
+  const formatShootDate = (date?: string) => {
+    if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return 'Date to be confirmed';
+    const [year, month, day] = date.split('-').map(Number);
+    return new Date(year, month - 1, day).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+  };
+
   return (
     <div className="space-y-5 pb-8 w-full">
       
-      {/* Header Banner */}
-      <div className="bg-white rounded-xl p-4 sm:p-5 border border-slate-200 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-3">
-        <div>
-          <h2 className="text-lg font-black text-slate-900 flex items-center gap-2">
-            <Film className="w-5 h-5 text-indigo-600" />
-            <span>Shoot Management & Crew Desk</span>
-          </h2>
-          <p className="text-xs text-slate-500 mt-0.5">
-            Click on any client name to view their scheduled functions, dates, crew assignments, and gear lists.
-          </p>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2">
-          {/* Schedule Shoot Button */}
-          <button
-            onClick={() => setShowScheduleShoot(true)}
-            className="text-[11px] font-extrabold text-white bg-rose-600 hover:bg-rose-700 px-3 py-1.5 rounded-lg shadow-xs transition cursor-pointer flex items-center gap-1.5 border border-rose-500/30"
-          >
-            <Plus className="w-3.5 h-3.5" />
-            <span>Schedule Shoot</span>
-          </button>
-
-          <button
-            onClick={expandAll}
-            className="text-[11px] font-bold text-indigo-600 hover:text-indigo-800 bg-indigo-50 hover:bg-indigo-100 px-2.5 py-1.5 rounded border border-indigo-200 transition cursor-pointer"
-          >
-            Expand All
-          </button>
-          <button
-            onClick={collapseAll}
-            className="text-[11px] font-bold text-slate-600 hover:text-slate-800 bg-slate-100 hover:bg-slate-200 px-2.5 py-1.5 rounded border border-slate-200 transition cursor-pointer"
-          >
-            Collapse All
-          </button>
-
-          {/* Report Button */}
-          <button
-            onClick={() => {
-              setReportMonthFilter(selectedMonth);
-              setReportDateFilter(selectedDate);
-              setShowReportModal(true);
-            }}
-            className="text-[11px] font-extrabold text-white bg-indigo-600 hover:bg-indigo-700 px-3 py-1.5 rounded-lg shadow-xs transition cursor-pointer flex items-center gap-1.5 border border-indigo-500/30"
-            title="View Date & Month Shoot Allocation Report"
-          >
-            <BarChart2 className="w-3.5 h-3.5 text-indigo-200" />
-            <span>📊 Shoot & Crew Report</span>
-          </button>
-
-          {/* Month Filter Dropdown */}
-          <select
-            value={selectedMonth}
-            onChange={(e) => setSelectedMonth(e.target.value)}
-            className="bg-white border border-slate-200 rounded px-3 py-1.5 text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-indigo-500 font-bold"
-          >
-            <option value="all">📅 All Months</option>
-            {availableMonthOptions.map((m) => (
-              <option key={m.value} value={m.value}>
-                {m.label}
-              </option>
-            ))}
-          </select>
-
-          {/* Specific Date Picker Input */}
-          <div className="flex items-center gap-1.5 bg-white border border-slate-200 rounded px-2.5 py-1">
-            <Calendar className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
-            <input
-              type="date"
-              value={selectedDate}
-              onChange={(e) => setSelectedDate(e.target.value)}
-              className="text-xs font-bold text-slate-700 bg-transparent focus:outline-none cursor-pointer"
-              title="Filter by Specific Date"
-            />
-            {selectedDate && (
-              <button
-                type="button"
-                onClick={() => setSelectedDate('')}
-                className="text-slate-400 hover:text-red-500 p-0.5 cursor-pointer"
-                title="Clear Date Filter"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
-            )}
+      <section className="relative overflow-hidden rounded-3xl border border-[#ddc89c]/35 bg-[radial-gradient(circle_at_88%_8%,rgba(221,200,156,.2),transparent_30%),linear-gradient(125deg,#704758,#55333f_50%,#38262d)] p-5 text-white shadow-xl sm:p-7">
+        <div className="absolute -bottom-20 -right-10 size-64 rounded-full border-[34px] border-white/[.04]" />
+        <div className="relative flex flex-col justify-between gap-5 xl:flex-row xl:items-center">
+          <div className="max-w-3xl">
+            <span className="flex w-fit items-center gap-1.5 rounded-full border border-white/20 bg-white/10 px-3 py-1 text-xs font-extrabold uppercase tracking-[.14em] text-[#f0dce3]"><CalendarDays className="size-4 text-emerald-300" />Production workspace</span>
+            <h1 className="mt-3 flex items-center gap-3 text-2xl font-black tracking-tight sm:text-3xl"><span className="grid size-11 place-items-center rounded-2xl bg-white/10"><Film className="size-6 text-[#f1c8d5]" /></span>Shoot Management</h1>
+            <p className="mt-2 text-sm font-medium leading-relaxed text-[#eadfe2] sm:text-base">Plan every function, assign the right crew, and keep each wedding shoot clear and on track.</p>
           </div>
-
-          {/* Client Project Filter */}
-          <select
-            value={selectedProjectId}
-            onChange={(e) => {
-              setSelectedProjectId(e.target.value);
-              if (e.target.value !== 'all') {
-                setExpandedProjectIds([e.target.value]);
-              }
-            }}
-            className="bg-white border border-slate-200 rounded px-3 py-1.5 text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-indigo-500 font-bold"
-          >
-            <option value="all">All Client Projects ({projects.length})</option>
-            {projects.map((p) => (
-              <option key={p.id} value={p.id}>{p.clientWeddingTitle}</option>
-            ))}
-          </select>
-
-          {/* Status Filter */}
-          <select
-            value={filterStatus}
-            onChange={(e) => setFilterStatus(e.target.value as any)}
-            className="bg-white border border-slate-200 rounded px-3 py-1.5 text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-indigo-500 font-bold"
-          >
-            <option value="all">All Statuses</option>
-            <option value="scheduled">Scheduled Only</option>
-            <option value="completed">Completed Only</option>
-          </select>
-
-          {/* Reset All Filters Button */}
-          {(selectedProjectId !== 'all' || filterStatus !== 'all' || selectedMonth !== 'all' || selectedDate !== '') && (
-            <button
-              type="button"
-              onClick={() => {
-                setSelectedProjectId('all');
-                setFilterStatus('all');
-                setSelectedMonth('all');
-                setSelectedDate('');
-              }}
-              className="text-[11px] font-extrabold text-red-600 hover:text-red-800 bg-red-50 hover:bg-red-100 px-2 py-1.5 rounded border border-red-200 transition cursor-pointer flex items-center gap-1"
-              title="Reset all active filters"
-            >
-              <X className="w-3.5 h-3.5" />
-              <span>Reset</span>
-            </button>
-          )}
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <button onClick={() => { setReportMonthFilter(selectedMonth); setReportDateFilter(selectedDate); setShowReportModal(true); }} className="flex items-center justify-center gap-2 rounded-2xl border border-white/20 bg-white/10 px-4 py-3 text-sm font-extrabold text-white transition hover:bg-white/20"><BarChart2 className="size-4" />Crew report</button>
+            <button onClick={() => setShowScheduleShoot(true)} className="group flex items-center justify-center gap-2.5 rounded-2xl border border-white/60 bg-gradient-to-r from-[#f9eee7] to-[#edcfc3] px-5 py-3 text-sm font-extrabold text-[#6d2f45] shadow-[0_10px_24px_rgba(28,13,19,.22)] transition hover:-translate-y-0.5 hover:shadow-xl"><span className="grid size-8 place-items-center rounded-xl bg-[#7d3650] text-white transition group-hover:rotate-6"><Plus className="size-5" /></span>Schedule a shoot<Sparkles className="size-4 text-[#aa7251]" /></button>
+          </div>
         </div>
-      </div>
+      </section>
+
+      <section className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        {[
+          { label: 'All shoots', value: overview.total, hint: 'Across all projects', icon: Film, tone: 'text-slate-700 bg-white border-[#e2d9d3]' },
+          { label: 'Upcoming', value: overview.upcoming, hint: 'Need preparation', icon: Clock, tone: 'text-amber-800 bg-amber-50 border-amber-200' },
+          { label: 'Today', value: overview.today, hint: 'Active production', icon: Sparkles, tone: 'text-indigo-800 bg-indigo-50 border-indigo-200' },
+          { label: 'Completed', value: overview.completed, hint: 'Finished shoots', icon: CheckCircle2, tone: 'text-emerald-800 bg-emerald-50 border-emerald-200' },
+        ].map(({ label, value, hint, icon: Icon, tone }) => <div key={label} className={`rounded-2xl border p-3.5 shadow-[0_8px_24px_rgba(48,44,46,.04)] ${tone}`}><div className="flex items-start justify-between gap-2"><div><p className="text-[10px] font-black uppercase tracking-[.12em] opacity-70">{label}</p><p className="mt-1 text-2xl font-black">{value}</p><p className="text-[11px] font-semibold opacity-75">{hint}</p></div><Icon className="size-5 opacity-70" /></div></div>)}
+      </section>
+
+      <section className="rounded-2xl border border-[#e2d9d3] bg-white p-3 shadow-[0_8px_24px_rgba(48,44,46,.05)] sm:p-4">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2"><div className="flex items-center gap-2 text-sm font-extrabold text-slate-700"><SlidersHorizontal className="size-4 text-[#8f3655]" />Find and filter shoots</div><div className="flex gap-1.5"><button onClick={expandAll} className="rounded-lg px-2.5 py-1.5 text-xs font-bold text-[#7d3650] hover:bg-rose-50">Expand all</button><button onClick={collapseAll} className="rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-600 hover:bg-slate-100">Collapse all</button></div></div>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
+          <label className="relative xl:col-span-2"><Search className="absolute left-3 top-1/2 size-5 -translate-y-1/2 text-[#9b4865]" /><input value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Search client, function or venue…" className="w-full rounded-xl border border-[#ded5cf] bg-[#fbfaf8] py-2.5 pl-10 pr-3 text-sm font-semibold text-slate-900 outline-none placeholder:text-slate-400 focus:border-[#9b4865] focus:ring-4 focus:ring-rose-100" /></label>
+          <label className="relative rounded-xl border border-[#ded5cf] bg-[#fbfaf8]"><ListFilter className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[#9b4865]" /><select value={selectedProjectId} onChange={(e) => { setSelectedProjectId(e.target.value); if (e.target.value !== 'all') setExpandedProjectIds([e.target.value]); }} className="w-full appearance-none bg-transparent py-2.5 pl-9 pr-3 text-sm font-bold text-slate-700 outline-none"><option value="all">All projects ({projects.length})</option>{projects.map((p) => <option key={p.id} value={p.id}>{p.clientWeddingTitle}</option>)}</select></label>
+          <label className="relative rounded-xl border border-[#ded5cf] bg-[#fbfaf8]"><Calendar className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[#9b4865]" /><select value={selectedMonth} onChange={(e) => setSelectedMonth(e.target.value)} className="w-full appearance-none bg-transparent py-2.5 pl-9 pr-3 text-sm font-bold text-slate-700 outline-none"><option value="all">All months</option>{availableMonthOptions.map((m) => <option key={m.value} value={m.value}>{m.label}</option>)}</select></label>
+          <label className="relative rounded-xl border border-[#ded5cf] bg-[#fbfaf8]"><CheckCircle2 className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[#9b4865]" /><select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value as 'all' | 'scheduled' | 'completed')} className="w-full appearance-none bg-transparent py-2.5 pl-9 pr-3 text-sm font-bold text-slate-700 outline-none"><option value="all">All statuses</option><option value="scheduled">Upcoming / scheduled</option><option value="completed">Completed</option></select></label>
+        </div>
+        <div className="mt-3 flex flex-wrap items-center gap-2"><label className="flex items-center gap-2 rounded-xl border border-[#ded5cf] bg-[#fbfaf8] px-3 py-2 text-xs font-bold text-slate-600"><Calendar className="size-4 text-[#9b4865]" />Specific date <input type="date" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} className="bg-transparent font-bold text-slate-700 outline-none" /></label>{(selectedProjectId !== 'all' || filterStatus !== 'all' || selectedMonth !== 'all' || selectedDate || searchQuery) && <button type="button" onClick={() => { setSelectedProjectId('all'); setFilterStatus('all'); setSelectedMonth('all'); setSelectedDate(''); setSearchQuery(''); }} className="flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs font-extrabold text-rose-700 hover:bg-rose-50"><X className="size-3.5" />Clear filters</button>}</div>
+      </section>
 
       {/* Projects Accordion List */}
       {projectsWithShoots.length === 0 ? (
@@ -606,7 +527,7 @@ export const ShootManagement: React.FC<ShootManagementProps> = ({ projects, onUp
                                 >
                                   <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${dateInfo.badgeDotColor}`} />
                                   <span className="whitespace-nowrap">{s.title}</span>
-                                  <span className="opacity-80 font-mono text-[9px] shrink-0">({s.date})</span>
+                                  <span className="opacity-80 text-[9px] shrink-0">({formatShootDate(s.date)})</span>
                                   <span className="text-[9px] font-black uppercase px-1 py-0.5 rounded bg-white/70 tracking-wider shrink-0">
                                     {dateInfo.dateBadgeText}
                                   </span>
@@ -798,7 +719,7 @@ export const ShootManagement: React.FC<ShootManagementProps> = ({ projects, onUp
                                   <Calendar className="w-3.5 h-3.5 text-indigo-600 flex-shrink-0" />
                                   <div>
                                     <span className="text-[9px] text-slate-400 block font-bold uppercase">Date & Time</span>
-                                    <span className="font-bold text-slate-900">{s.date} ({s.time || 'Full Day'})</span>
+                                    <span className="font-bold text-slate-900">{formatShootDate(s.date)} · {s.time || 'Full day'}</span>
                                   </div>
                                 </div>
 
@@ -915,18 +836,20 @@ export const ShootManagement: React.FC<ShootManagementProps> = ({ projects, onUp
 
       {/* CREW ASSIGNMENT MODAL */}
       {editingCrewShoot && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
-          <div className="bg-white rounded-2xl max-w-xl w-full p-5 shadow-2xl border border-slate-200 max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <div className="flex items-center gap-2">
-                <div className="p-2 bg-indigo-100 text-indigo-700 rounded-xl">
-                  <UserPlus className="w-5 h-5" />
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#24171c]/75 p-3 backdrop-blur-sm sm:p-6 animate-in fade-in duration-200">
+          <div className="max-h-[92vh] w-full max-w-3xl overflow-y-auto rounded-[2rem] border border-white/50 bg-white shadow-[0_30px_90px_rgba(26,13,19,.42)]">
+            <header className="relative overflow-hidden bg-[radial-gradient(circle_at_86%_10%,rgba(236,190,169,.24),transparent_32%),linear-gradient(125deg,#704758,#55333f_52%,#38262d)] px-5 py-5 text-white sm:px-7 sm:py-6">
+              <div className="absolute -bottom-14 -right-8 size-44 rounded-full border-[24px] border-white/5" />
+              <div className="relative flex items-start justify-between gap-4">
+              <div className="flex items-center gap-4">
+                <div className="grid size-14 place-items-center rounded-2xl border border-white/30 bg-white/15 shadow-inner">
+                  <UserPlus className="size-7 text-[#f6d9ca]" />
                 </div>
                 <div>
-                  <h3 className="text-base font-black text-slate-900">
+                  <p className="text-xs font-extrabold uppercase tracking-[.18em] text-[#ecc8d3]">Production crew</p><h3 className="mt-1 text-xl font-black sm:text-2xl">
                     Assign Team Crew
                   </h3>
-                  <p className="text-xs font-semibold text-indigo-600">
+                  <p className="mt-1 text-sm font-semibold text-[#eadfe2]">
                     {editingCrewShoot.clientTitle} • {editingCrewShoot.shootTitle}
                   </p>
                 </div>
@@ -934,20 +857,18 @@ export const ShootManagement: React.FC<ShootManagementProps> = ({ projects, onUp
               <button
                 type="button"
                 onClick={() => setEditingCrewShoot(null)}
-                className="p-1 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 cursor-pointer"
+                className="grid size-10 shrink-0 place-items-center rounded-xl border border-white/15 bg-black/15 text-white/80 transition hover:bg-white/15 hover:text-white"
               >
                 <X className="w-5 h-5" />
               </button>
-            </div>
+              </div>
+            </header>
 
-            <form onSubmit={handleSaveCrewAssignments} className="space-y-4 pt-4">
+            <form onSubmit={handleSaveCrewAssignments} className="space-y-6 p-5 sm:p-7">
               
               {/* Quick Select Crew Pill Tags */}
-              <div>
-                <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block mb-1.5">
-                  Quick Select Team / Freelancers:
-                </label>
-                <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto p-2 bg-slate-50 rounded-xl border border-slate-200">
+              <section className="space-y-3"><div><p className="text-sm font-black uppercase tracking-[.1em] text-[#6d2f45]">01 · Quick select</p><p className="mt-0.5 text-sm text-slate-500">Choose a person to fill the next available role automatically.</p></div>
+                <div className="flex max-h-28 flex-wrap gap-2 overflow-y-auto rounded-2xl border border-[#e2d9d3] bg-[#fbfaf8] p-3">
                   {availableCrewNames.map((name) => (
                     <span
                       key={name}
@@ -970,17 +891,17 @@ export const ShootManagement: React.FC<ShootManagementProps> = ({ projects, onUp
                           });
                         }
                       }}
-                      className="px-2.5 py-1 bg-white hover:bg-indigo-600 hover:text-white border border-slate-200 hover:border-indigo-600 text-xs font-bold text-slate-700 rounded-lg cursor-pointer transition shadow-2xs"
+                      className="rounded-xl border border-[#ded5cf] bg-white px-3 py-2 text-xs font-bold text-slate-700 shadow-sm transition hover:border-[#8f3655] hover:bg-[#8f3655] hover:text-white"
                       title="Click to fill into next empty role"
                     >
                       + {name}
                     </span>
                   ))}
                 </div>
-              </div>
+              </section>
 
               {/* Standard Roles Fields */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-slate-50/80 p-3.5 rounded-xl border border-slate-200">
+              <section className="space-y-3 border-t border-[#eee7e2] pt-5"><div><p className="text-sm font-black uppercase tracking-[.1em] text-[#6d2f45]">02 · Core crew</p><p className="mt-0.5 text-sm text-slate-500">Assign the essential production roles for this shoot.</p></div><div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div>
                   <label className="text-xs font-bold text-slate-700 block mb-1 flex items-center justify-between">
                     <span>Lead Photographer</span>
@@ -999,7 +920,7 @@ export const ShootManagement: React.FC<ShootManagementProps> = ({ projects, onUp
                     value={editingCrewShoot.leadPhotographer}
                     onChange={(e) => setEditingCrewShoot({ ...editingCrewShoot, leadPhotographer: e.target.value })}
                     placeholder="Enter name (e.g. Rajat Verma)"
-                    className="w-full bg-white border border-slate-300 rounded-lg px-3 py-1.5 text-xs font-bold text-slate-900 focus:outline-none focus:border-indigo-500"
+                    className="w-full rounded-2xl border border-[#ded5cf] bg-[#fbfaf8] px-4 py-3 text-sm font-semibold text-slate-900 outline-none focus:border-[#9b4865] focus:bg-white focus:ring-4 focus:ring-rose-100"
                   />
                 </div>
 
@@ -1021,7 +942,7 @@ export const ShootManagement: React.FC<ShootManagementProps> = ({ projects, onUp
                     value={editingCrewShoot.cinematographer}
                     onChange={(e) => setEditingCrewShoot({ ...editingCrewShoot, cinematographer: e.target.value })}
                     placeholder="Enter name (e.g. Vikram Sharma)"
-                    className="w-full bg-white border border-slate-300 rounded-lg px-3 py-1.5 text-xs font-bold text-slate-900 focus:outline-none focus:border-indigo-500"
+                    className="w-full rounded-2xl border border-[#ded5cf] bg-[#fbfaf8] px-4 py-3 text-sm font-semibold text-slate-900 outline-none focus:border-[#9b4865] focus:bg-white focus:ring-4 focus:ring-rose-100"
                   />
                 </div>
 
@@ -1043,7 +964,7 @@ export const ShootManagement: React.FC<ShootManagementProps> = ({ projects, onUp
                     value={editingCrewShoot.droneOperator}
                     onChange={(e) => setEditingCrewShoot({ ...editingCrewShoot, droneOperator: e.target.value })}
                     placeholder="Enter name (e.g. Rahul Kumar)"
-                    className="w-full bg-white border border-slate-300 rounded-lg px-3 py-1.5 text-xs font-bold text-slate-900 focus:outline-none focus:border-indigo-500"
+                    className="w-full rounded-2xl border border-[#ded5cf] bg-[#fbfaf8] px-4 py-3 text-sm font-semibold text-slate-900 outline-none focus:border-[#9b4865] focus:bg-white focus:ring-4 focus:ring-rose-100"
                   />
                 </div>
 
@@ -1065,17 +986,15 @@ export const ShootManagement: React.FC<ShootManagementProps> = ({ projects, onUp
                     value={editingCrewShoot.assistant}
                     onChange={(e) => setEditingCrewShoot({ ...editingCrewShoot, assistant: e.target.value })}
                     placeholder="Enter name (e.g. Amit Singh)"
-                    className="w-full bg-white border border-slate-300 rounded-lg px-3 py-1.5 text-xs font-bold text-slate-900 focus:outline-none focus:border-indigo-500"
+                    className="w-full rounded-2xl border border-[#ded5cf] bg-[#fbfaf8] px-4 py-3 text-sm font-semibold text-slate-900 outline-none focus:border-[#9b4865] focus:bg-white focus:ring-4 focus:ring-rose-100"
                   />
                 </div>
-              </div>
+              </div></section>
 
               {/* Additional Custom Crew Members */}
-              <div className="space-y-2">
+              <section className="space-y-3 border-t border-[#eee7e2] pt-5">
                 <div className="flex items-center justify-between">
-                  <label className="text-xs font-bold text-slate-700 block uppercase tracking-wider">
-                    Additional Crew Members ({editingCrewShoot.crewAssignments.length})
-                  </label>
+                  <div><p className="text-sm font-black uppercase tracking-[.1em] text-[#6d2f45]">03 · Additional crew</p><p className="mt-0.5 text-sm text-slate-500">Add any specialised role needed for this event.</p></div>
                   <button
                     type="button"
                     onClick={() =>
@@ -1087,15 +1006,15 @@ export const ShootManagement: React.FC<ShootManagementProps> = ({ projects, onUp
                         ],
                       })
                     }
-                    className="text-xs font-bold text-indigo-600 hover:text-indigo-800 flex items-center gap-1 cursor-pointer"
+                    className="flex items-center gap-1.5 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-extrabold text-[#8f3655] transition hover:bg-rose-100"
                   >
                     <Plus className="w-3.5 h-3.5" />
-                    <span>+ Add Role</span>
+                    <span>Add Role</span>
                   </button>
                 </div>
 
                 {editingCrewShoot.crewAssignments.map((crew, idx) => (
-                  <div key={crew.id || idx} className="grid grid-cols-12 gap-2 items-center bg-slate-50 p-2 rounded-lg border border-slate-200">
+                  <div key={crew.id || idx} className="grid grid-cols-12 items-center gap-2 rounded-2xl border border-[#e2d9d3] bg-[#fbfaf8] p-2.5">
                     <div className="col-span-4">
                       <input
                         type="text"
@@ -1106,7 +1025,7 @@ export const ShootManagement: React.FC<ShootManagementProps> = ({ projects, onUp
                           setEditingCrewShoot({ ...editingCrewShoot, crewAssignments: updated });
                         }}
                         placeholder="Role (e.g. Crane)"
-                        className="w-full bg-white border border-slate-300 rounded px-2 py-1 text-xs font-bold text-slate-800"
+                        className="w-full rounded-xl border border-[#ded5cf] bg-white px-3 py-2 text-sm font-semibold text-slate-800 outline-none focus:border-[#9b4865] focus:ring-4 focus:ring-rose-100"
                       />
                     </div>
                     <div className="col-span-7">
@@ -1119,7 +1038,7 @@ export const ShootManagement: React.FC<ShootManagementProps> = ({ projects, onUp
                           setEditingCrewShoot({ ...editingCrewShoot, crewAssignments: updated });
                         }}
                         placeholder="Person Name"
-                        className="w-full bg-white border border-slate-300 rounded px-2 py-1 text-xs font-bold text-slate-900"
+                        className="w-full rounded-xl border border-[#ded5cf] bg-white px-3 py-2 text-sm font-semibold text-slate-900 outline-none focus:border-[#9b4865] focus:ring-4 focus:ring-rose-100"
                       />
                     </div>
                     <div className="col-span-1 text-right">
@@ -1129,7 +1048,7 @@ export const ShootManagement: React.FC<ShootManagementProps> = ({ projects, onUp
                           const updated = editingCrewShoot.crewAssignments.filter((_, i) => i !== idx);
                           setEditingCrewShoot({ ...editingCrewShoot, crewAssignments: updated });
                         }}
-                        className="text-slate-400 hover:text-red-600 p-1 cursor-pointer"
+                        className="grid size-9 place-items-center rounded-xl text-slate-400 transition hover:bg-red-50 hover:text-red-600"
                         title="Remove role"
                       >
                         <Trash2 className="w-4 h-4" />
@@ -1137,25 +1056,25 @@ export const ShootManagement: React.FC<ShootManagementProps> = ({ projects, onUp
                     </div>
                   </div>
                 ))}
-              </div>
+              </section>
 
               {/* Form Footer Actions */}
-              <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+              <footer className="flex flex-col-reverse gap-2 border-t border-[#eee7e2] pt-5 sm:flex-row sm:justify-end">
                 <button
                   type="button"
                   onClick={() => setEditingCrewShoot(null)}
-                  className="px-4 py-2 border border-slate-300 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 cursor-pointer transition"
+                  className="rounded-xl border border-slate-200 bg-white px-5 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-50"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 bg-indigo-600 text-white rounded-xl text-xs font-extrabold hover:bg-indigo-700 shadow-md flex items-center gap-1.5 cursor-pointer transition"
+                  className="flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#8f3655] to-[#6d2f45] px-6 py-2.5 text-sm font-extrabold text-white shadow-[0_8px_20px_rgba(109,47,69,.25)] transition hover:-translate-y-0.5 hover:shadow-lg"
                 >
                   <UserCheck className="w-4 h-4" />
                   <span>Save Crew Assignments</span>
                 </button>
-              </div>
+              </footer>
 
             </form>
           </div>
@@ -1164,20 +1083,22 @@ export const ShootManagement: React.FC<ShootManagementProps> = ({ projects, onUp
 
       {/* SHOOT & TEAM RESOURCE ALLOCATION REPORT MODAL */}
       {showReportModal && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-5 z-50 animate-in fade-in duration-200">
-          <div className="bg-white rounded-2xl max-w-4xl w-full p-5 shadow-2xl border border-slate-200 max-h-[92vh] flex flex-col">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#24171c]/75 p-3 backdrop-blur-sm sm:p-6 animate-in fade-in duration-200">
+          <div className="flex max-h-[92vh] w-full max-w-5xl flex-col overflow-hidden rounded-[2rem] border border-white/50 bg-white shadow-[0_30px_90px_rgba(26,13,19,.42)]">
             
             {/* Modal Header */}
-            <div className="flex items-center justify-between pb-3.5 border-b border-slate-100 shrink-0">
+            <div className="relative shrink-0 overflow-hidden bg-[radial-gradient(circle_at_86%_10%,rgba(236,190,169,.24),transparent_32%),linear-gradient(125deg,#704758,#55333f_52%,#38262d)] px-5 py-5 text-white sm:px-7 sm:py-6">
+              <div className="absolute -bottom-14 -right-8 size-44 rounded-full border-[24px] border-white/5" />
+              <div className="relative flex items-center justify-between gap-3">
               <div className="flex items-center gap-2.5">
-                <div className="p-2.5 bg-indigo-100 text-indigo-700 rounded-xl">
-                  <BarChart2 className="w-5 h-5" />
+                <div className="grid size-12 place-items-center rounded-2xl border border-white/30 bg-white/15 shadow-inner">
+                  <BarChart2 className="size-6 text-[#f6d9ca]" />
                 </div>
                 <div>
-                  <h3 className="text-base sm:text-lg font-black text-slate-900 flex items-center gap-2">
+                  <p className="text-xs font-extrabold uppercase tracking-[.18em] text-[#ecc8d3]">Production overview</p><h3 className="mt-1 text-lg font-black sm:text-xl">
                     <span>Shoot & Team Resource Allocation Report</span>
                   </h3>
-                  <p className="text-xs text-slate-500 font-medium">
+                  <p className="mt-1 text-sm text-[#eadfe2]">
                     Check shoots per date, required crew members, assigned team status, and missing crew slots.
                   </p>
                 </div>
@@ -1187,13 +1108,13 @@ export const ShootManagement: React.FC<ShootManagementProps> = ({ projects, onUp
                 <button
                   type="button"
                   onClick={handleCopyReportSummary}
-                  className="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold rounded-lg border border-indigo-200 transition cursor-pointer flex items-center gap-1.5"
+                  className="flex items-center gap-1.5 rounded-xl border border-white/25 bg-white/10 px-3 py-2 text-xs font-bold text-white transition hover:bg-white/20"
                   title="Copy formatted summary report"
                 >
                   {copiedText ? (
                     <>
-                      <Check className="w-3.5 h-3.5 text-emerald-600" />
-                      <span className="text-emerald-700 font-extrabold">Copied Report!</span>
+                      <Check className="w-3.5 h-3.5 text-emerald-200" />
+                      <span className="font-extrabold">Copied!</span>
                     </>
                   ) : (
                     <>
@@ -1205,15 +1126,16 @@ export const ShootManagement: React.FC<ShootManagementProps> = ({ projects, onUp
                 <button
                   type="button"
                   onClick={() => setShowReportModal(false)}
-                  className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 cursor-pointer"
+                  className="rounded-xl border border-white/15 bg-black/15 p-2 text-white/80 transition hover:bg-white/15 hover:text-white"
                 >
                   <X className="w-5 h-5" />
                 </button>
               </div>
+              </div>
             </div>
 
             {/* Modal Controls / Filter Bar */}
-            <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 mt-3 mb-3 shrink-0 flex flex-wrap items-center justify-between gap-2.5">
+            <div className="mx-5 mt-5 flex flex-wrap items-center justify-between gap-2.5 rounded-2xl border border-[#e2d9d3] bg-[#fbfaf8] p-3 sm:mx-7">
               <div className="flex flex-wrap items-center gap-2 text-xs">
                 {/* Month Selector */}
                 <div className="flex items-center gap-1">
@@ -1223,7 +1145,7 @@ export const ShootManagement: React.FC<ShootManagementProps> = ({ projects, onUp
                     onChange={(e) => setReportMonthFilter(e.target.value)}
                     className="bg-white border border-slate-300 rounded px-2.5 py-1 text-xs font-bold text-slate-800 focus:outline-none focus:border-indigo-500 cursor-pointer"
                   >
-                    <option value="all">📅 All Months</option>
+                    <option value="all">All Months</option>
                     {availableMonthOptions.map((m) => (
                       <option key={m.value} value={m.value}>
                         {m.label}
@@ -1261,8 +1183,8 @@ export const ShootManagement: React.FC<ShootManagementProps> = ({ projects, onUp
                     className="bg-white border border-slate-300 rounded px-2.5 py-1 text-xs font-bold text-slate-800 focus:outline-none focus:border-indigo-500 cursor-pointer"
                   >
                     <option value="all">All Shoots</option>
-                    <option value="pending">⚠️ Pending Crew Needed</option>
-                    <option value="assigned">✅ Fully Staffed Only</option>
+                    <option value="pending">Pending crew needed</option>
+                    <option value="assigned">Fully staffed only</option>
                   </select>
                 </div>
               </div>
@@ -1283,7 +1205,7 @@ export const ShootManagement: React.FC<ShootManagementProps> = ({ projects, onUp
             </div>
 
             {/* KPI Executive Summary Banner */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 mb-4 shrink-0">
+            <div className="mx-5 mb-4 grid grid-cols-2 gap-2.5 sm:mx-7 sm:grid-cols-4 shrink-0">
               <div className="bg-slate-50 border border-slate-200 p-3 rounded-xl">
                 <span className="text-[10px] font-bold text-slate-500 uppercase block">Total Shoots</span>
                 <span className="text-xl font-black text-slate-900">{reportMetrics.totalShoots}</span>
@@ -1310,13 +1232,13 @@ export const ShootManagement: React.FC<ShootManagementProps> = ({ projects, onUp
                   {reportMetrics.totalPending}
                 </span>
                 <span className={`text-[10px] block ${reportMetrics.totalPending > 0 ? 'text-amber-700 font-bold' : 'text-slate-500'}`}>
-                  {reportMetrics.totalPending > 0 ? '⚠️ Action Required' : '✓ All Slots Filled'}
+                  {reportMetrics.totalPending > 0 ? 'Action required' : 'All slots filled'}
                 </span>
               </div>
             </div>
 
             {/* Scrollable Date-by-Date Allocation List */}
-            <div className="flex-1 overflow-y-auto space-y-4 pr-1">
+            <div className="mx-5 flex-1 space-y-4 overflow-y-auto pb-1 pr-1 sm:mx-7">
               {groupedDateReports.length === 0 ? (
                 <div className="p-8 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-200">
                   <AlertCircle className="w-8 h-8 text-slate-400 mx-auto mb-2" />
@@ -1344,12 +1266,12 @@ export const ShootManagement: React.FC<ShootManagementProps> = ({ projects, onUp
                           Assigned: <strong className="text-emerald-400">{group.totalAssigned}</strong>
                         </span>
                         {group.totalPending > 0 ? (
-                          <span className="bg-amber-500 text-slate-950 px-2 py-0.5 rounded-full text-[10px] font-black uppercase">
-                            ⚠️ {group.totalPending} Pending
+                          <span className="flex items-center gap-1 bg-amber-500 text-slate-950 px-2 py-0.5 rounded-full text-[10px] font-black uppercase">
+                            <AlertTriangle className="size-3" />{group.totalPending} Pending
                           </span>
                         ) : (
-                          <span className="bg-emerald-500 text-white px-2 py-0.5 rounded-full text-[10px] font-black uppercase">
-                            ✓ Fully Staffed
+                          <span className="flex items-center gap-1 bg-emerald-500 text-white px-2 py-0.5 rounded-full text-[10px] font-black uppercase">
+                            <CheckCircle2 className="size-3" />Fully Staffed
                           </span>
                         )}
                       </div>
@@ -1370,8 +1292,8 @@ export const ShootManagement: React.FC<ShootManagementProps> = ({ projects, onUp
                                 </span>
                               </div>
                               <div className="flex items-center gap-3 text-[11px] text-slate-500 mt-0.5">
-                                <span>📍 {item.shoot.venue || item.shoot.location || 'Venue Not Set'}</span>
-                                {item.shoot.time && <span>⏰ {item.shoot.time}</span>}
+                                <span className="flex items-center gap-1"><MapPin className="size-3 text-rose-600" />{item.shoot.venue || item.shoot.location || 'Venue Not Set'}</span>
+                                {item.shoot.time && <span className="flex items-center gap-1"><Clock className="size-3 text-rose-600" />{item.shoot.time}</span>}
                               </div>
                             </div>
 
@@ -1427,7 +1349,7 @@ export const ShootManagement: React.FC<ShootManagementProps> = ({ projects, onUp
             </div>
 
             {/* Modal Footer */}
-            <div className="pt-3 mt-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500 shrink-0">
+            <div className="mx-5 mt-3 flex shrink-0 items-center justify-between border-t border-[#eee7e2] pt-4 text-xs text-slate-500 sm:mx-7">
               <span>
                 Showing <strong>{filteredReportItems.length}</strong> shoot events across <strong>{groupedDateReports.length}</strong> unique dates.
               </span>
@@ -1456,4 +1378,3 @@ export const ShootManagement: React.FC<ShootManagementProps> = ({ projects, onUp
     </div>
   );
 };
-
