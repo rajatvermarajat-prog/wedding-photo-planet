@@ -6,6 +6,7 @@ import { getShootDateInfo, getShootTrackingStats, formatDateDDMMYYYY } from '@/u
 import { computeAutoProjectStatus } from '@/utils/projectStatusCalculator';
 import { ConfirmDeleteModal } from '@/components/common/ConfirmDeleteModal';
 import { useToast } from '@/components/common';
+import { BTN_PRIMARY, FIELD, LABEL } from '@/features/team/components/TeamUiKit';
 import { RoleColumnCrewManager } from './RoleColumnCrewManager';
 import { 
   X, 
@@ -3790,139 +3791,152 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
 
       {/* Modal to Add/Edit Payment Schedule Item */}
       {showAddScheduleModal && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-5 border border-slate-200 space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <h3 className="text-sm font-extrabold text-slate-900 flex items-center gap-2 uppercase tracking-wide">
-                <CalendarCheck className="w-4 h-4 text-indigo-600" />
-                <span>{editingScheduleItem ? 'Edit Payment Milestone' : 'Add Payment Milestone'}</span>
-              </h3>
-              <button
-                type="button"
-                onClick={() => {
-                  setShowAddScheduleModal(false);
-                  setEditingScheduleItem(null);
-                }}
-                className="p-1 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 cursor-pointer"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <form onSubmit={handleSaveScheduleItem} className="space-y-3.5 text-xs">
-              {/* Total Package Amount Banner at Top */}
-              <div className="bg-slate-900 text-white p-3 rounded-xl flex items-center justify-between shadow-xs">
-                <div>
-                  <div className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400">Total Package Amount</div>
-                  <div className="text-base sm:text-lg font-black font-mono text-emerald-400">
-                    ₹{(project.totalBudget || 0).toLocaleString('en-IN')}
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#24171c]/75 p-4 backdrop-blur-sm sm:p-8">
+          <div role="dialog" aria-modal="true" className="flex max-h-[90vh] w-full max-w-xl flex-col overflow-hidden rounded-[2rem] border border-white/50 bg-[#fffdfb] shadow-[0_30px_90px_rgba(26,13,19,.42)]">
+            <header className="relative shrink-0 overflow-hidden bg-[radial-gradient(circle_at_86%_10%,rgba(236,190,169,.24),transparent_32%),linear-gradient(125deg,#704758,#55333f_52%,#38262d)] px-6 py-6 text-white sm:px-8">
+              <div className="absolute -bottom-14 -right-8 size-44 rounded-full border-[24px] border-white/5" />
+              <div className="relative flex items-start justify-between gap-4">
+                <div className="flex min-w-0 items-center gap-4">
+                  <span className="grid size-12 shrink-0 place-items-center rounded-2xl border border-white/30 bg-white/15 shadow-inner">
+                    <CalendarCheck className="size-6 text-[#f6d9ca]" />
+                  </span>
+                  <div className="min-w-0">
+                    <p className="flex items-center gap-1.5 text-[10px] font-extrabold uppercase tracking-[.18em] text-[#ecc8d3]">
+                      <Sparkles className="size-3" />
+                      Payment Schedule
+                    </p>
+                    <h2 className="mt-1.5 text-xl font-black tracking-tight">
+                      {editingScheduleItem ? 'Edit Payment Milestone' : 'Add Payment Milestone'}
+                    </h2>
                   </div>
                 </div>
-                {project.totalBudget > 0 && (
-                  <div className="text-right">
-                    <div className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400">This Milestone</div>
-                    <div className="text-xs sm:text-sm font-extrabold font-mono text-indigo-300">
-                      {schedAmount > 0 ? `${((schedAmount / project.totalBudget) * 100).toFixed(1)}% of Total` : '0% of Total'}
-                    </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowAddScheduleModal(false);
+                    setEditingScheduleItem(null);
+                  }}
+                  aria-label="Close milestone form"
+                  className="grid size-10 place-items-center rounded-xl border border-white/15 bg-black/15 text-white/80 transition hover:bg-white/15 hover:text-white"
+                >
+                  <X className="size-5" />
+                </button>
+              </div>
+            </header>
+
+            <form onSubmit={handleSaveScheduleItem} className="flex min-h-0 flex-1 flex-col">
+              <div className="min-h-0 flex-1 space-y-6 overflow-y-auto px-6 py-6 sm:px-8 sm:py-7">
+                <div className="grid grid-cols-2 gap-4 rounded-2xl border border-[#ddc89c]/40 bg-[linear-gradient(125deg,#704758,#55333f_52%,#38262d)] px-5 py-4 text-white">
+                  <div>
+                    <p className="text-[10px] font-extrabold uppercase tracking-[.14em] text-[#ecc8d3]">Total Package Amount</p>
+                    <p className="mt-2 font-mono text-xl font-black text-[#ddc89c]">
+                      ₹{(project.totalBudget || 0).toLocaleString('en-IN')}
+                    </p>
                   </div>
-                )}
-              </div>
+                  {project.totalBudget > 0 && (
+                    <div className="text-right">
+                      <p className="text-[10px] font-extrabold uppercase tracking-[.14em] text-[#ecc8d3]">This Milestone</p>
+                      <p className="mt-2 text-lg font-extrabold text-white">
+                        {schedAmount > 0 ? `${((schedAmount / project.totalBudget) * 100).toFixed(1)}% of Total` : '0% of Total'}
+                      </p>
+                    </div>
+                  )}
+                </div>
 
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">Stage / Milestone Title</label>
-                <input
-                  type="text"
-                  placeholder="e.g. Booking Token Advance or On Shoot Date"
-                  value={schedStageName}
-                  onChange={(e) => setSchedStageName(e.target.value)}
-                  className="w-full bg-white border border-slate-300 rounded-lg p-2.5 text-slate-900 font-bold focus:outline-indigo-600"
-                  required
-                />
-              </div>
-
-              {/* Column Layout: Left side Booking Amount (₹), Right side Percentage (%) */}
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-bold text-slate-700 mb-1">Booking Amount (₹)</label>
+                <label className="block">
+                  <span className={`${LABEL} mb-2`}>Stage / Milestone Title</span>
                   <input
-                    type="number"
-                    value={schedAmount || ''}
-                    onChange={(e) => setSchedAmount(Number(e.target.value))}
-                    placeholder="e.g. 84000"
-                    className="w-full bg-white border border-slate-300 rounded-lg p-2.5 text-slate-900 font-mono font-bold focus:outline-indigo-600"
+                    type="text"
+                    placeholder="e.g. Booking Token Advance or On Shoot Date"
+                    value={schedStageName}
+                    onChange={(e) => setSchedStageName(e.target.value)}
+                    className={`${FIELD} py-3`}
                     required
                   />
-                </div>
+                </label>
 
-                <div>
-                  <label className="block font-bold text-slate-700 mb-1">Percentage (%)</label>
-                  <div className="relative">
+                <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+                  <label className="block">
+                    <span className={`${LABEL} mb-2`}>Booking Amount (₹)</span>
                     <input
                       type="number"
-                      step="0.01"
-                      placeholder="e.g. 30"
-                      value={
-                        project.totalBudget > 0 && schedAmount > 0
-                          ? Number(((schedAmount / project.totalBudget) * 100).toFixed(2))
-                          : ''
-                      }
-                      onChange={(e) => {
-                        const pct = parseFloat(e.target.value);
-                        if (!isNaN(pct) && project.totalBudget > 0) {
-                          setSchedAmount(Math.round((project.totalBudget * pct) / 100));
-                        } else if (e.target.value === '') {
-                          setSchedAmount(0);
-                        }
-                      }}
-                      className="w-full bg-white border border-slate-300 rounded-lg p-2.5 pr-8 text-slate-900 font-mono font-bold focus:outline-indigo-600"
+                      value={schedAmount || ''}
+                      onChange={(e) => setSchedAmount(Number(e.target.value))}
+                      placeholder="e.g. 84000"
+                      className={`${FIELD} py-3 font-mono`}
+                      required
                     />
-                    <span className="absolute right-3 top-2.5 font-bold text-slate-400 text-sm">%</span>
-                  </div>
+                  </label>
+                  <label className="block">
+                    <span className={`${LABEL} mb-2`}>Percentage (%)</span>
+                    <div className="relative">
+                      <input
+                        type="number"
+                        step="0.01"
+                        placeholder="e.g. 30"
+                        value={
+                          project.totalBudget > 0 && schedAmount > 0
+                            ? Number(((schedAmount / project.totalBudget) * 100).toFixed(2))
+                            : ''
+                        }
+                        onChange={(e) => {
+                          const pct = parseFloat(e.target.value);
+                          if (!isNaN(pct) && project.totalBudget > 0) {
+                            setSchedAmount(Math.round((project.totalBudget * pct) / 100));
+                          } else if (e.target.value === '') {
+                            setSchedAmount(0);
+                          }
+                        }}
+                        className={`${FIELD} py-3 pr-10 font-mono`}
+                      />
+                      <span className="absolute right-4 top-3 text-sm font-bold text-slate-400">%</span>
+                    </div>
+                  </label>
                 </div>
+
+                <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+                  <label className="block">
+                    <span className={`${LABEL} mb-2`}>Due Date</span>
+                    <input
+                      type="date"
+                      value={schedDueDate.includes('-') && schedDueDate.length === 10 ? schedDueDate : ''}
+                      onChange={(e) => setSchedDueDate(e.target.value)}
+                      className={`${FIELD} py-3`}
+                      required
+                    />
+                  </label>
+                  <label className="block">
+                    <span className={`${LABEL} mb-2`}>Payment Milestone Status</span>
+                    <select
+                      value={schedStatus}
+                      onChange={(e) => setSchedStatus(e.target.value as any)}
+                      className={`${FIELD} py-3`}
+                    >
+                      <option value="pending">Pending (Upcoming Payment)</option>
+                      <option value="received">Received (Paid by Client)</option>
+                      <option value="overdue">Overdue (Delayed Payment)</option>
+                    </select>
+                  </label>
+                </div>
+
+                <label className="block">
+                  <span className={`${LABEL} mb-2`}>Milestone Notes / Payment Terms</span>
+                  <textarea
+                    rows={3}
+                    placeholder="e.g. Payable via UPI/Bank transfer on shoot day"
+                    value={schedNotes}
+                    onChange={(e) => setSchedNotes(e.target.value)}
+                    className={`${FIELD} resize-none py-3`}
+                  />
+                </label>
               </div>
 
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">Due Date</label>
-                <input
-                  type="date"
-                  value={schedDueDate.includes('-') && schedDueDate.length === 10 ? schedDueDate : ''}
-                  onChange={(e) => setSchedDueDate(e.target.value)}
-                  className="w-full bg-white border border-slate-300 rounded-lg p-2.5 text-slate-900 font-medium focus:outline-indigo-600"
-                  required
-                />
+              <div className="shrink-0 border-t border-[#eee7e2] bg-white px-6 py-5 sm:px-8">
+                <button type="submit" className={`${BTN_PRIMARY} w-full py-3.5 text-xs uppercase tracking-wider`}>
+                  <CheckCircle2 className="size-4" />
+                  {editingScheduleItem ? 'Update Milestone' : 'Save Payment Milestone'}
+                </button>
               </div>
-
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">Payment Milestone Status</label>
-                <select
-                  value={schedStatus}
-                  onChange={(e) => setSchedStatus(e.target.value as any)}
-                  className="w-full bg-white border border-slate-300 rounded-lg p-2.5 text-slate-900 font-bold"
-                >
-                  <option value="pending">Pending (Upcoming Payment)</option>
-                  <option value="received">Received (Paid by Client)</option>
-                  <option value="overdue">Overdue (Delayed Payment)</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">Milestone Notes / Payment Terms</label>
-                <input
-                  type="text"
-                  placeholder="e.g. Payable via UPI/Bank transfer on shoot day"
-                  value={schedNotes}
-                  onChange={(e) => setSchedNotes(e.target.value)}
-                  className="w-full bg-white border border-slate-300 rounded-lg p-2.5 text-slate-800 font-medium"
-                />
-              </div>
-
-              <button
-                type="submit"
-                className="w-full py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-xs uppercase tracking-wider transition shadow-md mt-2 flex items-center justify-center gap-2 cursor-pointer"
-              >
-                <CheckCircle2 className="w-4 h-4" />
-                <span>{editingScheduleItem ? 'Update Milestone' : 'Save Payment Milestone'}</span>
-              </button>
             </form>
           </div>
         </div>

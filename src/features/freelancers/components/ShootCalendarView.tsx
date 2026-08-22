@@ -1,20 +1,32 @@
-import React, { useState } from 'react';
-import { Freelancer, FreelancerAssignment } from '@/types';
+import React, { useEffect, useState } from 'react';
+import { Freelancer, FreelancerAssignment, Project } from '@/types';
 import { Calendar as CalendarIcon, Clock, MapPin, User, ChevronLeft, ChevronRight, AlertCircle, CheckCircle, ShieldAlert } from 'lucide-react';
 
 interface ShootCalendarViewProps {
   assignments: FreelancerAssignment[];
   freelancers: Freelancer[];
+  projects?: Project[];
+  focusDate?: string;
+  onAssignShoot?: () => void;
 }
 
 export const ShootCalendarView: React.FC<ShootCalendarViewProps> = ({
   assignments,
   freelancers,
+  projects = [],
+  focusDate,
+  onAssignShoot,
 }) => {
   // Calendar Month State (Year-Month)
   const [currentDate, setCurrentDate] = useState<Date>(new Date());
-  const [selectedDateStr, setSelectedDateStr] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [selectedDateStr, setSelectedDateStr] = useState<string>(focusDate || new Date().toISOString().split('T')[0]);
   const [calView, setCalView] = useState<'month' | 'week' | 'day'>('month');
+
+  useEffect(() => {
+    if (!focusDate) return;
+    setSelectedDateStr(focusDate);
+    setCurrentDate(new Date(`${focusDate}T00:00:00`));
+  }, [focusDate]);
 
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
@@ -205,7 +217,12 @@ export const ShootCalendarView: React.FC<ShootCalendarViewProps> = ({
           {dateAssignments.length === 0 ? (
             <div className="text-center py-10 bg-slate-50 rounded-xl border border-dashed border-slate-200">
               <p className="text-sm font-extrabold text-slate-800">No shoots on this date</p>
-              <p className="mt-1 text-xs font-medium text-slate-500">Assign a freelancer from Assignments when you book this day.</p>
+              <p className="mt-1 text-xs font-medium text-slate-500">Assign a freelancer to an existing client shoot for this day.</p>
+              {onAssignShoot && (
+                <button type="button" onClick={onAssignShoot} className="mt-3 text-xs font-extrabold text-[#8f3655]">
+                  Assign Shoot
+                </button>
+              )}
             </div>
           ) : (
             <div className="space-y-3 max-h-[60vh] overflow-y-auto">
@@ -214,8 +231,10 @@ export const ShootCalendarView: React.FC<ShootCalendarViewProps> = ({
                   <div className="flex justify-between items-start">
                     <div>
                       <span className="text-[10px] font-bold uppercase text-[#8f3655] block">{assignment.eventName}</span>
-                      <h4 className="font-black text-xs text-slate-900">{assignment.projectName}</h4>
-                      <p className="text-[11px] text-slate-500">Client: {assignment.clientName}</p>
+                      <h4 className="font-black text-xs text-slate-900">
+                        {assignment.clientName || projects.find((p) => p.id === assignment.projectId)?.clientWeddingTitle || assignment.projectName}
+                      </h4>
+                      <p className="text-[11px] text-slate-500">{assignment.eventName} · {assignment.role || assignment.subCategory}</p>
                     </div>
 
                     <span className="px-2 py-0.5 bg-rose-50 text-[#55333f] text-[10px] font-bold rounded uppercase">
@@ -252,31 +271,32 @@ export const ShootCalendarView: React.FC<ShootCalendarViewProps> = ({
           )}
 
           {/* Quick Freelancers Availability Grid */}
-          <div className="pt-4 border-t border-slate-200 space-y-2">
-            <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500">Freelancer Availability on {selectedDateStr}</h4>
-            <div className="space-y-1.5">
-              {freelancers.map((fl) => {
-                const isOnShoot = dateAssignments.some((a) => a.freelancerId === fl.id);
-                const status = isOnShoot ? 'On Shoot' : fl.availabilityStatus || 'Available';
-
-                return (
-                  <div key={fl.id} className="flex items-center justify-between text-xs p-2 bg-slate-50 rounded-lg">
-                    <span className="font-bold text-slate-800">{fl.name}</span>
-                    <span
-                      className={`px-2 py-0.5 text-[9px] font-black rounded uppercase ${
-                        status === 'On Shoot'
-                          ? 'bg-amber-100 text-amber-800 border border-amber-200'
-                          : status === 'Leave'
-                          ? 'bg-red-100 text-red-800 border border-red-200'
-                          : 'bg-emerald-100 text-emerald-800 border border-emerald-200'
-                      }`}
-                    >
-                      {status}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
+          <div className="pt-4 border-t border-slate-200 space-y-3">
+            <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500">Availability · {selectedDateStr}</h4>
+            {(() => {
+              const booked = freelancers.filter((fl) => dateAssignments.some((a) => a.freelancerId === fl.id));
+              const onLeave = freelancers.filter((fl) => !booked.includes(fl) && (fl.availabilityStatus === 'Leave' || fl.workingStatus === 'unavailable'));
+              const unavailable = freelancers.filter((fl) => !booked.includes(fl) && !onLeave.includes(fl) && (fl.availabilityStatus === 'Unavailable' || fl.availabilityStatus === 'Busy'));
+              const available = freelancers.filter((fl) => !booked.includes(fl) && !onLeave.includes(fl) && !unavailable.includes(fl) && fl.status === 'active');
+              const groups = [
+                { title: 'Available', items: available.map((fl) => fl.name) },
+                { title: 'Already booked', items: booked.map((fl) => `${fl.name} — ${dateAssignments.find((a) => a.freelancerId === fl.id)?.clientName || dateAssignments.find((a) => a.freelancerId === fl.id)?.projectName}`) },
+                { title: 'On leave', items: onLeave.map((fl) => fl.name) },
+                { title: 'Unavailable', items: unavailable.map((fl) => fl.name) },
+              ];
+              return groups.map((group) => (
+                <div key={group.title}>
+                  <p className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400">{group.title}</p>
+                  {group.items.length === 0 ? (
+                    <p className="text-xs font-medium text-slate-400">None</p>
+                  ) : (
+                    group.items.map((name) => (
+                      <p key={name} className="text-xs font-bold text-slate-800">{name}</p>
+                    ))
+                  )}
+                </div>
+              ));
+            })()}
           </div>
         </div>
       </div>

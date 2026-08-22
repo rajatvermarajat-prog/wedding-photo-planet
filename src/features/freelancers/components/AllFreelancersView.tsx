@@ -1,14 +1,14 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Freelancer, FreelancerCategory, FreelancerAssignment, FreelancerPayment } from '@/types';
 import { ConfirmDeleteModal } from '@/components/common/ConfirmDeleteModal';
-import { CalendarCheck, Film, LayoutGrid, List, MapPin, MessageCircle, Search, Star, UserPlus } from 'lucide-react';
+import { LayoutGrid, List, MapPin, Search, Star, UserPlus } from 'lucide-react';
 import { Badge, BTN_GHOST, BTN_PRIMARY, CARD, EmptyState, FIELD, LABEL, TD, TH } from '@/features/team/components/TeamUiKit';
 import {
   formatInr,
   freelancerLedger,
   freelancerPerformance,
   getWorkingStatus,
-  isVerifiedFreelancer,
+  isPreferredFreelancer,
   matchesTalentSearch,
   WORKING_LABELS,
 } from '../freelancerDomain';
@@ -24,6 +24,8 @@ interface AllFreelancersViewProps {
   onAssignShootClick: (freelancerId: string) => void;
   onRecordPaymentClick: (freelancerId: string) => void;
   onDeleteFreelancer?: (freelancerId: string) => void;
+  onManageCategoriesClick?: () => void;
+  initialCategory?: string;
 }
 
 type SortKey = 'name' | 'rating' | 'experience' | 'joining' | 'shoots' | 'availability' | 'pending';
@@ -37,10 +39,13 @@ export const AllFreelancersView: React.FC<AllFreelancersViewProps> = ({
   onEditFreelancer,
   onAddFreelancerClick,
   onAssignShootClick,
+  onRecordPaymentClick,
   onDeleteFreelancer,
+  onManageCategoriesClick,
+  initialCategory = 'all',
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
-  const [categoryFilter, setCategoryFilter] = useState('all');
+  const [categoryFilter, setCategoryFilter] = useState(initialCategory || 'all');
   const [subFilter, setSubFilter] = useState('all');
   const [cityFilter, setCityFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -52,7 +57,12 @@ export const AllFreelancersView: React.FC<AllFreelancersViewProps> = ({
   const [sortKey, setSortKey] = useState<SortKey>('name');
   const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid');
   const [deletingFreelancer, setDeletingFreelancer] = useState<Freelancer | null>(null);
-  const [inviteOpen, setInviteOpen] = useState(false);
+  const [preferredOnly, setPreferredOnly] = useState(false);
+  const [upcomingOnly, setUpcomingOnly] = useState(false);
+
+  useEffect(() => {
+    if (initialCategory) setCategoryFilter(initialCategory);
+  }, [initialCategory]);
 
   const subOptions = categories.find((c) => c.name === categoryFilter)?.subCategories || [];
 
@@ -70,6 +80,8 @@ export const AllFreelancersView: React.FC<AllFreelancersViewProps> = ({
           availability: availabilityFilter,
           dateKey: dateFilter || undefined,
           maxRate: maxRate ? Number(maxRate) : undefined,
+          preferredOnly,
+          hasUpcoming: upcomingOnly,
         },
         assignments
       ) && (statusFilter === 'all' || getWorkingStatus(f) === statusFilter)
@@ -85,9 +97,36 @@ export const AllFreelancersView: React.FC<AllFreelancersViewProps> = ({
       if (sortKey === 'pending') return freelancerLedger(b.id, assignments, payments).pending - freelancerLedger(a.id, assignments, payments).pending;
       return a.name.localeCompare(b.name);
     });
-  }, [freelancers, searchQuery, categoryFilter, subFilter, cityFilter, minExp, minRating, availabilityFilter, dateFilter, maxRate, statusFilter, sortKey, assignments, payments]);
+  }, [freelancers, searchQuery, categoryFilter, subFilter, cityFilter, minExp, minRating, availabilityFilter, dateFilter, maxRate, statusFilter, preferredOnly, upcomingOnly, sortKey, assignments, payments]);
 
-  const inviteText = 'Wedding Photo Planet is building its freelance production network. Share your profile with studio admin to join the talent roster.';
+  const activeFilterCount = [
+    categoryFilter !== 'all',
+    subFilter !== 'all',
+    statusFilter !== 'all',
+    availabilityFilter !== 'all',
+    !!cityFilter,
+    !!dateFilter,
+    !!minExp,
+    !!minRating,
+    !!maxRate,
+    preferredOnly,
+    upcomingOnly,
+  ].filter(Boolean).length;
+
+  const clearFilters = () => {
+    setSearchQuery('');
+    setCategoryFilter('all');
+    setSubFilter('all');
+    setStatusFilter('all');
+    setAvailabilityFilter('all');
+    setCityFilter('');
+    setDateFilter('');
+    setMinExp('');
+    setMinRating('');
+    setMaxRate('');
+    setPreferredOnly(false);
+    setUpcomingOnly(false);
+  };
 
   return (
     <div className="space-y-5">
@@ -98,9 +137,9 @@ export const AllFreelancersView: React.FC<AllFreelancersViewProps> = ({
             <p className="text-xs font-medium text-slate-500">Search talent by role, city, availability and rate.</p>
           </div>
           <div className="flex flex-wrap gap-2">
-            <button type="button" onClick={() => setInviteOpen(true)} className={BTN_GHOST}>
-              Invite Freelancers
-            </button>
+            {onManageCategoriesClick && (
+              <button type="button" onClick={onManageCategoriesClick} className={BTN_GHOST}>Manage Categories</button>
+            )}
             <button type="button" onClick={onAddFreelancerClick} className={BTN_PRIMARY}>
               <UserPlus className="size-3.5" /> Add Freelancer
             </button>
@@ -113,7 +152,7 @@ export const AllFreelancersView: React.FC<AllFreelancersViewProps> = ({
             type="search"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search name, ID, phone, WhatsApp, email, city or skills"
+            placeholder="Search name, ID, phone, WhatsApp, email, city, skills or equipment"
             className={`${FIELD} pl-10`}
             aria-label="Search freelancers"
           />
@@ -187,7 +226,18 @@ export const AllFreelancersView: React.FC<AllFreelancersViewProps> = ({
               <option value="pending">Pending balance</option>
             </select>
           </label>
+          <label className="flex items-end gap-2 text-xs font-bold text-slate-700">
+            <input type="checkbox" checked={preferredOnly} onChange={(e) => setPreferredOnly(e.target.checked)} />
+            Preferred
+          </label>
+          <label className="flex items-end gap-2 text-xs font-bold text-slate-700">
+            <input type="checkbox" checked={upcomingOnly} onChange={(e) => setUpcomingOnly(e.target.checked)} />
+            Upcoming assignment
+          </label>
           <div className="flex items-end gap-1">
+            {activeFilterCount > 0 && (
+              <button type="button" className={BTN_GHOST} onClick={clearFilters}>Clear ({activeFilterCount})</button>
+            )}
             <button type="button" onClick={() => setViewMode('grid')} className={`${BTN_GHOST} ${viewMode === 'grid' ? 'border-rose-300 bg-[#fbfaf8]' : ''}`} aria-pressed={viewMode === 'grid'} aria-label="Card view">
               <LayoutGrid className="size-3.5" /> Cards
             </button>
@@ -205,7 +255,7 @@ export const AllFreelancersView: React.FC<AllFreelancersViewProps> = ({
             title={freelancers.length === 0 ? 'No freelancers yet' : 'No matching freelancers'}
             message={
               freelancers.length === 0
-                ? 'Build your freelance production network by adding photographers, cinematographers, drone operators and editors.'
+                ? 'Build your production team by adding photographers, cinematographers, drone operators, editors and assistants.'
                 : 'Try a different role, city or date. Double-booked talent is hidden when a shoot date is selected.'
             }
             action={
@@ -213,9 +263,9 @@ export const AllFreelancersView: React.FC<AllFreelancersViewProps> = ({
                 <button type="button" onClick={onAddFreelancerClick} className={BTN_PRIMARY}>
                   <UserPlus className="size-3.5" /> Add Freelancer
                 </button>
-                <button type="button" onClick={() => setInviteOpen(true)} className={BTN_GHOST}>
-                  Invite Freelancers
-                </button>
+                {onManageCategoriesClick && (
+                  <button type="button" onClick={onManageCategoriesClick} className={BTN_GHOST}>Manage Categories</button>
+                )}
               </div>
             }
           />
@@ -237,10 +287,11 @@ export const AllFreelancersView: React.FC<AllFreelancersViewProps> = ({
                     )}
                   </span>
                   <span className="min-w-0 flex-1">
-                    <span className="flex items-center gap-2">
+                    <span className="flex flex-wrap items-center gap-2">
                       <span className="truncate text-sm font-black text-slate-900">{freelancer.name}</span>
-                      {isVerifiedFreelancer(freelancer) && <Badge className="border-emerald-200 bg-emerald-50 text-emerald-800">Verified</Badge>}
+                      {isPreferredFreelancer(freelancer) && <Badge className="border-amber-200 bg-amber-50 text-amber-800">Preferred</Badge>}
                     </span>
+                    <span className="mt-0.5 block text-[11px] font-bold text-slate-400">{freelancer.freelancerId}</span>
                     <span className="mt-0.5 block text-xs font-bold text-[#8f3655]">{freelancer.subCategory || freelancer.mainCategory}</span>
                     <span className="mt-1 flex flex-wrap items-center gap-2 text-[11px] font-medium text-slate-500">
                       <span className="inline-flex items-center gap-1"><MapPin className="size-3" />{freelancer.city || '—'}</span>
@@ -263,7 +314,7 @@ export const AllFreelancersView: React.FC<AllFreelancersViewProps> = ({
                   </div>
                   <div>
                     <p className="font-bold uppercase text-slate-400">Shoots</p>
-                    <p className="font-extrabold text-slate-800">{stats.totalShoots}</p>
+                    <p className="font-extrabold text-slate-800">{stats.completed}</p>
                   </div>
                   <div>
                     <p className="font-bold uppercase text-slate-400">Rate</p>
@@ -274,15 +325,9 @@ export const AllFreelancersView: React.FC<AllFreelancersViewProps> = ({
                 <Badge className="mt-2 w-fit border-[#ded5cf] bg-white text-slate-700">{WORKING_LABELS[getWorkingStatus(freelancer)]}</Badge>
                 <div className="mt-4 flex flex-wrap gap-2 border-t border-[#eee7e2] pt-3">
                   <button type="button" onClick={() => onOpenProfile(freelancer)} className={BTN_PRIMARY}>View Profile</button>
-                  <button type="button" onClick={() => onAssignShootClick(freelancer.id)} className={BTN_GHOST}><Film className="size-3.5" /> Assign</button>
-                  <a className={BTN_GHOST} href={`https://wa.me/${(freelancer.whatsapp || freelancer.mobile || '').replace(/[^0-9]/g, '')}`} target="_blank" rel="noreferrer">
-                    <MessageCircle className="size-3.5" /> Contact
-                  </a>
-                  <button type="button" onClick={() => onOpenProfile(freelancer)} className={BTN_GHOST}><CalendarCheck className="size-3.5" /> Availability</button>
-                  <button type="button" onClick={() => onEditFreelancer(freelancer)} className={BTN_GHOST}>Edit</button>
-                  {onDeleteFreelancer && (
-                    <button type="button" onClick={() => setDeletingFreelancer(freelancer)} className={BTN_GHOST}>Delete</button>
-                  )}
+                  <button type="button" onClick={() => onAssignShootClick(freelancer.id)} className={BTN_GHOST}>Assign Shoot</button>
+                  <button type="button" onClick={() => onOpenProfile(freelancer)} className={BTN_GHOST}>Check Availability</button>
+                  <button type="button" onClick={() => onRecordPaymentClick(freelancer.id)} className={BTN_GHOST}>Record Payment</button>
                 </div>
               </article>
             );
@@ -332,34 +377,6 @@ export const AllFreelancersView: React.FC<AllFreelancersViewProps> = ({
               })}
             </tbody>
           </table>
-        </div>
-      )}
-
-      {inviteOpen && (
-        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-[#24171c]/70 p-4">
-          <div className={`${CARD} w-full max-w-md p-5`}>
-            <h3 className="text-base font-black text-slate-900">Invite Freelancers</h3>
-            <p className="mt-2 text-xs font-medium text-slate-500">
-              The freelancer portal is not live yet. Share this note, or add the person here with application status Applied.
-            </p>
-            <textarea readOnly className={`${FIELD} mt-3 min-h-24`} value={inviteText} />
-            <div className="mt-3 flex flex-wrap gap-2">
-              <button
-                type="button"
-                className={BTN_PRIMARY}
-                onClick={() => {
-                  void navigator.clipboard?.writeText(inviteText);
-                  setInviteOpen(false);
-                }}
-              >
-                Copy invite note
-              </button>
-              <button type="button" className={BTN_GHOST} onClick={() => { setInviteOpen(false); onAddFreelancerClick(); }}>
-                Add manually
-              </button>
-              <button type="button" className={BTN_GHOST} onClick={() => setInviteOpen(false)}>Close</button>
-            </div>
-          </div>
         </div>
       )}
 

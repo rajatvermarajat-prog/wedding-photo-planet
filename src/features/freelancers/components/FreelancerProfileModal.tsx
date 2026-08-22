@@ -48,6 +48,7 @@ interface FreelancerProfileModalProps {
   onAssignShootClick?: (freelancerId: string) => void;
   onUpdateDocument?: (freelancerId: string, doc: FreelancerDocument) => void;
   onDeleteFreelancer?: (freelancerId: string) => void;
+  onSaveFreelancer?: (freelancer: Freelancer) => void;
 }
 
 export const FreelancerProfileModal: React.FC<FreelancerProfileModalProps> = ({
@@ -63,6 +64,7 @@ export const FreelancerProfileModal: React.FC<FreelancerProfileModalProps> = ({
   onAssignShootClick,
   onUpdateDocument,
   onDeleteFreelancer,
+  onSaveFreelancer,
 }) => {
   const [activeProfileTab, setActiveProfileTab] = useState<
     'shoots' | 'overview' | 'about' | 'portfolio' | 'reviews' | 'payments' | 'attendance' | 'data' | 'documents' | 'notes'
@@ -152,6 +154,11 @@ export const FreelancerProfileModal: React.FC<FreelancerProfileModalProps> = ({
                   >
                     {freelancer.status}
                   </span>
+                  {freelancer.preferredTier === 'preferred' && (
+                    <span className="px-2 py-0.5 text-[10px] font-black rounded-full uppercase bg-amber-500/20 text-amber-200 border border-amber-400/30">
+                      Preferred
+                    </span>
+                  )}
                 </div>
 
                 <p className="text-xs text-slate-300 mt-1 flex items-center gap-2">
@@ -209,6 +216,35 @@ export const FreelancerProfileModal: React.FC<FreelancerProfileModalProps> = ({
                 </button>
               )}
 
+              {onSaveFreelancer && (
+                <button
+                  type="button"
+                  onClick={() =>
+                    onSaveFreelancer({
+                      ...freelancer,
+                      preferredTier: freelancer.preferredTier === 'preferred' ? 'new' : 'preferred',
+                    })
+                  }
+                  className="flex-1 md:flex-none px-4 py-2 bg-white/10 hover:bg-white/20 text-white text-xs font-bold rounded-xl border border-white/20 transition flex items-center justify-center"
+                >
+                  {freelancer.preferredTier === 'preferred' ? 'Remove Preferred' : 'Mark Preferred'}
+                </button>
+              )}
+              {onSaveFreelancer && (
+                <button
+                  type="button"
+                  onClick={() =>
+                    onSaveFreelancer({
+                      ...freelancer,
+                      status: freelancer.status === 'active' ? 'inactive' : 'active',
+                      workingStatus: freelancer.status === 'active' ? 'inactive' : 'active',
+                    })
+                  }
+                  className="flex-1 md:flex-none px-4 py-2 bg-white/10 hover:bg-white/20 text-white text-xs font-bold rounded-xl border border-white/20 transition flex items-center justify-center"
+                >
+                  {freelancer.status === 'active' ? 'Deactivate' : 'Activate'}
+                </button>
+              )}
               {onDeleteFreelancer && (
                 <button
                   onClick={() => setShowConfirmDelete(true)}
@@ -258,16 +294,14 @@ export const FreelancerProfileModal: React.FC<FreelancerProfileModalProps> = ({
         {/* Profile Navigation Tabs */}
         <div className="bg-slate-100 px-6 border-b border-slate-200 flex items-center gap-2 overflow-x-auto">
           {[
-            { id: 'about', label: 'About' },
-            { id: 'shoots', label: `Shoots (${totalShoots})` },
-            { id: 'overview', label: 'Rates & Gear' },
-            { id: 'portfolio', label: 'Portfolio' },
-            { id: 'payments', label: `Payments (${myPayments.length})` },
-            { id: 'reviews', label: 'Reviews' },
-            { id: 'attendance', label: 'Work Logs' },
-            { id: 'data', label: 'Footage' },
-            { id: 'documents', label: `Documents (${freelancer.documents?.length || 0})` },
-            { id: 'notes', label: 'Admin Notes' },
+            { id: 'about', label: 'Overview' },
+            { id: 'overview', label: 'Skills & Equipment' },
+            { id: 'shoots', label: 'Shoot History' },
+            { id: 'payments', label: 'Payments' },
+            { id: 'reviews', label: 'Performance' },
+            { id: 'attendance', label: 'Availability' },
+            { id: 'documents', label: 'Documents' },
+            { id: 'notes', label: 'Internal Notes' },
           ].map((tab) => (
             <button
               key={tab.id}
@@ -528,7 +562,7 @@ export const FreelancerProfileModal: React.FC<FreelancerProfileModalProps> = ({
                       className="px-3 py-1 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-extrabold rounded-lg transition flex items-center gap-1 shadow-2xs"
                     >
                       <Plus className="w-3.5 h-3.5" />
-                      <span>+ Assign New Shoot</span>
+                      <span>Assign New Shoot</span>
                     </button>
                   )}
                 </div>

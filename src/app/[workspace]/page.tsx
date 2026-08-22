@@ -13,6 +13,7 @@ const WORKSPACES = new Set([
   'data-management',
   'team',
   'freelancers',
+  'clients',
   'deliveries',
 ]);
 

@@ -757,7 +757,7 @@ export const LeadsManagement: React.FC<LeadsManagementProps> = ({ currentUser })
     .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 
   return (
-    <div className="space-y-6 pb-12 animate-in fade-in duration-300">
+    <div className="h-fit space-y-6 animate-in fade-in duration-300">
       <LeadsHeader userName={userName} userRole={userRole} isOwner={isOwner} activeView={activeSubTab} onViewChange={setActiveSubTab} onAddLead={handleOpenAddModal} />
 
       {/* YEARLY & MONTHLY TARGETING & GOALS WIDGET (Visible to Owner & Managers only) */}
@@ -1059,8 +1059,8 @@ export const LeadsManagement: React.FC<LeadsManagementProps> = ({ currentUser })
           <LeadsFilterBar search={searchQuery} status={statusFilter} source={sourceFilter} assignee={assigneeFilter} teamOptions={SALES_TEAM_OPTIONS} onSearchChange={setSearchQuery} onStatusChange={setStatusFilter} onSourceChange={setSourceFilter} onAssigneeChange={setAssigneeFilter} />
 
           {/* Leads Data Table */}
-          <div className="overflow-hidden rounded-3xl border border-[#e2d9d3] bg-white shadow-[0_12px_34px_rgba(48,44,46,.07)]">
-            <div className="overflow-x-auto">
+          <div className="h-fit overflow-hidden rounded-3xl border border-[#e2d9d3] bg-white shadow-[0_12px_34px_rgba(48,44,46,.07)]">
+            <div className="show-x-scrollbar h-fit overflow-x-auto overflow-y-hidden">
               <table className="w-full border-collapse text-left text-sm">
                 <thead>
                   <tr className="border-b border-[#7e5363] bg-[#4b303a] text-xs font-extrabold uppercase tracking-wider text-[#f4e8ec]">

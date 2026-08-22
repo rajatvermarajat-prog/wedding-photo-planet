@@ -73,7 +73,29 @@ export function getFreelancerKpis(
     upcomingShoots: upcoming,
     pendingPayments: Math.max(0, agreed - paid),
     monthCost,
+    preferred: freelancers.filter(isPreferredFreelancer).length,
+    recentlyAdded: freelancers.filter((f) => (f.joiningDate || '') >= thirtyDaysAgo(today)).length,
   };
+}
+
+export function isPreferredFreelancer(f: Freelancer): boolean {
+  return f.preferredTier === 'preferred';
+}
+
+function thirtyDaysAgo(today: string): string {
+  const d = new Date(`${today}T00:00:00`);
+  d.setDate(d.getDate() - 30);
+  return d.toISOString().split('T')[0];
+}
+
+export function assignmentPaid(assignmentId: string, payments: FreelancerPayment[]): number {
+  return payments.filter((p) => p.assignmentId === assignmentId).reduce((s, p) => s + (p.amountPaid || 0), 0);
+}
+
+export function assignmentBalance(assignment: FreelancerAssignment, payments: FreelancerPayment[]) {
+  const paid = assignmentPaid(assignment.id, payments);
+  const agreed = assignment.totalAgreedAmount || 0;
+  return { agreed, paid, pending: Math.max(0, agreed - paid) };
 }
 
 export const DEFAULT_FREELANCER_CATEGORIES: FreelancerCategory[] = [
@@ -87,7 +109,7 @@ export const DEFAULT_FREELANCER_CATEGORIES: FreelancerCategory[] = [
   {
     id: 'cat-2',
     name: 'Videographer',
-    subCategories: ['Cinematographer', 'Traditional Videographer', 'Wedding Film Cinematographer', 'Assistant Cinematographer', 'Video Director', 'Video Operator'],
+    subCategories: ['Cinematographer', 'Wedding Videographer', 'Traditional Videographer', 'Wedding Film Cinematographer', 'Assistant Cinematographer', 'Video Director', 'Video Operator'],
     isActive: true,
     description: 'Wedding films, teasers and traditional video coverage.',
   },
@@ -206,12 +228,28 @@ export function matchesTalentSearch(
     dateKey?: string;
     minRate?: number;
     maxRate?: number;
+    preferredOnly?: boolean;
+    hasUpcoming?: boolean;
   },
   assignments: FreelancerAssignment[] = []
 ): boolean {
   const q = (query.text || '').trim().toLowerCase();
   if (q) {
-    const hay = [f.name, f.freelancerId, f.mobile, f.whatsapp, f.email, f.city, f.subCategory, f.mainCategory, ...(f.skills || [])]
+    const hay = [
+      f.name,
+      f.freelancerId,
+      f.mobile,
+      f.whatsapp,
+      f.email,
+      f.city,
+      f.subCategory,
+      f.mainCategory,
+      f.cameraDetails,
+      f.lensDetails,
+      f.otherEquipment,
+      f.equipmentAvailable,
+      ...(f.skills || []),
+    ]
       .join(' ')
       .toLowerCase();
     if (!hay.includes(q)) return false;
@@ -225,5 +263,13 @@ export function matchesTalentSearch(
   if (query.minRate != null && (f.perDayCharges || 0) < query.minRate) return false;
   if (query.maxRate != null && query.maxRate > 0 && (f.perDayCharges || 0) > query.maxRate) return false;
   if (query.dateKey && findDateConflicts(f.id, query.dateKey, assignments).length > 0) return false;
+  if (query.preferredOnly && !isPreferredFreelancer(f)) return false;
+  if (query.hasUpcoming) {
+    const today = todayKey();
+    const upcoming = assignments.some(
+      (a) => a.freelancerId === f.id && a.shootDate >= today && a.assignmentStatus !== 'cancelled' && a.assignmentStatus !== 'completed'
+    );
+    if (!upcoming) return false;
+  }
   return true;
 }

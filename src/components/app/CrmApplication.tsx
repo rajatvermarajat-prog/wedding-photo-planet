@@ -31,6 +31,7 @@ import {
 } from '@/data/mockFreelancers';
 
 import { Sidebar, TopHeader, TabType } from '@/components/layout';
+import { ClientsDirectoryView } from '@/features/clients/ClientsDirectoryView';
 import { LoginScreen, OWNER_USER } from '@/components/auth/LoginScreen';
 import { useAuthSession } from '@/components/auth/AuthSessionProvider';
 import { AISuggestionsModal } from '@/components/ai/AISuggestionsModal';
@@ -69,6 +70,7 @@ const TAB_ROUTES: Record<TabType, string> = {
   data: '/data-management',
   team: '/team',
   freelancers: '/freelancers',
+  clients: '/clients',
   deliveries: '/deliveries',
 };
 
@@ -270,6 +272,7 @@ export default function App() {
   }, [router]);
   const [statusFilter, setStatusFilter] = useState<ProjectStatus | 'all'>('all');
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+  const [freelancerFocus, setFreelancerFocus] = useState<{ date: string; projectId: string; shootId: string } | null>(null);
 
   useEffect(() => {
     const routeTab = ROUTE_TABS[pathname];
@@ -645,9 +648,6 @@ export default function App() {
           setActiveTab={setActiveTab}
           statusFilter={statusFilter}
           setStatusFilter={setStatusFilter}
-          onOpenNewProjectModal={() => {
-            router.push('/projects/new');
-          }}
           onOpenAIModal={() => setIsAIModalOpen(true)}
           onToggleMobileSidebar={() => setIsMobileSidebarOpen(!isMobileSidebarOpen)}
           onExportData={handleExportData}
@@ -658,7 +658,7 @@ export default function App() {
         />
 
         {/* Scrollable Canvas Area */}
-        <div className="crm-canvas flex-1 p-4 sm:p-6 space-y-6 overflow-y-auto">
+        <div className="crm-canvas min-h-0 flex-1 space-y-6 overflow-y-auto p-4 sm:p-6">
           {isNewProjectPage ? (
             <ProjectFormModal
               isOpen
@@ -914,6 +914,9 @@ export default function App() {
               dataReceivedList={freelancerDataReceived}
               activityLogs={freelancerActivityLogs}
               projects={projects}
+              focusDate={freelancerFocus?.date}
+              focusProjectId={freelancerFocus?.projectId}
+              focusShootId={freelancerFocus?.shootId}
               onSaveFreelancer={handleSaveFreelancer}
               onSaveCategories={setFreelancerCategories}
               onSaveAssignments={handleSaveFreelancerAssignments}
@@ -926,6 +929,17 @@ export default function App() {
               onUpdateDocument={handleUpdateFreelancerDocument}
               onDeleteFreelancer={handleDeleteFreelancer}
               onDeleteAssignment={handleDeleteAssignment}
+            />
+          )}
+
+          {activeTab === 'clients' && (
+            <ClientsDirectoryView
+              projects={projects}
+              onOpenClient={(project) => handleSelectProject(project, currentUser?.role)}
+              onAddClient={() => {
+                setEditingProject(null);
+                setIsFormModalOpen(true);
+              }}
             />
           )}
 

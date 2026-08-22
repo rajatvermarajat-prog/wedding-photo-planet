@@ -1,7 +1,6 @@
 import React from 'react';
 import { 
   Camera, 
-  Plus, 
   Sparkles, 
   LayoutDashboard, 
   FolderKanban, 
@@ -22,11 +21,12 @@ import {
   Crown,
   Target,
   Banknote,
+  Heart,
   MoreHorizontal
 } from 'lucide-react';
 import { ProjectStatus, TeamMember } from '@/types';
 
-export type TabType = 'dashboard' | 'roles' | 'projects' | 'shoots' | 'expenses' | 'data' | 'team' | 'freelancers' | 'deliveries' | 'owner_workspace' | 'equipment' | 'leads';
+export type TabType = 'dashboard' | 'roles' | 'projects' | 'shoots' | 'expenses' | 'data' | 'team' | 'freelancers' | 'clients' | 'deliveries' | 'owner_workspace' | 'equipment' | 'leads';
 
 interface SidebarProps {
   activeTab: TabType;
@@ -64,8 +64,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
       { id: 'data' as TabType, label: 'Data Management', icon: HardDrive },
       { id: 'team' as TabType, label: 'Team & Attendance', icon: Users },
       { id: 'freelancers' as TabType, label: 'Freelancer Team', icon: UserCheck },
+      { id: 'clients' as TabType, label: 'Clients', icon: Heart },
     ] : [
       { id: 'freelancers' as TabType, label: 'Freelancer Team', icon: UserCheck },
+      { id: 'clients' as TabType, label: 'Clients', icon: Heart },
     ]),
   ];
 
@@ -161,6 +163,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               </button>
             );
           })}
+
         </nav>
 
         {/* Footer Status & Logout button */}
@@ -188,12 +191,27 @@ export const Sidebar: React.FC<SidebarProps> = ({
   );
 };
 
+const PAGE_ICONS: Record<TabType, typeof LayoutDashboard> = {
+  dashboard: LayoutDashboard,
+  roles: Briefcase,
+  projects: FolderKanban,
+  shoots: Film,
+  expenses: Banknote,
+  data: HardDrive,
+  team: Users,
+  freelancers: UserCheck,
+  clients: Heart,
+  deliveries: CheckCircle2,
+  owner_workspace: Crown,
+  equipment: Camera,
+  leads: Target,
+};
+
 interface TopHeaderProps {
   activeTab: TabType;
   setActiveTab: (tab: TabType) => void;
   statusFilter: ProjectStatus | 'all';
   setStatusFilter: (filter: ProjectStatus | 'all') => void;
-  onOpenNewProjectModal: () => void;
   onOpenAIModal: () => void;
   onToggleMobileSidebar: () => void;
   onExportData?: () => void;
@@ -215,7 +233,6 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
   setActiveTab,
   statusFilter,
   setStatusFilter,
-  onOpenNewProjectModal,
   onOpenAIModal,
   onToggleMobileSidebar,
   onExportData,
@@ -234,16 +251,21 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
     data: 'Data Management',
     team: 'Team & Attendance',
     freelancers: 'Freelancer Team',
+    clients: 'Clients',
     deliveries: 'Deliveries',
     owner_workspace: 'Owner Workspace',
     equipment: 'Equipment Inventory',
     leads: 'Leads & Inquiries',
   };
+  const PageIcon = PAGE_ICONS[activeTab];
+  const userInitials = currentUser?.name
+    ? currentUser.name.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase()
+    : 'WPP';
 
   return (
-    <header className="relative z-20 flex min-h-16 items-center justify-between gap-3 border-b border-[#e8ddd7] bg-[#fffdfb] px-4 py-2 shadow-[0_4px_18px_rgba(67,31,43,0.05)] sm:px-6">
-      
-      {/* Left side: Mobile Menu Toggle & Project Sub-Nav Filters */}
+    <header className="relative z-20 border-b border-[#e8ddd7] bg-[linear-gradient(180deg,#fffdfb_0%,#f8f1ee_100%)] shadow-[0_4px_18px_rgba(67,31,43,0.05)]">
+      <div className="h-1 bg-[linear-gradient(90deg,#ddc89c_0%,#8f3655_48%,#6d2f45_100%)]" />
+      <div className="flex min-h-16 items-center justify-between gap-3 px-4 py-2.5 sm:px-6">
       <div className="flex min-w-0 items-center gap-3 overflow-x-auto scrollbar-none">
         <button
           onClick={onToggleMobileSidebar}
@@ -254,9 +276,17 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
         </button>
 
         {!showProjectFilters ? (
-          <div className="min-w-0">
-            <p className="truncate text-sm font-extrabold text-[#321f27] sm:text-base">{pageTitles[activeTab]}</p>
-            <p className="hidden text-xs font-medium text-[#8b747b] sm:block">Wedding Photo Planet CRM</p>
+          <div className="flex min-w-0 items-center gap-3">
+            <span className="grid size-10 shrink-0 place-items-center rounded-2xl border border-[#ddc89c]/50 bg-[linear-gradient(145deg,#8f3655,#6d2f45)] text-white shadow-[0_8px_16px_rgba(109,47,69,.22)]">
+              <PageIcon className="size-4" />
+            </span>
+            <div className="min-w-0">
+              <p className="truncate text-sm font-extrabold tracking-tight text-[#321f27] sm:text-base">{pageTitles[activeTab]}</p>
+              <p className="hidden items-center gap-1.5 text-[11px] font-bold uppercase tracking-[.14em] text-[#a07a4a] sm:flex">
+                <span className="size-1.5 rounded-full bg-[#ddc89c]" />
+                Wedding Photo Planet
+              </p>
+            </div>
           </div>
         ) : <div className="flex items-center gap-4 whitespace-nowrap text-xs font-semibold text-slate-600 sm:gap-6 sm:text-sm">
           <button
@@ -323,15 +353,15 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
           <button
             onClick={onOpenAIModal}
             title="Open AI Helper"
-            className="flex h-9 items-center gap-1.5 rounded-lg border border-rose-200 bg-rose-50 px-2.5 text-xs font-bold text-rose-800 transition hover:bg-rose-100 sm:px-3"
+            className="flex h-9 items-center gap-1.5 rounded-xl border border-[#ddc89c]/70 bg-[#f9f3e8] px-2.5 text-xs font-bold text-[#7a5a2e] transition hover:bg-[#f3e8d2] sm:px-3"
           >
-            <Sparkles className="h-4 w-4 text-rose-700" />
+            <Sparkles className="h-4 w-4" />
             <span className="hidden lg:inline">AI Helper</span>
           </button>
 
           {isFullAdmin && (onExportData || onImportData) && (
             <details className="group relative">
-              <summary className="flex h-9 cursor-pointer list-none items-center gap-1 rounded-lg border border-[#e4d8d2] bg-white px-2.5 text-xs font-bold text-[#60434c] transition hover:bg-[#faf5f3] [&::-webkit-details-marker]:hidden">
+              <summary className="flex h-9 cursor-pointer list-none items-center gap-1 rounded-xl border border-[#e4d8d2] bg-white px-2.5 text-xs font-bold text-[#60434c] transition hover:bg-[#faf5f3] [&::-webkit-details-marker]:hidden">
                 <MoreHorizontal className="h-4 w-4" />
                 <span className="hidden xl:inline">Backup</span>
               </summary>
@@ -342,17 +372,19 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
             </details>
           )}
 
-          {isFullAdmin && (
-            <button
-              onClick={onOpenNewProjectModal}
-              className="flex h-9 items-center gap-1.5 rounded-lg bg-[#8f3655] px-3 text-xs font-bold text-white shadow-sm transition hover:bg-[#762944] sm:px-4"
-            >
-              <Plus className="h-4 w-4 stroke-[2.5]" />
-              <span className="hidden sm:inline">New Project</span>
-            </button>
+          {currentUser && (
+            <div className="hidden items-center gap-2 rounded-2xl border border-[#e8ddd7] bg-white/80 py-1 pl-1 pr-3 sm:flex">
+              <span className="grid size-8 place-items-center rounded-xl bg-[linear-gradient(145deg,#8f3655,#6d2f45)] text-[10px] font-black text-white">
+                {userInitials}
+              </span>
+              <span className="min-w-0">
+                <span className="block max-w-36 truncate text-xs font-extrabold text-[#321f27]">{currentUser.name}</span>
+                <span className="block truncate text-[10px] font-bold uppercase tracking-wider text-[#a07a4a]">{currentUser.role}</span>
+              </span>
+            </div>
           )}
       </div>
-
+      </div>
     </header>
   );
 };

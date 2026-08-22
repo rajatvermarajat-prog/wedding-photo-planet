@@ -14,12 +14,9 @@ import {
 } from '@/types';
 import { FreelancerDashboardView } from './FreelancerDashboardView';
 import { AllFreelancersView } from './AllFreelancersView';
-import { FreelancerApplicationsView } from './FreelancerApplicationsView';
-import { ShootAssignmentsView } from './ShootAssignmentsView';
+import { AssignShootModal } from './AssignShootModal';
 import { ShootCalendarView } from './ShootCalendarView';
 import { FreelancerPaymentsView } from './FreelancerPaymentsView';
-import { FreelancerAttendanceView } from './FreelancerAttendanceView';
-import { FreelancerDataReceivedView } from './FreelancerDataReceivedView';
 import { FreelancerReportsView } from './FreelancerReportsView';
 import { CategoriesManagerModal } from './CategoriesManagerModal';
 import { FreelancerFormModal } from './FreelancerFormModal';
@@ -27,29 +24,15 @@ import { FreelancerProfileModal } from './FreelancerProfileModal';
 import {
   BarChart3,
   Calendar,
-  ClipboardList,
   CreditCard,
-  Film,
-  HardDrive,
   LayoutDashboard,
   Tag,
-  Timer,
   UserPlus,
   Users,
 } from 'lucide-react';
 import { BTN_CREAM, BTN_GHOST, CARD, TOGGLE_ACTIVE, TOGGLE_IDLE } from '@/features/team/components/TeamUiKit';
-import { isPendingApplication } from '../freelancerDomain';
 
-type FreelancerTab =
-  | 'dashboard'
-  | 'all_freelancers'
-  | 'applications'
-  | 'assignments'
-  | 'calendar'
-  | 'payments'
-  | 'attendance'
-  | 'data_received'
-  | 'reports';
+type FreelancerTab = 'dashboard' | 'all_freelancers' | 'calendar' | 'payments' | 'reports';
 
 interface FreelancerTeamManagerProps {
   freelancers: Freelancer[];
@@ -72,17 +55,16 @@ interface FreelancerTeamManagerProps {
   onUpdateDocument?: (freelancerId: string, doc: FreelancerDocument) => void;
   onDeleteFreelancer?: (freelancerId: string) => void;
   onDeleteAssignment?: (assignmentId: string) => void;
+  focusDate?: string;
+  focusProjectId?: string;
+  focusShootId?: string;
 }
 
 const TABS: Array<{ id: FreelancerTab; label: string; icon: typeof Users }> = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { id: 'all_freelancers', label: 'Freelancers', icon: Users },
-  { id: 'applications', label: 'Applications', icon: ClipboardList },
-  { id: 'calendar', label: 'Calendar', icon: Calendar },
-  { id: 'assignments', label: 'Assignments', icon: Film },
+  { id: 'calendar', label: 'Shoot Calendar', icon: Calendar },
   { id: 'payments', label: 'Payments', icon: CreditCard },
-  { id: 'attendance', label: 'Work Logs', icon: Timer },
-  { id: 'data_received', label: 'Footage', icon: HardDrive },
   { id: 'reports', label: 'Reports', icon: BarChart3 },
 ];
 
@@ -108,14 +90,32 @@ export const FreelancerTeamManager: React.FC<FreelancerTeamManagerProps> = (prop
     onUpdateDocument,
     onDeleteFreelancer,
     onDeleteAssignment,
+    focusDate,
+    focusProjectId,
+    focusShootId,
   } = props;
 
-  const [activeSubTab, setActiveSubTab] = useState<FreelancerTab>('dashboard');
+  const [activeSubTab, setActiveSubTab] = useState<FreelancerTab>(focusDate ? 'calendar' : 'dashboard');
   const [showCategoriesModal, setShowCategoriesModal] = useState(false);
   const [showFreelancerFormModal, setShowFreelancerFormModal] = useState(false);
+  const [showAssignView, setShowAssignView] = useState(false);
+  const [assignFreelancerId, setAssignFreelancerId] = useState<string | undefined>();
   const [editingFreelancer, setEditingFreelancer] = useState<Freelancer | null>(null);
   const [selectedProfileFreelancer, setSelectedProfileFreelancer] = useState<Freelancer | null>(null);
-  const pendingApps = freelancers.filter(isPendingApplication).length;
+  const [listCategory, setListCategory] = useState('all');
+  const [calendarDate, setCalendarDate] = useState(focusDate || '');
+
+  React.useEffect(() => {
+    if (focusDate) {
+      setCalendarDate(focusDate);
+      setActiveSubTab('calendar');
+    }
+  }, [focusDate]);
+
+  const openAssign = (freelancerId?: string) => {
+    setAssignFreelancerId(freelancerId);
+    setShowAssignView(true);
+  };
 
   const handleOpenAddForm = () => {
     setEditingFreelancer(null);
@@ -179,9 +179,6 @@ export const FreelancerTeamManager: React.FC<FreelancerTeamManagerProps> = (prop
               <Icon className="size-3.5" />
               {label}
               {id === 'all_freelancers' && <span className="text-[10px] font-black opacity-60">({freelancers.length})</span>}
-              {id === 'applications' && pendingApps > 0 && (
-                <span className="rounded-full bg-amber-500 px-1.5 text-[10px] font-black text-white">{pendingApps}</span>
-              )}
             </button>
           ))}
         </nav>
@@ -195,12 +192,22 @@ export const FreelancerTeamManager: React.FC<FreelancerTeamManagerProps> = (prop
           dataReceivedList={dataReceivedList}
           categories={categories}
           projects={projects}
-          onTabChange={(tab) => setActiveSubTab(tab as FreelancerTab)}
+          onTabChange={(tab) => {
+            if (tab === 'assignments') {
+              openAssign();
+              return;
+            }
+            setActiveSubTab(tab as FreelancerTab);
+          }}
           onAddFreelancerClick={handleOpenAddForm}
-          onAssignShootClick={() => setActiveSubTab('assignments')}
+          onAssignShootClick={() => openAssign()}
           onRecordPaymentClick={() => setActiveSubTab('payments')}
           onManageCategoriesClick={() => setShowCategoriesModal(true)}
           onOpenProfile={(f) => setSelectedProfileFreelancer(f)}
+          onFilterCategory={(name) => {
+            setListCategory(name);
+            setActiveSubTab('all_freelancers');
+          }}
         />
       )}
 
@@ -213,55 +220,26 @@ export const FreelancerTeamManager: React.FC<FreelancerTeamManagerProps> = (prop
           onOpenProfile={(f) => setSelectedProfileFreelancer(f)}
           onEditFreelancer={handleOpenEditForm}
           onAddFreelancerClick={handleOpenAddForm}
-          onAssignShootClick={() => setActiveSubTab('assignments')}
+          onAssignShootClick={(id) => openAssign(id)}
           onRecordPaymentClick={() => setActiveSubTab('payments')}
           onDeleteFreelancer={onDeleteFreelancer}
+          onManageCategoriesClick={() => setShowCategoriesModal(true)}
+          initialCategory={listCategory}
         />
       )}
 
-      {activeSubTab === 'applications' && (
-        <FreelancerApplicationsView
-          freelancers={freelancers}
-          onOpenProfile={(f) => setSelectedProfileFreelancer(f)}
-          onSaveFreelancer={onSaveFreelancer}
-          onAddFreelancerClick={handleOpenAddForm}
-        />
-      )}
-
-      {activeSubTab === 'assignments' && (
-        <ShootAssignmentsView
+      {activeSubTab === 'calendar' && (
+        <ShootCalendarView
           assignments={assignments}
           freelancers={freelancers}
           projects={projects}
-          onSaveAssignment={onSaveAssignments}
-          onUpdateAssignmentStatus={onUpdateAssignmentStatus}
-          onDeleteAssignment={onDeleteAssignment}
+          focusDate={calendarDate}
+          onAssignShoot={() => openAssign()}
         />
       )}
-
-      {activeSubTab === 'calendar' && <ShootCalendarView assignments={assignments} freelancers={freelancers} />}
 
       {activeSubTab === 'payments' && (
         <FreelancerPaymentsView payments={payments} assignments={assignments} freelancers={freelancers} onSavePayment={onSavePayment} />
-      )}
-
-      {activeSubTab === 'attendance' && (
-        <FreelancerAttendanceView
-          attendanceRecords={attendanceRecords}
-          freelancers={freelancers}
-          onSaveAttendance={onSaveAttendance}
-          onUpdateAvailability={onUpdateAvailability}
-        />
-      )}
-
-      {activeSubTab === 'data_received' && (
-        <FreelancerDataReceivedView
-          dataReceivedList={dataReceivedList}
-          freelancers={freelancers}
-          assignments={assignments}
-          onSaveDataReceived={onSaveDataReceived}
-          onUpdateDataStatus={onUpdateDataStatus}
-        />
       )}
 
       {activeSubTab === 'reports' && (
@@ -311,12 +289,34 @@ export const FreelancerTeamManager: React.FC<FreelancerTeamManagerProps> = (prop
             setSelectedProfileFreelancer(null);
             setActiveSubTab('payments');
           }}
-          onAssignShootClick={() => {
+          onAssignShootClick={(id) => {
             setSelectedProfileFreelancer(null);
-            setActiveSubTab('assignments');
+            openAssign(id);
           }}
           onUpdateDocument={onUpdateDocument}
           onDeleteFreelancer={onDeleteFreelancer}
+          onSaveFreelancer={onSaveFreelancer}
+        />
+      )}
+
+      {showAssignView && (
+        <AssignShootModal
+          freelancers={freelancers}
+          projects={projects}
+          assignments={assignments}
+          initialFreelancerId={assignFreelancerId}
+          initialProjectId={focusProjectId}
+          initialShootId={focusShootId}
+          initialDate={calendarDate}
+          onSave={(item) => {
+            onSaveAssignments([item]);
+            setShowAssignView(false);
+            setAssignFreelancerId(undefined);
+          }}
+          onClose={() => {
+            setShowAssignView(false);
+            setAssignFreelancerId(undefined);
+          }}
         />
       )}
     </div>
