@@ -5,6 +5,7 @@ import { Project, VideoPipeline, PhotoPipeline, ShootEvent, PaymentRecord, Editi
 import { getShootDateInfo, getShootTrackingStats, formatDateDDMMYYYY } from '@/utils/shootTracking';
 import { computeAutoProjectStatus } from '@/utils/projectStatusCalculator';
 import { ConfirmDeleteModal } from '@/components/common/ConfirmDeleteModal';
+import { useToast } from '@/components/common';
 import { RoleColumnCrewManager } from './RoleColumnCrewManager';
 import { 
   X, 
@@ -44,7 +45,9 @@ import {
   Sparkles,
   Clock,
   AlertTriangle,
-  ArrowLeft
+  ArrowLeft,
+  ChevronDown,
+  FolderKanban
 } from 'lucide-react';
 
 interface ProjectDetailModalProps {
@@ -71,6 +74,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
   userRole,
 }) => {
   if (!project) return null;
+  const { showToast } = useToast();
 
   const effectiveRole = currentUser?.role || userRole || '';
   const isOwner = effectiveRole === 'Owner';
@@ -91,6 +95,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
 
   const [activeTab, setActiveTab] = useState<'overview' | 'vault' | 'tasks' | 'shoots' | 'data' | 'payments' | 'deliveries'>('overview');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showStatusMenu, setShowStatusMenu] = useState(false);
 
   useEffect(() => {
     if (!isFullAdmin && (activeTab === 'vault' || activeTab === 'payments')) {
@@ -125,7 +130,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
     const file = e.target.files?.[0];
     if (!file) return;
     if (file.size > 10 * 1024 * 1024) {
-      alert('File size must be under 10MB');
+      showToast('File size must be under 10MB.', { variant: 'error' });
       return;
     }
     const reader = new FileReader();
@@ -217,7 +222,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
   const handleSaveScheduleItem = (e: React.FormEvent) => {
     e.preventDefault();
     if (!schedStageName.trim()) {
-      alert('Please enter stage/milestone name');
+      showToast('Please enter a stage or milestone name.', { variant: 'error' });
       return;
     }
 
@@ -660,7 +665,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
     const autoWork = computeAutoProjectStatus(updatedProject);
     updatedProject.status = autoWork.autoStatus;
     onUpdateProject(updatedProject);
-    alert('Tasks & Assignments saved successfully!');
+    showToast('Tasks and assignments saved successfully.');
   };
 
   // Video Pipeline local state
@@ -703,7 +708,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
     const file = e.target.files?.[0];
     if (!file) return;
     if (file.size > 5 * 1024 * 1024) {
-      alert('File size must be under 5MB');
+      showToast('File size must be under 5MB.', { variant: 'error' });
       return;
     }
     const reader = new FileReader();
@@ -717,7 +722,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
 
   const handleUpdatePaymentScreenshot = (paymentId: string, file: File) => {
     if (file.size > 5 * 1024 * 1024) {
-      alert('File size must be under 5MB');
+      showToast('File size must be under 5MB.', { variant: 'error' });
       return;
     }
     const reader = new FileReader();
@@ -1121,88 +1126,53 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
   return (
     <div className={variant === 'page' ? 'w-full' : 'fixed inset-0 z-50 flex items-center justify-center overflow-hidden bg-slate-900/60 p-2 backdrop-blur-xs sm:p-4'}>
       <div className={variant === 'page'
-        ? 'flex min-h-[calc(100vh-9rem)] w-full flex-col overflow-hidden rounded-2xl border border-[#dfd9d2] bg-white shadow-[0_12px_35px_rgba(48,31,38,.08)]'
-        : 'my-auto flex h-[92vh] max-h-[92vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl md:w-[92vw] lg:w-[1024px]'}>
+        ? 'project-detail-shell flex min-h-[calc(100vh-9rem)] w-full flex-col overflow-hidden rounded-2xl border border-[#dfd9d2] bg-white shadow-[0_12px_35px_rgba(48,31,38,.08)]'
+        : 'project-detail-shell my-auto flex h-[92vh] max-h-[92vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl md:w-[92vw] lg:w-[1024px]'}>
         
         {/* Header */}
-        <div className="p-3.5 sm:p-4 bg-slate-50 border-b border-slate-200 flex items-start justify-between shrink-0">
-          <div className="space-y-1">
-            <div className="flex items-center gap-2">
-              <span className="px-2 py-0.5 rounded text-[9px] font-bold bg-indigo-100 text-indigo-700 border border-indigo-200 uppercase tracking-wider">
-                {project.primaryServiceType}
-              </span>
-              <select
-                value={
-                  displayStatus === 'completed'
-                    ? 'completed'
-                    : displayStatus === 'ready_to_deliver'
-                    ? 'ready_to_deliver'
-                    : 'running'
-                }
-                onChange={(e) => {
-                  onUpdateProject({
-                    ...project,
-                    status: e.target.value as ProjectStatus,
-                  });
-                }}
-                className={`px-2 py-0.5 rounded text-[10px] font-extrabold uppercase tracking-wider cursor-pointer border outline-none shadow-2xs ${
-                  displayStatus === 'ready_to_deliver'
-                    ? 'bg-emerald-100 text-emerald-800 border-emerald-300 hover:bg-emerald-200'
-                    : displayStatus === 'completed'
-                    ? 'bg-purple-100 text-purple-800 border-purple-300 hover:bg-purple-200'
-                    : 'bg-indigo-100 text-indigo-800 border-indigo-300 hover:bg-indigo-200'
-                }`}
-                title="Auto-tracked from project tasks & work status"
-              >
-                <option value="running" className="bg-white text-slate-900 font-bold">
-                  🏃 RUNNING
-                </option>
-                <option value="completed" className="bg-white text-slate-900 font-bold">
-                  ✓ COMPLETED
-                </option>
-                <option value="ready_to_deliver" className="bg-white text-slate-900 font-bold">
-                  🚚 DELIVERED
-                </option>
-              </select>
+        <div className="shrink-0 border-b border-[#e7dcd6] bg-[linear-gradient(120deg,#fffdfb,#faf5f3)] px-4 py-4 sm:px-6">
+          <div className="mb-4 flex items-center justify-between border-b border-[#eee5e0] pb-3">
+            <button onClick={onClose} className="flex items-center gap-2 rounded-xl border border-[#ded5cf] bg-white px-4 py-2.5 text-sm font-extrabold text-[#6d2f45] shadow-sm transition hover:-translate-x-0.5 hover:bg-rose-50" title="Back to projects"><ArrowLeft className="size-5"/><span>{variant === 'page' ? 'Back to Projects' : 'Close Project'}</span></button>
+            <span className="hidden items-center gap-2 text-xs font-bold text-slate-400 sm:flex"><FolderKanban className="size-4"/>Project Workspace</span>
+          </div>
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-black uppercase tracking-wider text-rose-800">{project.primaryServiceType}</span>
+              <div className="relative">
+                <button type="button" onClick={() => setShowStatusMenu((open) => !open)} aria-expanded={showStatusMenu} className={`flex min-w-44 items-center justify-between gap-3 rounded-xl border px-3 py-2 text-sm font-black ${displayStatus === 'ready_to_deliver' ? 'border-emerald-300 bg-emerald-50 text-emerald-800' : displayStatus === 'completed' ? 'border-purple-300 bg-purple-50 text-purple-800' : 'border-rose-300 bg-rose-50 text-rose-800'}`}><span className="flex items-center gap-2">{displayStatus === 'ready_to_deliver' ? <Truck className="size-4"/> : displayStatus === 'completed' ? <CheckCircle2 className="size-4"/> : <Clock className="size-4"/>}{displayStatus === 'ready_to_deliver' ? 'Delivered' : displayStatus === 'completed' ? 'Completed' : 'Running'}</span><ChevronDown className={`size-4 transition ${showStatusMenu ? 'rotate-180' : ''}`}/></button>
+                {showStatusMenu && <div className="absolute left-0 top-full z-40 mt-2 w-56 overflow-hidden rounded-2xl border border-[#ded5cf] bg-white p-1.5 shadow-2xl">{[
+                  { value: 'running', label: 'Running', note: 'Work is in progress', icon: Clock, tone: 'text-rose-700' },
+                  { value: 'completed', label: 'Completed', note: 'All project work finished', icon: CheckCircle2, tone: 'text-purple-700' },
+                  { value: 'ready_to_deliver', label: 'Delivered', note: 'Sent or handed to client', icon: Truck, tone: 'text-emerald-700' },
+                ].map(({value,label,note,icon:Icon,tone}) => <button type="button" key={value} onClick={() => { onUpdateProject({...project,status:value as ProjectStatus}); setShowStatusMenu(false); }} className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left hover:bg-rose-50"><Icon className={`size-5 ${tone}`}/><span><strong className="block text-sm text-slate-800">{label}</strong><small className="text-xs text-slate-500">{note}</small></span>{((displayStatus === 'ready_to_deliver' ? 'ready_to_deliver' : displayStatus === 'completed' ? 'completed' : 'running') === value) && <CheckCircle2 className="ml-auto size-4 text-emerald-600"/>}</button>)}</div>}
+              </div>
             </div>
-            <h2 className="text-lg font-bold text-slate-900">
-              {project.clientWeddingTitle}
-            </h2>
-            <p className="text-xs text-slate-500 flex items-center gap-3">
-              <span className="flex items-center gap-1"><Phone className="w-3 h-3 text-indigo-600" /> {project.clientContactMobile}</span>
-              <span>•</span>
-              <span className="flex items-center gap-1"><MapPin className="w-3 h-3 text-indigo-600" /> {project.venueLocation}</span>
-            </p>
+            <h2 className="mt-3 truncate text-2xl font-black tracking-tight text-slate-900 sm:text-3xl">{project.clientWeddingTitle}</h2>
+            <div className="mt-2 flex flex-wrap items-center gap-x-5 gap-y-2 text-sm font-semibold text-slate-600"><span className="flex items-center gap-2"><Phone className="size-4 text-[#9b4865]" />{project.clientContactMobile || 'Contact not added'}</span><span className="flex items-center gap-2"><MapPin className="size-4 text-[#9b4865]" />{project.venueLocation || 'Venue not added'}</span></div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             {!isVideoEditor && (
               <button
                 onClick={() => onGenerateInvoice(project)}
-                className="px-3 py-1.5 rounded bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold text-xs uppercase tracking-wider border border-indigo-200 transition flex items-center gap-1.5"
+                className="flex items-center gap-2 rounded-xl border border-rose-200 bg-white px-4 py-2.5 text-sm font-extrabold text-[#6d2f45] shadow-sm transition hover:bg-rose-50"
               >
-                <FileText className="w-3.5 h-3.5" />
-                <span>Invoice / Receipt</span>
+                <FileText className="size-5" />
+                <span>Create Invoice / Receipt</span>
               </button>
             )}
 
             {!isVideoEditor && onDeleteProject && (
               <button
                 onClick={() => setShowDeleteConfirm(true)}
-                className="p-1.5 rounded bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 transition"
+                className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2.5 text-sm font-bold text-red-600 transition hover:bg-red-100"
                 title="Delete Project"
               >
-                <Trash2 className="w-4 h-4" />
+                <Trash2 className="size-5" /><span className="hidden sm:inline">Delete</span>
               </button>
             )}
-
-            <button
-              onClick={onClose}
-              className="flex items-center gap-1.5 rounded-lg border border-slate-200 px-2.5 py-1.5 text-slate-500 transition hover:bg-slate-100 hover:text-slate-800"
-              title={variant === 'page' ? 'Back to projects' : 'Close project details'}
-            >
-              {variant === 'page' ? <><ArrowLeft className="h-4 w-4" /><span className="hidden text-xs font-bold sm:inline">Projects</span></> : <X className="h-4 w-4" />}
-            </button>
+          </div>
           </div>
         </div>
 
@@ -1397,7 +1367,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
                         className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-xs flex items-center gap-1 shadow-xs transition cursor-pointer"
                       >
                         <Plus className="w-3.5 h-3.5" />
-                        <span>+ Add Milestone</span>
+                        <span>Add Milestone</span>
                       </button>
                     </div>
                   </div>
@@ -2117,7 +2087,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
                     className="px-3 py-1.5 rounded bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs uppercase tracking-wider flex items-center gap-1 shadow-xs"
                   >
                     <Plus className="w-3.5 h-3.5" />
-                    <span>+ Add Task</span>
+                    <span>Add Task</span>
                   </button>
                   <button
                     type="button"
@@ -2279,7 +2249,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
                   className="px-3 py-1.5 rounded bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs uppercase tracking-wider flex items-center gap-1.5 shadow-xs transition"
                 >
                   <Plus className="w-3.5 h-3.5 stroke-[3]" />
-                  <span>+ Add Shoot Event</span>
+                  <span>Add Shoot Event</span>
                 </button>
               </div>
 
@@ -3104,7 +3074,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
                           {addingCrewShootId === s.id && (
                             <div className="p-3 bg-emerald-50/80 rounded-lg border border-emerald-200 space-y-2.5">
                               <div className="flex items-center justify-between">
-                                <span className="text-xs font-black text-emerald-900 uppercase tracking-wide">+ Add Team Member / Slot to Event</span>
+                                <span className="text-xs font-black text-emerald-900 uppercase tracking-wide">Add Team Member / Slot to Event</span>
                                 <button
                                   type="button"
                                   onClick={() => setAddingCrewShootId(null)}

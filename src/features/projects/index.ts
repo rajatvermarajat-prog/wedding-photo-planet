@@ -1,4 +1,4 @@
-export { ProjectsManager } from './components/ProjectsManager';
+export { ProjectsManager } from './components/ProjectsManagerFriendly';
 export { ProjectFormModal } from './components/ProjectFormModal';
 export { ProjectDetailModal } from './components/ProjectDetailModal';
 export { InvoiceModal } from './components/InvoiceModal';

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Project, PaymentRecord } from '@/types';
+import { useToast } from '@/components/common';
 import { 
   X, 
   Search, 
@@ -42,6 +43,7 @@ export const AllPaymentsModal: React.FC<AllPaymentsModalProps> = ({
   onSelectProject,
 }) => {
   if (!isOpen) return null;
+  const { showToast } = useToast();
 
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'due' | 'paid'>('all');
@@ -81,7 +83,7 @@ export const AllPaymentsModal: React.FC<AllPaymentsModalProps> = ({
     const file = e.target.files?.[0];
     if (!file) return;
     if (file.size > 5 * 1024 * 1024) {
-      alert('Image size must be under 5MB');
+      showToast('Image size must be under 5MB.', { variant: 'error' });
       return;
     }
     const reader = new FileReader();

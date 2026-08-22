@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useCallback, useContext, useRef, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { CheckCircle2, RotateCcw, TriangleAlert, X } from 'lucide-react';
 
 interface ToastAction {
@@ -61,14 +61,20 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
     }
   }, [dismiss]);
 
+  useEffect(() => {
+    const nativeAlert = window.alert;
+    window.alert = (message?: unknown) => showToast(String(message ?? ''), { durationMs: 5000 });
+    return () => { window.alert = nativeAlert; };
+  }, [showToast]);
+
   return (
     <ToastContext.Provider value={{ showToast }}>
       {children}
-      <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end gap-2">
+      <div className="pointer-events-none fixed right-4 top-4 z-[100] flex w-[calc(100vw-2rem)] max-w-[30rem] flex-col items-stretch gap-2 sm:right-6 sm:top-6">
         {toasts.map((t) => (
           <div
             key={t.id}
-            className={`flex items-center gap-3 rounded-2xl border px-4 py-3 shadow-2xl backdrop-blur-md text-xs animate-in fade-in slide-in-from-bottom-2 duration-200 ${
+            className={`pointer-events-auto flex items-center gap-3 rounded-2xl border px-4 py-3 text-sm shadow-2xl backdrop-blur-md animate-in fade-in slide-in-from-top-2 duration-200 ${
               t.variant === 'error'
                 ? 'bg-red-950/95 border-red-800 text-red-50'
                 : 'bg-slate-900/95 border-slate-700 text-white'
