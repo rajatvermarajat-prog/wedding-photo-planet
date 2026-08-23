@@ -20,6 +20,7 @@ import {
   UsersRound,
 } from 'lucide-react';
 import { Badge, BTN_CREAM, BTN_GHOST, BTN_PRIMARY, CARD, EmptyState, FIELD, KpiCard } from '@/features/team/components/TeamUiKit';
+import { usePermission } from '@/features/access';
 
 interface ClientsDirectoryViewProps {
   projects: Project[];
@@ -60,6 +61,9 @@ export const ClientsDirectoryView: React.FC<ClientsDirectoryViewProps> = ({
   onOpenClient,
   onAddClient,
 }) => {
+  const { can } = usePermission();
+  const canAdd = can('clients.create') || can('weddings.create');
+  const canSeePay = can('finance.view_payments');
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<ClientFilter>('all');
   const today = new Date().toISOString().split('T')[0];
@@ -153,10 +157,12 @@ export const ClientsDirectoryView: React.FC<ClientsDirectoryViewProps> = ({
               Wedding couples, package balances, upcoming shoots, and delivery status — from your existing booked projects.
             </p>
           </div>
+          {canAdd && (
           <button type="button" onClick={onAddClient} className={BTN_CREAM}>
             <UserPlus className="size-4" />
             Add Client
           </button>
+          )}
         </div>
       </section>
 
@@ -164,7 +170,11 @@ export const ClientsDirectoryView: React.FC<ClientsDirectoryViewProps> = ({
         <KpiCard label="Total Clients" value={stats.total} hint="Booked wedding families" icon={Heart} tone="rose" onClick={() => setFilter('all')} active={filter === 'all'} />
         <KpiCard label="Active Work" value={stats.running} hint="Running and pending projects" icon={Clock3} tone="amber" onClick={() => setFilter('running')} active={filter === 'running'} />
         <KpiCard label="Upcoming Shoots" value={stats.upcoming} hint="Clients with a date ahead" icon={CalendarDays} tone="blue" onClick={() => setFilter('upcoming')} active={filter === 'upcoming'} />
+        {canSeePay ? (
         <KpiCard label="Balance Due" value={money(stats.due)} hint={`${money(stats.received)} collected of ${money(stats.package)}`} icon={IndianRupee} tone="red" onClick={() => setFilter('balance')} active={filter === 'balance'} />
+        ) : (
+        <KpiCard label="Completed" value={stats.completed || 0} hint="Delivered weddings" icon={CheckCircle2} tone="emerald" onClick={() => setFilter('completed')} active={filter === 'completed'} />
+        )}
       </div>
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
@@ -278,9 +288,11 @@ export const ClientsDirectoryView: React.FC<ClientsDirectoryViewProps> = ({
                     Clear filters
                   </button>
                 )}
+                {canAdd && (
                 <button type="button" onClick={onAddClient} className={BTN_PRIMARY}>
                   <UserPlus className="size-3.5" /> Add Client
                 </button>
+                )}
               </div>
             }
           />
@@ -365,6 +377,7 @@ export const ClientsDirectoryView: React.FC<ClientsDirectoryViewProps> = ({
                     </div>
                   </div>
 
+                  {canSeePay && (
                   <div className="mt-3 grid grid-cols-3 text-center">
                     <div>
                       <p className="text-[9px] font-black uppercase text-slate-400">Package</p>
@@ -379,6 +392,8 @@ export const ClientsDirectoryView: React.FC<ClientsDirectoryViewProps> = ({
                       <p className="mt-1 text-xs font-black text-red-600">{money(project.balanceDue)}</p>
                     </div>
                   </div>
+                  )}
+                  {canSeePay && (
                   <div className="mt-3">
                     <div className="flex justify-between text-[10px] font-bold text-slate-500">
                       <span>Payment collection</span>
@@ -388,6 +403,7 @@ export const ClientsDirectoryView: React.FC<ClientsDirectoryViewProps> = ({
                       <div className="h-full rounded-full bg-emerald-600" style={{ width: `${Math.min(100, collection)}%` }} />
                     </div>
                   </div>
+                  )}
                 </button>
                 <footer className="flex items-center justify-between border-t border-[#eee7e2] bg-[#fbfaf8] px-4 py-3">
                   <button type="button" onClick={() => onOpenClient(project)} className={BTN_PRIMARY}>

@@ -1706,7 +1706,7 @@ interface RoleDashboardsProps {
   onOpenNewProjectModal?: () => void;
   onSaveProject?: (project: Project) => void;
   onOpenAllPaymentsModal?: () => void;
-  setActiveTab?: (tab: 'dashboard' | 'projects' | 'shoots' | 'data' | 'team' | 'deliveries' | 'leads' | 'owner_workspace' | 'roles') => void;
+  setActiveTab?: (tab: string) => void;
   currentUser?: TeamMember | { id: string; name: string; role: string; email: string } | null;
 }
 

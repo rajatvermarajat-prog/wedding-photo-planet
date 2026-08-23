@@ -3,35 +3,42 @@
 import React, { createContext, useContext, useMemo } from 'react';
 import { AccessRole, AccessUser, PermissionScope } from './accessTypes';
 import { hasPermission, resolveAccessRole } from './accessDomain';
+import { savePermissionRoles } from './permissionStore';
+import { usePermissionRoles } from './usePermissionRoles';
 
 interface PermissionContextValue {
   user: AccessUser | null;
   roles: AccessRole[];
   can: (key: string, scope?: PermissionScope) => boolean;
   role?: AccessRole;
+  saveRoles: (roles: AccessRole[]) => void;
 }
 
 const PermissionContext = createContext<PermissionContextValue>({
   user: null,
   roles: [],
   can: () => false,
+  saveRoles: savePermissionRoles,
 });
 
 export function PermissionProvider({
   user,
-  roles,
+  roles: rolesProp,
   children,
 }: {
   user: AccessUser | null;
-  roles: AccessRole[];
+  roles?: AccessRole[];
   children: React.ReactNode;
 }) {
+  const [storeRoles] = usePermissionRoles();
+  const roles = rolesProp || storeRoles;
   const value = useMemo<PermissionContextValue>(() => {
     const role = resolveAccessRole(user, roles);
     return {
       user,
       roles,
       role,
+      saveRoles: savePermissionRoles,
       can: (key, scope) => hasPermission(user, roles, key, scope),
     };
   }, [user, roles]);

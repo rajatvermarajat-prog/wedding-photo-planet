@@ -6,10 +6,13 @@ export {
   mergeAccessRoles,
   resolveAccessRole,
   hasPermission,
+  hasAnyPermission,
   enabledCount,
   ACCESS_STORAGE_ROLES,
   ACCESS_STORAGE_AUDIT,
 } from './accessDomain';
 export { PermissionProvider, PermissionGuard, RoleGuard, Can, usePermission, useRole } from './accessGuards';
 export { TAB_PERMISSIONS } from './navPermissions';
+export { usePermissionRoles } from './usePermissionRoles';
+export { savePermissionRoles, loadPermissionRoles, PERMISSION_STORAGE_KEY } from './permissionStore';
 export { RolesPermissionsManager } from './components/RolesPermissionsManager';

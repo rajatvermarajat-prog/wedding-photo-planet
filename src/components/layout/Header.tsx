@@ -55,11 +55,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'dashboard' as TabType, label: 'Dashboard', icon: LayoutDashboard },
     { id: 'owner_workspace' as TabType, label: 'Owner Workspace', icon: Crown },
     { id: 'equipment' as TabType, label: 'Equipment Inventory', icon: Camera },
-    ...(!isOwner ? [{ id: 'roles' as TabType, label: 'Role Workspaces', icon: Briefcase }] : []),
+    ...(!isOwner ? [{ id: 'roles' as TabType, label: 'My Desk', icon: Briefcase }] : []),
     { id: 'leads' as TabType, label: 'Leads & Inquiries', icon: Target },
-    { id: 'projects' as TabType, label: 'Projects', icon: FolderKanban },
-    { id: 'shoots' as TabType, label: 'Shoot Management', icon: Film },
-    { id: 'expenses' as TabType, label: 'Expenses', icon: Banknote },
+    { id: 'projects' as TabType, label: 'Weddings', icon: FolderKanban },
+    { id: 'shoots' as TabType, label: 'Events / Shoots', icon: Film },
+    { id: 'expenses' as TabType, label: 'Finance', icon: Banknote },
+    { id: 'deliveries' as TabType, label: 'Media', icon: CheckCircle2 },
     { id: 'data' as TabType, label: 'Data Management', icon: HardDrive },
     { id: 'team' as TabType, label: 'Team & Attendance', icon: Users },
     { id: 'freelancers' as TabType, label: 'Freelancer Team', icon: UserCheck },
@@ -170,7 +171,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               className="sidebar-switch w-full py-2 px-3 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-xs font-bold flex items-center justify-center gap-2 border border-slate-700 transition"
             >
               <LogOut className="w-3.5 h-3.5 text-indigo-400" />
-              <span>Switch Account / Logout</span>
+              <span>Logout</span>
             </button>
           )}
 
@@ -241,7 +242,7 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
   const showProjectFilters = activeTab === 'projects' || activeTab === 'deliveries';
   const pageTitles: Record<TabType, string> = {
     dashboard: 'Studio Dashboard',
-    roles: 'Role Workspaces',
+    roles: 'My Desk',
     projects: 'Projects',
     shoots: 'Shoot Management',
     expenses: 'Expense Management',

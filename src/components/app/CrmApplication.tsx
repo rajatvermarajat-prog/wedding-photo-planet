@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { 
   Project, 
@@ -39,7 +39,7 @@ import { OwnerDashboard } from '@/features/dashboard';
 import { OwnerWorkspace } from '@/features/owner';
 import { EquipmentInventory } from '@/features/equipment';
 import { LeadsManagement } from '@/features/leads';
-import { RoleDashboards } from '@/features/workspaces';
+import { RoleWorkspaceHub, canAccessProject, visibleProjects } from '@/features/workspaces';
 import {
   ProjectsManager,
   ProjectFormModal,
@@ -54,14 +54,14 @@ import { DeliveriesManager } from '@/features/deliveries';
 import { FreelancerTeamManager } from '@/features/freelancers';
 import {
   ACCESS_STORAGE_AUDIT,
-  ACCESS_STORAGE_ROLES,
+  hasAnyPermission,
   hasPermission,
-  mergeAccessRoles,
   PermissionProvider,
   RolesPermissionsManager,
   TAB_PERMISSIONS,
+  usePermissionRoles,
 } from '@/features/access';
-import type { AccessAuditEntry, AccessRole } from '@/features/access';
+import type { AccessAuditEntry } from '@/features/access';
 import { ExpenseManagement } from '@/features/expenses';
 import { expenseService } from '@/features/expenses/services/expenseService';
 import type { Expense } from '@/features/expenses/types';
@@ -89,14 +89,24 @@ const ROUTE_TABS = Object.fromEntries(
   Object.entries(TAB_ROUTES).map(([tab, route]) => [route, tab])
 ) as Record<string, TabType>;
 
+function AccessDenied() {
+  return (
+    <div className="mx-auto my-12 max-w-xl rounded-3xl border border-[#eee7e2] bg-white p-8 text-center shadow-xl sm:p-12">
+      <div className="mx-auto flex size-16 items-center justify-center rounded-2xl bg-rose-50 text-[#8f3655]">
+        <ShieldAlert className="size-8" />
+      </div>
+      <h3 className="mt-5 text-2xl font-black text-slate-900">You don&apos;t have permission to access this section.</h3>
+      <p className="mt-2 text-sm font-medium text-slate-500">Ask an Admin to update your role in Roles &amp; Permissions.</p>
+    </div>
+  );
+}
+
 export default function App() {
   const router = useRouter();
   const pathname = usePathname();
   const { currentUser, isHydrated, login, logout } = useAuthSession();
 
   const [showLoginModal, setShowLoginModal] = useState<boolean>(false);
-
-  const isFullAdmin = currentUser?.role === 'Owner' || currentUser?.role === 'Studio Manager' || currentUser?.role === 'Manager' || currentUser?.role === 'Account Manager';
 
   // Load initial state with localStorage persistence
   const [projects, setProjects] = useState<Project[]>(() => {
@@ -116,14 +126,7 @@ export default function App() {
     return INITIAL_TEAM;
   });
 
-  const [accessRoles, setAccessRoles] = useState<AccessRole[]>(() => {
-    try {
-      const saved = localStorage.getItem(ACCESS_STORAGE_ROLES);
-      return mergeAccessRoles(saved ? JSON.parse(saved) : null);
-    } catch {
-      return mergeAccessRoles(null);
-    }
-  });
+  const [accessRoles, setAccessRoles] = usePermissionRoles();
 
   const [accessAudit, setAccessAudit] = useState<AccessAuditEntry[]>(() => {
     try {
@@ -295,10 +298,6 @@ export default function App() {
   }, [freelancerActivityLogs]);
 
   useEffect(() => {
-    localStorage.setItem(ACCESS_STORAGE_ROLES, JSON.stringify(accessRoles));
-  }, [accessRoles]);
-
-  useEffect(() => {
     localStorage.setItem(ACCESS_STORAGE_AUDIT, JSON.stringify(accessAudit));
   }, [accessAudit]);
 
@@ -318,19 +317,29 @@ export default function App() {
     else if (pathname.startsWith('/projects/')) setActiveTabState('projects');
   }, [pathname]);
 
-  const isEditor = currentUser?.role === 'Video Editor' || 
-                   currentUser?.role === 'Photo Editor' || 
-                   currentUser?.role === 'Cinematographer' || 
-                   currentUser?.role === 'Lead Photographer' || 
-                   (!!currentUser?.role && currentUser.role.toLowerCase().includes('editor'));
-
   const canAccessTab = useCallback(
     (tab: TabType) => {
+      if (tab === 'owner_workspace' || tab === 'equipment') {
+        return currentUser?.role === 'Owner';
+      }
       const key = TAB_PERMISSIONS[tab];
       if (!key) return true;
-      return hasPermission(currentUser, accessRoles, key);
+      return hasAnyPermission(currentUser, accessRoles, key);
     },
     [currentUser, accessRoles]
+  );
+
+  const scopedWeddings = useMemo(
+    () => visibleProjects(projects, currentUser, accessRoles, 'weddings.view'),
+    [projects, currentUser, accessRoles]
+  );
+  const scopedClients = useMemo(
+    () => visibleProjects(projects, currentUser, accessRoles, 'clients.view'),
+    [projects, currentUser, accessRoles]
+  );
+  const scopedShoots = useMemo(
+    () => visibleProjects(projects, currentUser, accessRoles, 'shoots.view'),
+    [projects, currentUser, accessRoles]
   );
 
   useEffect(() => {
@@ -340,7 +349,7 @@ export default function App() {
       return;
     }
     if (!canAccessTab(activeTab)) {
-      const fallback = (['dashboard', 'leads', 'projects', 'shoots', 'roles'] as TabType[]).find((tab) => canAccessTab(tab));
+      const fallback = (['roles', 'dashboard', 'leads', 'projects', 'shoots'] as TabType[]).find((tab) => canAccessTab(tab));
       if (fallback) setActiveTab(fallback);
     }
   }, [currentUser, activeTab, canAccessTab, setActiveTab]);
@@ -365,18 +374,19 @@ export default function App() {
   const routedProject = routedProjectId
     ? projects.find((project) => project.id === routedProjectId) || null
     : null;
+  const canOpenRoutedProject = !!(routedProject && canAccessProject(currentUser, accessRoles, routedProject));
   const isNewProjectPage = pathname === '/projects/new';
   const isScheduleShootPage = pathname === '/shoots/schedule';
   const isRecordPaymentPage = pathname === '/payments/new';
 
   // Status counts for Header & Filters
   const counts = {
-    total: projects.length,
-    running: projects.filter((p) => p.status === 'running').length,
-    completed: projects.filter((p) => p.status === 'completed').length,
-    readyToDeliver: projects.filter((p) => p.status === 'ready_to_deliver').length,
-    pending: projects.filter((p) => p.status === 'pending').length,
-    urgent: projects.filter((p) => p.status === 'urgent').length,
+    total: scopedWeddings.length,
+    running: scopedWeddings.filter((p) => p.status === 'running').length,
+    completed: scopedWeddings.filter((p) => p.status === 'completed').length,
+    readyToDeliver: scopedWeddings.filter((p) => p.status === 'ready_to_deliver').length,
+    pending: scopedWeddings.filter((p) => p.status === 'pending').length,
+    urgent: scopedWeddings.filter((p) => p.status === 'urgent').length,
   };
 
   // Authentication Handlers
@@ -384,8 +394,9 @@ export default function App() {
     login(user);
     setShowLoginModal(false);
     
-    // Non-admin roles automatically open their role workspace
-    if (user.role !== 'Owner' && user.role !== 'Studio Manager' && user.role !== 'Manager' && user.role !== 'Account Manager') {
+    if (user.role === 'Owner') {
+      setActiveTab('dashboard');
+    } else {
       setActiveTab('roles');
     }
   };
@@ -707,6 +718,7 @@ export default function App() {
         {/* Scrollable Canvas Area */}
         <div className="crm-canvas min-h-0 flex-1 space-y-6 overflow-y-auto p-4 sm:p-6">
           {isNewProjectPage ? (
+            hasPermission(currentUser, accessRoles, 'weddings.create') ? (
             <ProjectFormModal
               isOpen
               variant="page"
@@ -715,25 +727,37 @@ export default function App() {
               existingProject={null}
               team={team}
             />
+            ) : (
+              <AccessDenied />
+            )
           ) : isScheduleShootPage ? (
+            hasPermission(currentUser, accessRoles, 'shoots.create') ? (
             <ScheduleShootModal
               isOpen
               variant="page"
               onClose={() => router.push('/dashboard')}
-              projects={projects}
+              projects={scopedShoots}
               onUpdateProject={handleUpdateProject}
               team={team}
             />
+            ) : (
+              <AccessDenied />
+            )
           ) : isRecordPaymentPage ? (
+            hasPermission(currentUser, accessRoles, 'finance.record_payment') || hasPermission(currentUser, accessRoles, 'finance.view_payments') ? (
             <AllPaymentsModal
               isOpen
               variant="page"
               onClose={() => router.push('/dashboard')}
-              projects={projects}
+              projects={scopedWeddings}
               onUpdateProject={handleUpdateProject}
               onSelectProject={handleSelectProject}
             />
+            ) : (
+              <AccessDenied />
+            )
           ) : routedProject ? (
+            canOpenRoutedProject ? (
             <ProjectDetailModal
               variant="page"
               project={routedProject}
@@ -741,26 +765,35 @@ export default function App() {
                 setSelectedProjectRole(undefined);
                 router.push('/projects');
               }}
-              onUpdateProject={handleUpdateProject}
-              onGenerateInvoice={(project) => setSelectedProjectForInvoice(project)}
-              onDeleteProject={handleDeleteProject}
+              onUpdateProject={hasPermission(currentUser, accessRoles, 'weddings.edit') ? handleUpdateProject : () => undefined}
+              onGenerateInvoice={(project) => {
+                if (hasPermission(currentUser, accessRoles, 'finance.view_invoices')) setSelectedProjectForInvoice(project);
+              }}
+              onDeleteProject={hasPermission(currentUser, accessRoles, 'weddings.delete') ? handleDeleteProject : () => undefined}
               team={team}
               currentUser={currentUser}
               userRole={selectedProjectRole || currentUser?.role}
             />
+            ) : (
+              <AccessDenied />
+            )
           ) : (
           <>
           
           {/* Tab 1: Main Dashboard */}
           {activeTab === 'dashboard' && (
             <OwnerDashboard
-              projects={projects}
+              projects={scopedWeddings}
               onSelectProject={(project) => handleSelectProject(project)}
               onOpenNewProjectModal={() => {
-                router.push('/projects/new');
+                if (hasPermission(currentUser, accessRoles, 'weddings.create')) router.push('/projects/new');
               }}
-              onUpdateProject={handleUpdateProject}
-              onOpenAllPaymentsModal={() => router.push('/payments/new')}
+              onUpdateProject={hasPermission(currentUser, accessRoles, 'weddings.edit') ? handleUpdateProject : () => undefined}
+              onOpenAllPaymentsModal={() => {
+                if (hasPermission(currentUser, accessRoles, 'finance.view_payments') || hasPermission(currentUser, accessRoles, 'finance.record_payment')) {
+                  router.push('/payments/new');
+                }
+              }}
               setActiveTab={setActiveTab}
               onProjectStatusNavigate={(status) => {
                 setStatusFilter(status);
@@ -796,11 +829,12 @@ export default function App() {
 
           {/* Tab 2: Role Workspaces & Distinct Dashboards */}
           {activeTab === 'roles' && (
-            <RoleDashboards
+            <RoleWorkspaceHub
               team={team}
               projects={projects}
               attendance={attendance}
               tasks={tasks}
+              payments={freelancerPayments}
               onUpdateTeamMember={handleUpdateTeamMember}
               onRecordAttendance={handleRecordAttendance}
               onUpdateAttendance={handleUpdateAttendance}
@@ -809,11 +843,14 @@ export default function App() {
               onDeleteTask={handleDeleteTask}
               onSelectProject={(project, role) => handleSelectProject(project, role)}
               onOpenNewProjectModal={() => {
+                if (!hasPermission(currentUser, accessRoles, 'weddings.create')) return;
                 setEditingProject(null);
                 setIsFormModalOpen(true);
               }}
               onSaveProject={handleSaveProject}
-              onOpenAllPaymentsModal={() => setIsAllPaymentsModalOpen(true)}
+              onOpenAllPaymentsModal={() => {
+                if (hasPermission(currentUser, accessRoles, 'finance.view_payments')) setIsAllPaymentsModalOpen(true);
+              }}
               setActiveTab={setActiveTab}
               currentUser={currentUser}
             />
@@ -822,22 +859,28 @@ export default function App() {
           {/* Tab 2: Projects / Client Project Management */}
           {activeTab === 'projects' && (
             <ProjectsManager
-              projects={projects}
+              projects={scopedWeddings}
               statusFilter={statusFilter}
               setStatusFilter={setStatusFilter}
               onSelectProject={(project) => handleSelectProject(project, currentUser?.role)}
               onUpdateProject={handleUpdateProject}
               onEditProject={(project) => {
+                if (!hasPermission(currentUser, accessRoles, 'weddings.edit')) return;
                 setEditingProject(project);
                 setIsFormModalOpen(true);
               }}
-              onDeleteProject={handleDeleteProject}
+              onDeleteProject={hasPermission(currentUser, accessRoles, 'weddings.delete') ? handleDeleteProject : () => undefined}
               onOpenNewProjectModal={() => {
+                if (!hasPermission(currentUser, accessRoles, 'weddings.create')) return;
                 setEditingProject(null);
                 setIsFormModalOpen(true);
               }}
-              onOpenAllPaymentsModal={() => setIsAllPaymentsModalOpen(true)}
-              onGenerateInvoice={(project) => setSelectedProjectForInvoice(project)}
+              onOpenAllPaymentsModal={() => {
+                if (hasPermission(currentUser, accessRoles, 'finance.view_payments')) setIsAllPaymentsModalOpen(true);
+              }}
+              onGenerateInvoice={(project) => {
+                if (hasPermission(currentUser, accessRoles, 'finance.view_invoices')) setSelectedProjectForInvoice(project);
+              }}
               currentUser={currentUser}
               userRole={currentUser?.role}
             />
@@ -846,7 +889,7 @@ export default function App() {
           {/* Tab 3: Shoot Management */}
           {activeTab === 'shoots' && (
             <ShootManagement
-              projects={projects}
+              projects={scopedShoots}
               onUpdateProject={handleUpdateProject}
               onSelectProject={(project) => handleSelectProject(project)}
               team={team}
@@ -855,7 +898,7 @@ export default function App() {
 
           {activeTab === 'expenses' && (
             <ExpenseManagement
-              projects={projects}
+              projects={scopedWeddings}
               freelancers={freelancers.map((freelancer) => ({ id: freelancer.id, name: freelancer.name, role: freelancer.mainCategory }))}
               currentUser={currentUser}
             />
@@ -863,9 +906,9 @@ export default function App() {
 
           {/* Tab 4: Data Management */}
           {activeTab === 'data' && (
-            isFullAdmin ? (
+            hasPermission(currentUser, accessRoles, 'settings.view') ? (
               <DataManagement
-                projects={projects}
+                projects={scopedWeddings}
                 onUpdateProject={handleUpdateProject}
                 onSelectProject={(project) => handleSelectProject(project)}
               />
@@ -894,11 +937,11 @@ export default function App() {
 
           {/* Tab 5: Team & Attendance */}
           {activeTab === 'team' && (
-            isFullAdmin ? (
+            hasPermission(currentUser, accessRoles, 'employees.view') ? (
               <TeamAttendance
                 team={team}
                 attendance={attendance}
-                projects={projects}
+                projects={scopedWeddings}
                 tasks={tasks}
                 onAddTeamMember={handleAddTeamMember}
                 onUpdateTeamMember={handleUpdateTeamMember}
@@ -945,7 +988,7 @@ export default function App() {
           {/* Tab 6: Deliveries */}
           {activeTab === 'deliveries' && (
             <DeliveriesManager
-              projects={projects}
+              projects={scopedWeddings}
               onUpdateProject={handleUpdateProject}
               onSelectProject={(project) => handleSelectProject(project)}
             />
@@ -1000,9 +1043,10 @@ export default function App() {
 
           {activeTab === 'clients' && (
             <ClientsDirectoryView
-              projects={projects}
+              projects={scopedClients}
               onOpenClient={(project) => handleSelectProject(project, currentUser?.role)}
               onAddClient={() => {
+                if (!hasPermission(currentUser, accessRoles, 'clients.create') && !hasPermission(currentUser, accessRoles, 'weddings.create')) return;
                 setEditingProject(null);
                 setIsFormModalOpen(true);
               }}
@@ -1044,7 +1088,7 @@ export default function App() {
       )}
       
       {/* Add / Edit Project Form Modal */}
-      {isFormModalOpen && (
+      {isFormModalOpen && (hasPermission(currentUser, accessRoles, editingProject ? 'weddings.edit' : 'weddings.create') || hasPermission(currentUser, accessRoles, 'clients.create')) && (
         <ProjectFormModal
           isOpen
           onClose={() => {
@@ -1058,7 +1102,7 @@ export default function App() {
       )}
 
       {/* Invoice / Quotation Receipt Modal */}
-      {selectedProjectForInvoice && (
+      {selectedProjectForInvoice && hasPermission(currentUser, accessRoles, 'finance.view_invoices') && (
         <InvoiceModal
           project={selectedProjectForInvoice}
           onClose={() => setSelectedProjectForInvoice(null)}
@@ -1071,11 +1115,11 @@ export default function App() {
       )}
 
       {/* All Client Payments & Revenue Audit Modal */}
-      {isAllPaymentsModalOpen && (
+      {isAllPaymentsModalOpen && hasPermission(currentUser, accessRoles, 'finance.view_payments') && (
         <AllPaymentsModal
           isOpen
           onClose={() => setIsAllPaymentsModalOpen(false)}
-          projects={projects}
+          projects={scopedWeddings}
           onUpdateProject={handleUpdateProject}
           onSelectProject={(project) => {
             setIsAllPaymentsModalOpen(false);

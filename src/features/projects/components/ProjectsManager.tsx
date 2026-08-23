@@ -3,6 +3,7 @@ import { Project, ProjectStatus } from '@/types';
 import { computeAutoProjectStatus } from '@/utils/projectStatusCalculator';
 import { formatDateDDMMYYYY } from '@/utils/shootTracking';
 import { ConfirmDeleteModal } from '@/components/common/ConfirmDeleteModal';
+import { usePermission } from '@/features/access';
 import { 
   Search, 
   Plus, 
@@ -44,16 +45,10 @@ export const ProjectsManager: React.FC<ProjectsManagerProps> = ({
   currentUser,
   userRole,
 }) => {
-  const isVideoEditor = 
-    currentUser?.role === 'Video Editor' || 
-    currentUser?.role === 'Photo Editor' || 
-    userRole === 'Video Editor' || 
-    userRole === 'Photo Editor' || 
-    (currentUser?.role || userRole || '').toLowerCase().includes('editor');
-  const isSocialMediaHandler =
-    currentUser?.role === 'Social Media Handler' ||
-    userRole === 'Social Media Handler' ||
-    (currentUser?.role || userRole || '').toLowerCase().includes('social media');
+  const { can } = usePermission();
+  const canCreateWedding = can('weddings.create');
+  const canEditWedding = can('weddings.edit');
+  const canDeleteWedding = can('weddings.delete');
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedServiceType, setSelectedServiceType] = useState<string>('all');
   const [selectedMonth, setSelectedMonth] = useState<string>('all');
@@ -180,7 +175,7 @@ export const ProjectsManager: React.FC<ProjectsManagerProps> = ({
           </div>
 
           <div className="flex items-center gap-2 self-start sm:self-auto">
-            {!isSocialMediaHandler && !isVideoEditor && (
+            {canCreateWedding && (
               <button
                 onClick={onOpenNewProjectModal}
                 className="px-3.5 py-1.5 rounded bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs uppercase tracking-wider transition shadow-xs flex items-center gap-1.5"
@@ -319,12 +314,14 @@ export const ProjectsManager: React.FC<ProjectsManagerProps> = ({
       {filteredProjects.length === 0 ? (
         <div className="bg-white rounded-xl p-10 border border-slate-200 text-center space-y-2">
           <p className="text-slate-500 text-xs">No projects match the current filter or search query.</p>
+          {canCreateWedding && (
           <button
             onClick={onOpenNewProjectModal}
             className="px-3.5 py-1.5 rounded bg-indigo-600 text-white font-bold text-xs uppercase"
           >
-            + Create First Project
+            Create First Project
           </button>
+          )}
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -482,6 +479,7 @@ export const ProjectsManager: React.FC<ProjectsManagerProps> = ({
                     </a>
                   )}
 
+                  {canEditWedding && (
                   <button
                     onClick={() => onEditProject(project)}
                     className="p-1 rounded bg-white hover:bg-slate-100 text-slate-600 border border-slate-200 transition"
@@ -489,7 +487,9 @@ export const ProjectsManager: React.FC<ProjectsManagerProps> = ({
                   >
                     <Edit3 className="w-3.5 h-3.5" />
                   </button>
+                  )}
 
+                  {canDeleteWedding && (
                   <button
                     onClick={() => setProjectToDelete(project)}
                     className="p-1 rounded bg-white hover:bg-red-50 text-slate-400 hover:text-red-600 border border-slate-200 transition"
@@ -497,6 +497,7 @@ export const ProjectsManager: React.FC<ProjectsManagerProps> = ({
                   >
                     <Trash2 className="w-3.5 h-3.5" />
                   </button>
+                  )}
                 </div>
 
               </div>

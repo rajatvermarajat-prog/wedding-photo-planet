@@ -6,7 +6,7 @@ import { TeamMember } from '@/types';
 import { LoginHero } from './LoginHero';
 import { LoginFormCard } from './LoginFormCard';
 import { LoginToast } from './LoginToast';
-import { OWNER_USER } from './authConstants';
+import { DEMO_PANEL_USERS, OWNER_USER } from './authConstants';
 
 interface LoginScreenProps {
   team: TeamMember[];
@@ -25,7 +25,10 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ team, onLogin, onClose
   const [rememberMe, setRememberMe] = useState(true);
   const [isDark, setIsDark] = useState(false);
   const [message, setMessage] = useState<{ type: 'error' | 'info'; text: string } | null>(null);
-  const accounts = useMemo(() => [OWNER_USER, ...team], [team]);
+  const accounts = useMemo(() => {
+    const extras = DEMO_PANEL_USERS.filter((demo) => !team.some((member) => member.email === demo.email || member.id === demo.id));
+    return [OWNER_USER, ...extras, ...team];
+  }, [team]);
 
   useEffect(() => {
     const remembered = window.localStorage.getItem('wpp-remembered-account');

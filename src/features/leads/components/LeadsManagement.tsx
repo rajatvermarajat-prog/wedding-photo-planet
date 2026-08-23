@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { OwnerLead, LeadStatus, TeamMember, LeadQuotationFile, LeadActivityLog } from '@/types';
+import { usePermission } from '@/features/access';
 import { LeadFormModal } from './LeadFormModal';
 import { LeadsFilterBar } from './LeadsFilterBar';
 import { LeadsHeader } from './LeadsHeader';
@@ -217,6 +218,7 @@ interface LeadsManagementProps {
 }
 
 export const LeadsManagement: React.FC<LeadsManagementProps> = ({ currentUser }) => {
+  const { can, role } = usePermission();
   const [leads, setLeads] = useState<OwnerLead[]>(() => {
     const saved = localStorage.getItem('wpp_owner_crm_leads');
     if (saved) {
@@ -311,14 +313,8 @@ export const LeadsManagement: React.FC<LeadsManagementProps> = ({ currentUser })
   // User details & Role Determination
   const userName = currentUser?.name || 'Studio Owner';
   const userRole = currentUser?.role || 'Owner';
-  const isOwner =
-    userRole === 'Owner' ||
-    userRole === 'Studio Manager' ||
-    userRole === 'Manager' ||
-    userRole === 'Account Manager' ||
-    userRole === 'Sales Manager' ||
-    userRole === 'Accountant' ||
-    userName === 'Studio Owner';
+  const seeAllLeads = can('leads.view') && (role?.grants['leads.view']?.scope === 'all');
+  const isOwner = seeAllLeads || can('reports.view_sales');
 
   useEffect(() => {
     localStorage.setItem('wpp_owner_crm_leads', JSON.stringify(leads));
@@ -659,8 +655,8 @@ export const LeadsManagement: React.FC<LeadsManagementProps> = ({ currentUser })
   // If user is Owner/Studio Manager, they see ALL leads.
   // If user is a normal team member, they see ONLY leads where createdBy or assignedTo matches their name!
   const isUserAssignedOrCreator = (lead: OwnerLead) => {
-    if (isOwner) return true;
-    if (!userName) return true;
+    if (seeAllLeads) return true;
+    if (!userName) return false;
 
     const lowerUser = userName.toLowerCase();
     const assignedMatch = lead.assignedTo ? lead.assignedTo.toLowerCase().includes(lowerUser) || lowerUser.includes(lead.assignedTo.toLowerCase()) : false;

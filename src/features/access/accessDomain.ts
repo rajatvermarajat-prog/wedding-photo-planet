@@ -88,12 +88,18 @@ const FREELANCER_KEYS = [
 ];
 
 const CLIENT_KEYS = [
+  'dashboard.view',
+  'weddings.view',
+  'weddings.view_details',
+  'events.view',
   'gallery.view',
   'gallery.manage_favorites',
   'gallery.manage_selections',
   'albums.view',
   'media.view_photos',
   'media.view_videos',
+  'finance.view_payments',
+  'finance.view_invoices',
   'notifications.view',
 ];
 
@@ -166,11 +172,32 @@ const TITLE_MAP: Array<{ test: RegExp; roleId: string }> = [
 
 export function mergeAccessRoles(saved?: AccessRole[] | null): AccessRole[] {
   const incoming = Array.isArray(saved) ? saved : [];
+  if (incoming.length === 0) return DEFAULT_ACCESS_ROLES.map((role) => ({ ...role, grants: { ...role.grants } }));
+
   const byId = new Map(incoming.map((r) => [r.id, r]));
   DEFAULT_ACCESS_ROLES.forEach((base) => {
     if (!byId.has(base.id)) byId.set(base.id, base);
   });
-  return [...byId.values()].sort((a, b) => a.name.localeCompare(b.name));
+  return [...byId.values()]
+    .map((role) => {
+      const base = DEFAULT_ACCESS_ROLES.find((r) => r.id === role.id);
+      const savedGrants = role.grants || {};
+      const grants: Record<string, PermissionGrant> = {};
+      ALL_PERMISSION_KEYS.forEach((key) => {
+        if (savedGrants[key]) grants[key] = savedGrants[key];
+        else grants[key] = base?.grants[key] || grant(false);
+      });
+      return { ...role, grants };
+    })
+    .sort((a, b) => a.name.localeCompare(b.name));
+}
+
+export function hasAnyPermission(
+  user: AccessUser | null | undefined,
+  roles: AccessRole[],
+  keys: string | string[]
+) {
+  return (Array.isArray(keys) ? keys : [keys]).some((key) => hasPermission(user, roles, key));
 }
 
 export function resolveAccessRole(user: AccessUser | null | undefined, roles: AccessRole[]): AccessRole | undefined {
