@@ -138,6 +138,7 @@ interface TeamAttendanceProps {
   freelancerPayments?: FreelancerPayment[];
   currentUser?: { id: string; name: string; role: string } | null;
   onNavigateToFreelancers?: () => void;
+  accessRoles?: import('@/features/access').AccessRole[];
 }
 
 export const TeamAttendance: React.FC<TeamAttendanceProps> = ({
@@ -162,6 +163,7 @@ export const TeamAttendance: React.FC<TeamAttendanceProps> = ({
   freelancerPayments = [],
   currentUser,
   onNavigateToFreelancers,
+  accessRoles = [],
 }) => {
   const { showToast } = useToast();
   const today = getTodayDateString();
@@ -638,6 +640,7 @@ export const TeamAttendance: React.FC<TeamAttendanceProps> = ({
         team={team}
         softwareOptions={SOFTWARE_OPTIONS}
         defaultEmploymentType={formDefaultType}
+        accessRoles={accessRoles}
         onSave={handleSaveMember}
         onClose={() => {
           setIsFormOpen(false);

@@ -22,6 +22,8 @@ import {
   X,
 } from 'lucide-react';
 import { EmploymentType, TeamMember, TeamMemberStatus } from '@/types';
+import type { AccessRole } from '@/features/access';
+import { ALL_PERMISSION_KEYS, findPermission } from '@/features/access';
 import { useToast } from '@/components/common';
 import {
   Avatar,
@@ -51,6 +53,7 @@ interface Props {
   onClose: () => void;
   /** Pre-selects Freelancer employment type when opened from the freelancer tab. */
   defaultEmploymentType?: EmploymentType;
+  accessRoles?: AccessRole[];
 }
 
 interface FormState {
@@ -82,6 +85,9 @@ interface FormState {
   dailyRate: string;
   skills: string;
   softwares: string[];
+  accessRoleId: string;
+  extraPermissions: string[];
+  deniedPermissions: string[];
 }
 
 const CUSTOM_ROLE = '__custom__';
@@ -116,6 +122,9 @@ function emptyForm(defaultEmploymentType?: EmploymentType): FormState {
     dailyRate: '2500',
     skills: '',
     softwares: [],
+    accessRoleId: '',
+    extraPermissions: [],
+    deniedPermissions: [],
   };
 }
 
@@ -150,6 +159,9 @@ function formFromMember(member: TeamMember, roleOptions: string[]): FormState {
     dailyRate: String(member.dailyRate ?? 2500),
     skills: (member.skills || []).join(', '),
     softwares: member.assignedSoftwares || (member.assignedSoftware ? [member.assignedSoftware] : []),
+    accessRoleId: member.accessRoleId || '',
+    extraPermissions: member.extraPermissions || [],
+    deniedPermissions: member.deniedPermissions || [],
   };
 }
 
@@ -161,6 +173,7 @@ export const TeamMemberFormModal: React.FC<Props> = ({
   onSave,
   onClose,
   defaultEmploymentType,
+  accessRoles = [],
 }) => {
   const { showToast } = useToast();
   const isEdit = !!member;
@@ -268,6 +281,9 @@ export const TeamMemberFormModal: React.FC<Props> = ({
         .filter(Boolean),
       assignedSoftwares: form.softwares,
       assignedSoftware: form.softwares[0] || member?.assignedSoftware,
+      accessRoleId: form.accessRoleId || undefined,
+      extraPermissions: form.extraPermissions,
+      deniedPermissions: form.deniedPermissions,
       currentSoftware: member?.currentSoftware || form.softwares[0],
       workStatus: member?.workStatus || 'IDLE',
       activeTasksCount: member?.activeTasksCount ?? 0,
@@ -399,6 +415,32 @@ export const TeamMemberFormModal: React.FC<Props> = ({
               <div>
                 <label className={LABEL} htmlFor="tm-customrole">Custom role name *</label>
                 <input id="tm-customrole" className={FIELD} value={form.customRole} onChange={(e) => set('customRole', e.target.value)} placeholder="e.g. Lighting Technician" />
+              </div>
+            )}
+
+            {accessRoles.length > 0 && (
+              <div className="sm:col-span-2 space-y-3 rounded-2xl border border-[#eee7e2] bg-[#fbfaf8] p-4">
+                <p className={LABEL}>Access role & overrides</p>
+                <p className="text-[11px] font-medium text-slate-500">User deny beats extra allow, which beats the role. Job title above stays separate.</p>
+                <label>
+                  <span className={LABEL}>Primary access role</span>
+                  <select className={FIELD} value={form.accessRoleId} onChange={(e) => set('accessRoleId', e.target.value)}>
+                    <option value="">Match from job title</option>
+                    {accessRoles.filter((r) => r.status === 'active').map((r) => (
+                      <option key={r.id} value={r.id}>{r.name}</option>
+                    ))}
+                  </select>
+                </label>
+                <PermissionChips
+                  label="Additional user permissions"
+                  selected={form.extraPermissions}
+                  onChange={(next) => set('extraPermissions', next)}
+                />
+                <PermissionChips
+                  label="Denied permissions"
+                  selected={form.deniedPermissions}
+                  onChange={(next) => set('deniedPermissions', next)}
+                />
               </div>
             )}
 
@@ -604,3 +646,40 @@ export const TeamMemberFormModal: React.FC<Props> = ({
     </Modal>
   );
 };
+
+function PermissionChips({
+  label,
+  selected,
+  onChange,
+}: {
+  label: string;
+  selected: string[];
+  onChange: (next: string[]) => void;
+}) {
+  const [q, setQ] = useState('');
+  const matches = ALL_PERMISSION_KEYS.filter((key) => {
+    const name = findPermission(key)?.label || key;
+    return !q || name.toLowerCase().includes(q.toLowerCase()) || key.includes(q.toLowerCase());
+  }).slice(0, 12);
+  const toggle = (key: string) => onChange(selected.includes(key) ? selected.filter((k) => k !== key) : [...selected, key]);
+  return (
+    <div>
+      <span className={LABEL}>{label}</span>
+      <input className={`${FIELD} mb-2`} value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search permission" />
+      <div className="flex max-h-28 flex-wrap gap-1.5 overflow-y-auto">
+        {matches.map((key) => (
+          <button
+            key={key}
+            type="button"
+            onClick={() => toggle(key)}
+            className={`rounded-full border px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-wider ${
+              selected.includes(key) ? 'border-[#8f3655] bg-[#8f3655] text-white' : 'border-[#ded5cf] bg-white text-slate-600'
+            }`}
+          >
+            {findPermission(key)?.label || key}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}

@@ -293,6 +293,11 @@ export interface TeamMember {
   lunchTime?: string; // e.g. "01:30 PM - 02:30 PM"
   activeTasksCount?: number;
   completedTasksCount?: number;
+
+  /** Access-control role from Roles & Permissions (separate from job title). */
+  accessRoleId?: string;
+  extraPermissions?: string[];
+  deniedPermissions?: string[];
 }
 
 /**

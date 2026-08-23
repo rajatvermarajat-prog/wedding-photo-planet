@@ -52,6 +52,16 @@ import { DataManagement } from '@/features/data-management';
 import { TeamAttendance, MemberDashboardModal } from '@/features/team';
 import { DeliveriesManager } from '@/features/deliveries';
 import { FreelancerTeamManager } from '@/features/freelancers';
+import {
+  ACCESS_STORAGE_AUDIT,
+  ACCESS_STORAGE_ROLES,
+  hasPermission,
+  mergeAccessRoles,
+  PermissionProvider,
+  RolesPermissionsManager,
+  TAB_PERMISSIONS,
+} from '@/features/access';
+import type { AccessAuditEntry, AccessRole } from '@/features/access';
 import { ExpenseManagement } from '@/features/expenses';
 import { expenseService } from '@/features/expenses/services/expenseService';
 import type { Expense } from '@/features/expenses/types';
@@ -72,6 +82,7 @@ const TAB_ROUTES: Record<TabType, string> = {
   freelancers: '/freelancers',
   clients: '/clients',
   deliveries: '/deliveries',
+  access: '/roles-permissions',
 };
 
 const ROUTE_TABS = Object.fromEntries(
@@ -103,6 +114,25 @@ export default function App() {
       }
     }
     return INITIAL_TEAM;
+  });
+
+  const [accessRoles, setAccessRoles] = useState<AccessRole[]>(() => {
+    try {
+      const saved = localStorage.getItem(ACCESS_STORAGE_ROLES);
+      return mergeAccessRoles(saved ? JSON.parse(saved) : null);
+    } catch {
+      return mergeAccessRoles(null);
+    }
+  });
+
+  const [accessAudit, setAccessAudit] = useState<AccessAuditEntry[]>(() => {
+    try {
+      const saved = localStorage.getItem(ACCESS_STORAGE_AUDIT);
+      const list = saved ? JSON.parse(saved) : [];
+      return Array.isArray(list) ? list : [];
+    } catch {
+      return [];
+    }
   });
 
   const [attendance, setAttendance] = useState<AttendanceRecord[]>(() => {
@@ -264,6 +294,14 @@ export default function App() {
     localStorage.setItem('wpp_crm_freelancer_logs', JSON.stringify(freelancerActivityLogs));
   }, [freelancerActivityLogs]);
 
+  useEffect(() => {
+    localStorage.setItem(ACCESS_STORAGE_ROLES, JSON.stringify(accessRoles));
+  }, [accessRoles]);
+
+  useEffect(() => {
+    localStorage.setItem(ACCESS_STORAGE_AUDIT, JSON.stringify(accessAudit));
+  }, [accessAudit]);
+
   // Tab, Sidebar & Filter States
   const [activeTab, setActiveTabState] = useState<TabType>(() => ROUTE_TABS[pathname] || (pathname.startsWith('/projects/') ? 'projects' : 'dashboard'));
   const setActiveTab = useCallback((tab: TabType) => {
@@ -286,19 +324,26 @@ export default function App() {
                    currentUser?.role === 'Lead Photographer' || 
                    (!!currentUser?.role && currentUser.role.toLowerCase().includes('editor'));
 
-  useEffect(() => {
-    // Never perform role-based navigation while the login screen is active.
-    // Route changes remount this client tree and would clear entered credentials.
-    if (!currentUser) return;
+  const canAccessTab = useCallback(
+    (tab: TabType) => {
+      const key = TAB_PERMISSIONS[tab];
+      if (!key) return true;
+      return hasPermission(currentUser, accessRoles, key);
+    },
+    [currentUser, accessRoles]
+  );
 
-    if (currentUser?.role === 'Owner' && activeTab === 'roles') {
+  useEffect(() => {
+    if (!currentUser) return;
+    if (currentUser.role === 'Owner' && activeTab === 'roles') {
       setActiveTab('owner_workspace');
-    } else if (currentUser?.role !== 'Owner' && (activeTab === 'owner_workspace' || activeTab === 'equipment')) {
-      setActiveTab(isFullAdmin ? 'dashboard' : 'roles');
-    } else if (!isFullAdmin && activeTab === 'dashboard') {
-      setActiveTab('roles');
+      return;
     }
-  }, [currentUser, currentUser?.role, activeTab, isFullAdmin, setActiveTab]);
+    if (!canAccessTab(activeTab)) {
+      const fallback = (['dashboard', 'leads', 'projects', 'shoots', 'roles'] as TabType[]).find((tab) => canAccessTab(tab));
+      if (fallback) setActiveTab(fallback);
+    }
+  }, [currentUser, activeTab, canAccessTab, setActiveTab]);
 
   // Modal States
   const [isFormModalOpen, setIsFormModalOpen] = useState(false);
@@ -627,6 +672,7 @@ export default function App() {
 
   return (
     <ToastProvider>
+    <PermissionProvider user={currentUser} roles={accessRoles}>
     <div className="h-screen w-full bg-slate-100 flex overflow-hidden font-sans text-slate-800">
 
       {/* Sidebar Component */}
@@ -637,6 +683,7 @@ export default function App() {
         setIsOpenOnMobile={setIsMobileSidebarOpen}
         currentUser={currentUser}
         onLogout={handleLogout}
+        canAccessTab={canAccessTab}
       />
 
       {/* Main Content Area */}
@@ -870,6 +917,7 @@ export default function App() {
                 freelancerPayments={freelancerPayments}
                 currentUser={currentUser}
                 onNavigateToFreelancers={() => setActiveTab('freelancers')}
+                accessRoles={accessRoles}
               />
             ) : (
               <div className="bg-white rounded-3xl p-8 sm:p-12 text-center max-w-xl mx-auto border border-slate-200 shadow-xl space-y-5 my-12">
@@ -930,6 +978,24 @@ export default function App() {
               onDeleteFreelancer={handleDeleteFreelancer}
               onDeleteAssignment={handleDeleteAssignment}
             />
+          )}
+
+          {activeTab === 'access' && (
+            hasPermission(currentUser, accessRoles, 'settings.manage_roles') ? (
+              <RolesPermissionsManager
+                roles={accessRoles}
+                audit={accessAudit}
+                team={team}
+                currentUserName={currentUser?.name || 'Admin'}
+                onSaveRoles={setAccessRoles}
+                onSaveAudit={setAccessAudit}
+              />
+            ) : (
+              <div className="bg-white rounded-3xl p-8 sm:p-12 text-center max-w-xl mx-auto border border-slate-200 shadow-xl space-y-5 my-12">
+                <h3 className="text-2xl font-black text-slate-900">Roles Restricted</h3>
+                <p className="text-sm text-slate-500 font-medium">Only users with Manage Roles permission can open this desk.</p>
+              </div>
+            )
           )}
 
           {activeTab === 'clients' && (
@@ -1039,6 +1105,7 @@ export default function App() {
       )}
 
     </div>
+    </PermissionProvider>
     </ToastProvider>
   );
 }

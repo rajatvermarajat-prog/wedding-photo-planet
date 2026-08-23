@@ -26,7 +26,7 @@ import {
 } from 'lucide-react';
 import { ProjectStatus, TeamMember } from '@/types';
 
-export type TabType = 'dashboard' | 'roles' | 'projects' | 'shoots' | 'expenses' | 'data' | 'team' | 'freelancers' | 'clients' | 'deliveries' | 'owner_workspace' | 'equipment' | 'leads';
+export type TabType = 'dashboard' | 'roles' | 'projects' | 'shoots' | 'expenses' | 'data' | 'team' | 'freelancers' | 'clients' | 'deliveries' | 'owner_workspace' | 'equipment' | 'leads' | 'access';
 
 interface SidebarProps {
   activeTab: TabType;
@@ -35,6 +35,7 @@ interface SidebarProps {
   setIsOpenOnMobile: (open: boolean) => void;
   currentUser?: TeamMember | { id: string; name: string; role: string; email: string } | null;
   onLogout?: () => void;
+  canAccessTab?: (tab: TabType) => boolean;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -44,32 +45,27 @@ export const Sidebar: React.FC<SidebarProps> = ({
   setIsOpenOnMobile,
   currentUser,
   onLogout,
+  canAccessTab,
 }) => {
   const isOwner = currentUser?.role === 'Owner';
-  const isManager = currentUser?.role === 'Studio Manager' || currentUser?.role === 'Manager' || currentUser?.role === 'Account Manager';
-  const isSales = currentUser?.role === 'Sales Executive' || currentUser?.role === 'Sales' || (currentUser?.role && currentUser.role.toLowerCase().includes('sales'));
-  const isFullAdmin = isOwner || isManager;
-  const canSeeLeads = true; // Leads & Inquiries accessible to all team members
+  const isFullAdmin = isOwner || currentUser?.role === 'Studio Manager' || currentUser?.role === 'Manager' || currentUser?.role === 'Account Manager';
+  const allowed = (tab: TabType) => (canAccessTab ? canAccessTab(tab) : true);
 
   const navItems = [
-    ...(isFullAdmin ? [{ id: 'dashboard' as TabType, label: 'Dashboard', icon: LayoutDashboard }] : []),
-    ...(isOwner ? [{ id: 'owner_workspace' as TabType, label: 'Owner Workspace', icon: Crown }] : []),
-    ...(isOwner ? [{ id: 'equipment' as TabType, label: 'Equipment Inventory', icon: Camera }] : []),
+    { id: 'dashboard' as TabType, label: 'Dashboard', icon: LayoutDashboard },
+    { id: 'owner_workspace' as TabType, label: 'Owner Workspace', icon: Crown },
+    { id: 'equipment' as TabType, label: 'Equipment Inventory', icon: Camera },
     ...(!isOwner ? [{ id: 'roles' as TabType, label: 'Role Workspaces', icon: Briefcase }] : []),
-    ...(canSeeLeads ? [{ id: 'leads' as TabType, label: 'Leads & Inquiries', icon: Target }] : []),
+    { id: 'leads' as TabType, label: 'Leads & Inquiries', icon: Target },
     { id: 'projects' as TabType, label: 'Projects', icon: FolderKanban },
     { id: 'shoots' as TabType, label: 'Shoot Management', icon: Film },
     { id: 'expenses' as TabType, label: 'Expenses', icon: Banknote },
-    ...(isFullAdmin ? [
-      { id: 'data' as TabType, label: 'Data Management', icon: HardDrive },
-      { id: 'team' as TabType, label: 'Team & Attendance', icon: Users },
-      { id: 'freelancers' as TabType, label: 'Freelancer Team', icon: UserCheck },
-      { id: 'clients' as TabType, label: 'Clients', icon: Heart },
-    ] : [
-      { id: 'freelancers' as TabType, label: 'Freelancer Team', icon: UserCheck },
-      { id: 'clients' as TabType, label: 'Clients', icon: Heart },
-    ]),
-  ];
+    { id: 'data' as TabType, label: 'Data Management', icon: HardDrive },
+    { id: 'team' as TabType, label: 'Team & Attendance', icon: Users },
+    { id: 'freelancers' as TabType, label: 'Freelancer Team', icon: UserCheck },
+    { id: 'clients' as TabType, label: 'Clients', icon: Heart },
+    { id: 'access' as TabType, label: 'Roles & Permissions', icon: ShieldCheck },
+  ].filter((item) => allowed(item.id));
 
   const userInitials = currentUser?.name
     ? currentUser.name.split(' ').map((n) => n[0]).join('')
@@ -205,6 +201,7 @@ const PAGE_ICONS: Record<TabType, typeof LayoutDashboard> = {
   owner_workspace: Crown,
   equipment: Camera,
   leads: Target,
+  access: ShieldCheck,
 };
 
 interface TopHeaderProps {
@@ -256,6 +253,7 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
     owner_workspace: 'Owner Workspace',
     equipment: 'Equipment Inventory',
     leads: 'Leads & Inquiries',
+    access: 'Roles & Permissions',
   };
   const PageIcon = PAGE_ICONS[activeTab];
   const userInitials = currentUser?.name
