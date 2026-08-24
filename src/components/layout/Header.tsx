@@ -1,12 +1,12 @@
 import React from 'react';
-import { 
-  Camera, 
-  Sparkles, 
-  LayoutDashboard, 
-  FolderKanban, 
-  Film, 
-  HardDrive, 
-  Users, 
+import {
+  Camera,
+  Sparkles,
+  LayoutDashboard,
+  FolderKanban,
+  Film,
+  HardDrive,
+  Users,
   Menu,
   X,
   CheckCircle2,
@@ -55,12 +55,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'dashboard' as TabType, label: 'Dashboard', icon: LayoutDashboard },
     { id: 'owner_workspace' as TabType, label: 'Owner Workspace', icon: Crown },
     { id: 'equipment' as TabType, label: 'Equipment Inventory', icon: Camera },
+    { id: 'shoots' as TabType, label: 'Shoot Management', icon: Film },
+    { id: 'projects' as TabType, label: 'Projects', icon: FolderKanban },
     ...(!isOwner ? [{ id: 'roles' as TabType, label: 'My Desk', icon: Briefcase }] : []),
     { id: 'leads' as TabType, label: 'Leads & Inquiries', icon: Target },
-    { id: 'projects' as TabType, label: 'Weddings', icon: FolderKanban },
-    { id: 'shoots' as TabType, label: 'Events / Shoots', icon: Film },
     { id: 'expenses' as TabType, label: 'Finance', icon: Banknote },
-    { id: 'deliveries' as TabType, label: 'Media', icon: CheckCircle2 },
     { id: 'data' as TabType, label: 'Data Management', icon: HardDrive },
     { id: 'team' as TabType, label: 'Team & Attendance', icon: Users },
     { id: 'freelancers' as TabType, label: 'Freelancer Team', icon: UserCheck },
@@ -76,16 +75,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
     <>
       {/* Mobile Overlay */}
       {isOpenOnMobile && (
-        <div 
-          onClick={() => setIsOpenOnMobile(false)} 
+        <div
+          onClick={() => setIsOpenOnMobile(false)}
           className="fixed inset-0 z-40 bg-slate-950/60 backdrop-blur-xs md:hidden"
         />
       )}
 
       {/* Sidebar Container */}
-      <aside className={`app-sidebar fixed md:static inset-y-0 left-0 z-50 w-64 bg-slate-900 text-white flex flex-col border-r border-slate-700 transition-transform duration-200 transform ${
-        isOpenOnMobile ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
-      }`}>
+      <aside className={`app-sidebar fixed md:static inset-y-0 left-0 z-50 w-64 bg-slate-900 text-white flex flex-col border-r border-slate-700 transition-transform duration-200 transform ${isOpenOnMobile ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
+        }`}>
         {/* Brand Header */}
         <div className="p-5">
           <div className="flex items-center justify-between">
@@ -97,7 +95,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 CRM Studio System
               </p>
             </div>
-            <button 
+            <button
               onClick={() => setIsOpenOnMobile(false)}
               className="md:hidden text-slate-400 hover:text-white p-1"
             >
@@ -110,9 +108,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
           {/* User Profile Block */}
           <div className="sidebar-profile flex items-center justify-between bg-slate-800/80 p-2.5 rounded-xl border border-slate-700">
             <div className="flex items-center gap-2.5 overflow-hidden">
-              <div className={`w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold text-white shadow-xs flex-shrink-0 ${
-                isFullAdmin ? 'bg-indigo-600' : 'bg-emerald-600'
-              }`}>
+              <div className={`w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold text-white shadow-xs flex-shrink-0 ${isFullAdmin ? 'bg-indigo-600' : 'bg-emerald-600'
+                }`}>
                 {userInitials}
               </div>
               <div className="truncate">
@@ -149,11 +146,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   setActiveTab(item.id);
                   setIsOpenOnMobile(false);
                 }}
-                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded text-sm font-medium transition-colors text-left ${
-                  isActive
-                    ? 'bg-indigo-600 text-white shadow-sm font-semibold'
-                    : 'text-slate-400 hover:bg-slate-800 hover:text-white'
-                }`}
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded text-sm font-medium transition-colors text-left ${isActive
+                  ? 'bg-indigo-600 text-white shadow-sm font-semibold'
+                  : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+                  }`}
               >
                 <Icon className={`w-4 h-4 ${isActive ? 'text-white' : 'text-slate-400'}`} />
                 <span>{item.label}</span>
@@ -265,90 +261,86 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
     <header className="relative z-20 border-b border-[#e8ddd7] bg-[linear-gradient(180deg,#fffdfb_0%,#f8f1ee_100%)] shadow-[0_4px_18px_rgba(67,31,43,0.05)]">
       <div className="h-1 bg-[linear-gradient(90deg,#ddc89c_0%,#8f3655_48%,#6d2f45_100%)]" />
       <div className="flex min-h-16 items-center justify-between gap-3 px-4 py-2.5 sm:px-6">
-      <div className="flex min-w-0 items-center gap-3 overflow-x-auto scrollbar-none">
-        <button
-          onClick={onToggleMobileSidebar}
-          className="shrink-0 rounded-lg border border-[#e4d8d2] p-2 text-[#6f4351] transition hover:bg-[#f8f0f2] md:hidden"
-          title="Toggle Navigation"
-        >
-          <Menu className="w-5 h-5" />
-        </button>
+        <div className="flex min-w-0 items-center gap-3 overflow-x-auto scrollbar-none">
+          <button
+            onClick={onToggleMobileSidebar}
+            className="shrink-0 rounded-lg border border-[#e4d8d2] p-2 text-[#6f4351] transition hover:bg-[#f8f0f2] md:hidden"
+            title="Toggle Navigation"
+          >
+            <Menu className="w-5 h-5" />
+          </button>
 
-        {!showProjectFilters ? (
-          <div className="flex min-w-0 items-center gap-3">
-            <span className="grid size-10 shrink-0 place-items-center rounded-2xl border border-[#ddc89c]/50 bg-[linear-gradient(145deg,#8f3655,#6d2f45)] text-white shadow-[0_8px_16px_rgba(109,47,69,.22)]">
-              <PageIcon className="size-4" />
-            </span>
-            <div className="min-w-0">
-              <p className="truncate text-sm font-extrabold tracking-tight text-[#321f27] sm:text-base">{pageTitles[activeTab]}</p>
-              <p className="hidden items-center gap-1.5 text-[11px] font-bold uppercase tracking-[.14em] text-[#a07a4a] sm:flex">
-                <span className="size-1.5 rounded-full bg-[#ddc89c]" />
-                Wedding Photo Planet
-              </p>
+          {!showProjectFilters ? (
+            <div className="flex min-w-0 items-center gap-3">
+              <span className="grid size-10 shrink-0 place-items-center rounded-2xl border border-[#ddc89c]/50 bg-[linear-gradient(145deg,#8f3655,#6d2f45)] text-white shadow-[0_8px_16px_rgba(109,47,69,.22)]">
+                <PageIcon className="size-4" />
+              </span>
+              <div className="min-w-0">
+                <p className="truncate text-sm font-extrabold tracking-tight text-[#321f27] sm:text-base">{pageTitles[activeTab]}</p>
+                <p className="hidden items-center gap-1.5 text-[11px] font-bold uppercase tracking-[.14em] text-[#a07a4a] sm:flex">
+                  <span className="size-1.5 rounded-full bg-[#ddc89c]" />
+                  Wedding Photo Planet
+                </p>
+              </div>
             </div>
-          </div>
-        ) : <div className="flex items-center gap-4 whitespace-nowrap text-xs font-semibold text-slate-600 sm:gap-6 sm:text-sm">
-          <button
-            onClick={() => {
-              setActiveTab('projects');
-              setStatusFilter('all');
-            }}
-            className={`py-3 px-1 border-b-2 transition ${
-              activeTab === 'projects' && statusFilter === 'all'
+          ) : <div className="flex items-center gap-4 whitespace-nowrap text-xs font-semibold text-slate-600 sm:gap-6 sm:text-sm">
+            <button
+              onClick={() => {
+                setActiveTab('projects');
+                setStatusFilter('all');
+              }}
+              className={`py-3 px-1 border-b-2 transition ${activeTab === 'projects' && statusFilter === 'all'
                 ? 'text-rose-800 border-rose-700 font-bold'
                 : 'border-transparent text-slate-500 hover:text-slate-800'
-            }`}
-          >
-            All Projects ({counts.total})
-          </button>
+                }`}
+            >
+              All Projects ({counts.total})
+            </button>
 
-          <button
-            onClick={() => {
-              setActiveTab('projects');
-              setStatusFilter('running');
-            }}
-            className={`py-3 px-1 border-b-2 transition flex items-center gap-1.5 ${
-              activeTab === 'projects' && statusFilter === 'running'
+            <button
+              onClick={() => {
+                setActiveTab('projects');
+                setStatusFilter('running');
+              }}
+              className={`py-3 px-1 border-b-2 transition flex items-center gap-1.5 ${activeTab === 'projects' && statusFilter === 'running'
                 ? 'text-rose-800 border-rose-700 font-bold'
                 : 'border-transparent text-slate-500 hover:text-slate-800'
-            }`}
-          >
-            <span className="h-2 w-2 rounded-full bg-rose-600 animate-pulse" />
-            <span>Running ({counts.running})</span>
-          </button>
+                }`}
+            >
+              <span className="h-2 w-2 rounded-full bg-rose-600 animate-pulse" />
+              <span>Running ({counts.running})</span>
+            </button>
 
-          <button
-            onClick={() => {
-              setActiveTab('deliveries');
-            }}
-            className={`py-3 px-1 border-b-2 transition flex items-center gap-1.5 ${
-              activeTab === 'deliveries' || (activeTab === 'projects' && statusFilter === 'ready_to_deliver')
+            <button
+              onClick={() => {
+                setActiveTab('deliveries');
+              }}
+              className={`py-3 px-1 border-b-2 transition flex items-center gap-1.5 ${activeTab === 'deliveries' || (activeTab === 'projects' && statusFilter === 'ready_to_deliver')
                 ? 'text-rose-800 border-rose-700 font-bold'
                 : 'border-transparent text-slate-500 hover:text-slate-800'
-            }`}
-          >
-            <CheckCircle2 className="w-3.5 h-3.5 text-green-600" />
-            <span>Ready ({counts.readyToDeliver})</span>
-          </button>
+                }`}
+            >
+              <CheckCircle2 className="w-3.5 h-3.5 text-green-600" />
+              <span>Ready ({counts.readyToDeliver})</span>
+            </button>
 
-          <button
-            onClick={() => {
-              setActiveTab('projects');
-              setStatusFilter('urgent');
-            }}
-            className={`py-3 px-1 border-b-2 transition flex items-center gap-1.5 ${
-              activeTab === 'projects' && statusFilter === 'urgent'
+            <button
+              onClick={() => {
+                setActiveTab('projects');
+                setStatusFilter('urgent');
+              }}
+              className={`py-3 px-1 border-b-2 transition flex items-center gap-1.5 ${activeTab === 'projects' && statusFilter === 'urgent'
                 ? 'text-red-600 border-red-600 font-bold'
                 : 'border-transparent text-red-500 hover:text-red-700'
-            }`}
-          >
-            <AlertCircle className="w-3.5 h-3.5 text-red-600" />
-            <span>Urgent ({counts.urgent})</span>
-          </button>
-        </div>}
-      </div>
+                }`}
+            >
+              <AlertCircle className="w-3.5 h-3.5 text-red-600" />
+              <span>Urgent ({counts.urgent})</span>
+            </button>
+          </div>}
+        </div>
 
-      <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
+        <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
           <button
             onClick={onOpenAIModal}
             title="Open AI Helper"
@@ -382,7 +374,7 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
               </span>
             </div>
           )}
-      </div>
+        </div>
       </div>
     </header>
   );
