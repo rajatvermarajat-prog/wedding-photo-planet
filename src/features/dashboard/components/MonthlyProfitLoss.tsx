@@ -9,9 +9,11 @@ export function MonthlyProfitLoss({ fromDate: finFromDate, toDate: finToDate, to
           <span className="px-2 py-0.5 rounded bg-rose-500/30 text-rose-300 border border-rose-400/30 font-extrabold text-xs uppercase tracking-wider">
             Monthly Profit & Loss Summary
           </span>
-          <span className="text-xs font-mono font-bold text-amber-300 bg-amber-500/20 px-2 py-0.5 rounded border border-amber-500/30">
-            Period: {formatDateDots(finFromDate)} to {formatDateDots(finToDate)}
-          </span>
+          {(finFromDate || finToDate) && (
+            <span className="text-xs font-mono font-bold text-amber-300 bg-amber-500/20 px-2 py-0.5 rounded border border-amber-500/30">
+              Period: {formatDateDots(finFromDate)} to {formatDateDots(finToDate)}
+            </span>
+          )}
         </div>
         <h3 className="text-base md:text-lg font-black text-white mt-1">
           Monthly Inflow vs Outflow

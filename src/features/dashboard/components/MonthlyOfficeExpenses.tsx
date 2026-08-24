@@ -12,9 +12,11 @@ export function MonthlyOfficeExpenses({ expenses: filteredOfficeExpenses, allExp
         <div>
           <h3 className="flex flex-wrap items-center gap-2 text-sm font-black uppercase tracking-wide text-slate-900">
             <span>Monthly Office Expense</span>
-            <span className="text-xs font-mono font-bold text-rose-700 bg-rose-50 px-1.5 py-0.2 rounded border border-rose-200">
-              {formatDateDots(finFromDate)} - {formatDateDots(finToDate)}
-            </span>
+            {(finFromDate || finToDate) && (
+              <span className="text-xs font-mono font-bold text-rose-700 bg-rose-50 px-1.5 py-0.2 rounded border border-rose-200">
+                {formatDateDots(finFromDate)} - {formatDateDots(finToDate)}
+              </span>
+            )}
           </h3>
           <p className="text-xs text-slate-500 font-medium">Studio operating cost ledger, by category</p>
         </div>

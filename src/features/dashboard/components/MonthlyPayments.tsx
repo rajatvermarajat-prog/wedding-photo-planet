@@ -12,9 +12,11 @@ export function MonthlyPayments({ payments: filteredClientPaymentLogs, totalRece
         <div>
           <h3 className="flex flex-wrap items-center gap-2 text-sm font-black uppercase tracking-wide text-slate-900">
             <span>Monthly Payment Received</span>
-            <span className="text-xs font-mono font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200">
-              {formatDateDots(finFromDate)} - {formatDateDots(finToDate)}
-            </span>
+            {(finFromDate || finToDate) && (
+              <span className="text-xs font-mono font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200">
+                {formatDateDots(finFromDate)} - {formatDateDots(finToDate)}
+              </span>
+            )}
           </h3>
           <p className="text-xs text-slate-500 font-medium">Client Advance & Installments Ledger</p>
         </div>
