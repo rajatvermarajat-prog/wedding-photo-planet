@@ -1,4 +1,4 @@
-export type ExpenseCategory = 'Shoot' | 'Freelancer' | 'Office' | 'Travel' | 'Cab' | 'Equipment' | 'Vendor' | 'Marketing' | 'Software' | 'Utilities' | 'Miscellaneous';
+export type ExpenseCategory = 'Shoot' | 'Freelancer' | 'Office' | 'Travel' | 'Cab' | 'Equipment' | 'Vendor' | 'Marketing' | 'Software' | 'Utilities' | 'Miscellaneous' | 'Other';
 export type ExpensePaymentStatus = 'Unpaid' | 'Pending' | 'Partially Paid' | 'Paid' | 'Overdue';
 export type ExpenseApprovalStatus = 'Draft' | 'Submitted' | 'Approved' | 'Paid' | 'Rejected';
 export type ExpensePaymentMethod = 'Cash' | 'UPI' | 'Bank Transfer' | 'Credit Card' | 'Debit Card' | 'Cheque' | 'Other';

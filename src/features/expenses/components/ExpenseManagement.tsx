@@ -23,18 +23,19 @@ const sections: { id: Section; label: string; icon: React.ElementType }[] = [
 
 const categoryMap: Record<Section, ExpenseCategory[] | null> = {
   overview: null, monthly: null, shoots: ['Shoot'], office: ['Office', 'Software', 'Utilities'], freelancers: ['Freelancer'],
-  travel: ['Travel', 'Cab'], equipment: ['Equipment'], vendors: ['Vendor'], other: ['Marketing', 'Miscellaneous'], recurring: null, reports: null,
+  travel: ['Travel', 'Cab'], equipment: ['Equipment'], vendors: ['Vendor'], other: ['Marketing', 'Miscellaneous', 'Other'], recurring: null, reports: null,
 };
-const categories: ExpenseCategory[] = ['Shoot', 'Freelancer', 'Office', 'Travel', 'Cab', 'Equipment', 'Vendor', 'Marketing', 'Software', 'Utilities', 'Miscellaneous'];
+const categories: ExpenseCategory[] = ['Shoot', 'Freelancer', 'Office', 'Travel', 'Cab', 'Equipment', 'Vendor', 'Marketing', 'Software', 'Utilities', 'Miscellaneous', 'Other'];
 const subcategories: Record<ExpenseCategory, string[]> = {
-  Shoot: ['Photographer payment', 'Cinematographer payment', 'Drone operator', 'Editor', 'Food', 'Venue-related expense', 'Equipment rental', 'Miscellaneous'],
-  Freelancer: ['Photographer', 'Cinematographer', 'Drone Operator', 'Editor', 'Album Designer', 'Retoucher', 'Other freelancer'],
-  Office: ['Rent', 'Stationery', 'Printing', 'Cleaning', 'Furniture', 'Repairs', 'Pantry', 'Courier'],
-  Travel: ['Flight', 'Train', 'Bus', 'Hotel', 'Fuel', 'Toll', 'Parking', 'Food', 'Local transportation'],
-  Cab: ['Uber', 'Ola', 'Rapido', 'Local Taxi', 'Private Cab', 'Driver Payment'], Equipment: ['Camera purchase', 'Lens purchase', 'Drone', 'Lighting', 'Computer', 'Storage', 'Repair', 'Maintenance', 'Rental Equipment'],
+  Shoot: ['Photographer payment', 'Cinematographer payment', 'Drone operator', 'Editor', 'Food', 'Venue-related expense', 'Equipment rental', 'Miscellaneous', 'Other'],
+  Freelancer: ['Photographer', 'Cinematographer', 'Drone Operator', 'Editor', 'Album Designer', 'Retoucher', 'Other freelancer', 'Other'],
+  Office: ['Rent', 'Stationery', 'Printing', 'Cleaning', 'Furniture', 'Repairs', 'Pantry', 'Courier', 'Other'],
+  Travel: ['Flight', 'Train', 'Bus', 'Hotel', 'Fuel', 'Toll', 'Parking', 'Food', 'Local transportation', 'Other'],
+  Cab: ['Uber', 'Ola', 'Rapido', 'Local Taxi', 'Private Cab', 'Driver Payment', 'Other'], Equipment: ['Camera purchase', 'Lens purchase', 'Drone', 'Lighting', 'Computer', 'Storage', 'Repair', 'Maintenance', 'Rental Equipment', 'Other'],
   Vendor: ['Album Printing', 'Photo Lab', 'Equipment Rental', 'Hotel', 'Travel Agency', 'Cab Provider', 'Decoration', 'Makeup', 'Venue', 'Catering', 'Other'],
-  Marketing: ['Advertising', 'Social Media', 'Commission', 'Client Gifts', 'Events'], Software: ['Adobe', 'Google Workspace', 'Microsoft', 'Dropbox', 'Hosting', 'Domains', 'AWS', 'Other software'],
-  Utilities: ['Electricity', 'Water', 'Internet', 'Mobile', 'Maintenance'], Miscellaneous: ['Miscellaneous'],
+  Marketing: ['Advertising', 'Social Media', 'Commission', 'Client Gifts', 'Events', 'Other'], Software: ['Adobe', 'Google Workspace', 'Microsoft', 'Dropbox', 'Hosting', 'Domains', 'AWS', 'Other software', 'Other'],
+  Utilities: ['Electricity', 'Water', 'Internet', 'Mobile', 'Maintenance', 'Other'], Miscellaneous: ['Miscellaneous', 'Other'],
+  Other: ['General Expense', 'Project / Wedding Expense', 'Personal Advance', 'Other'],
 };
 const methods: ExpensePaymentMethod[] = ['Cash', 'UPI', 'Bank Transfer', 'Credit Card', 'Debit Card', 'Cheque', 'Other'];
 const money = (value: number) => `₹${Math.round(value).toLocaleString('en-IN')}`;
@@ -238,11 +239,11 @@ function ExpenseForm({draft,setDraft,projects,freelancers,editing,onClose,onSubm
         </ExpenseFormSection>
 
         <ExpenseFormSection number="02" title="CRM Link & Payee" description="Connect this expense with its project, freelancer or vendor.">
-          {['Shoot','Freelancer','Travel','Cab','Equipment','Vendor'].includes(conditional)&&<ExpenseField label="Shoot / Project" icon={<Camera className="size-5"/>}><select className={`${expenseField} appearance-none pr-10`} value={draft.projectId||''} onChange={e=>setDraft({...draft,projectId:e.target.value})}><option value="">Not linked</option>{projects.map((p:Project)=><option key={p.id} value={p.id}>{projectTitle(p)}</option>)}</select><ChevronDown className="pointer-events-none absolute right-3.5 top-1/2 size-5 -translate-y-1/2 text-slate-500"/></ExpenseField>}
+          {['Shoot','Freelancer','Travel','Cab','Equipment','Vendor','Other','Miscellaneous'].includes(conditional)&&<ExpenseField label="Shoot / Project" icon={<Camera className="size-5"/>}><select className={`${expenseField} appearance-none pr-10`} value={draft.projectId||''} onChange={e=>setDraft({...draft,projectId:e.target.value})}><option value="">Not linked</option>{projects.map((p:Project)=><option key={p.id} value={p.id}>{projectTitle(p)}</option>)}</select><ChevronDown className="pointer-events-none absolute right-3.5 top-1/2 size-5 -translate-y-1/2 text-slate-500"/></ExpenseField>}
           {conditional==='Freelancer'&&<ExpenseField label="Freelancer / Role" icon={<Users className="size-5"/>}><select className={`${expenseField} appearance-none pr-10`} value={draft.freelancerId||''} onChange={e=>{const f=freelancers.find((x:FreelancerOption)=>x.id===e.target.value);setDraft({...draft,freelancerId:e.target.value,payee:f?.name,role:f?.role})}}><option value="">Select freelancer</option>{freelancers.map((f:FreelancerOption)=><option key={f.id} value={f.id}>{f.name} — {f.role}</option>)}</select><ChevronDown className="pointer-events-none absolute right-3.5 top-1/2 size-5 -translate-y-1/2 text-slate-500"/></ExpenseField>}
-          {['Vendor','Equipment','Office','Software'].includes(conditional)&&<ExpenseField label="Vendor / Paid To" icon={<BriefcaseBusiness className="size-5"/>}><input className={expenseField} value={draft.vendor||''} onChange={e=>setDraft({...draft,vendor:e.target.value,payee:e.target.value})} placeholder="Vendor or business name"/></ExpenseField>}
+          {['Vendor','Equipment','Office','Software','Other','Miscellaneous'].includes(conditional)&&<ExpenseField label="Vendor / Paid To" icon={<BriefcaseBusiness className="size-5"/>}><input className={expenseField} value={draft.vendor||''} onChange={e=>setDraft({...draft,vendor:e.target.value,payee:e.target.value})} placeholder="Vendor or business name"/></ExpenseField>}
           {['Travel','Cab'].includes(conditional)&&<><ExpenseField label="From" icon={<Truck className="size-5"/>}><input className={expenseField} value={draft.from||''} onChange={e=>setDraft({...draft,from:e.target.value})} placeholder="Pickup location"/></ExpenseField><ExpenseField label="To" icon={<ChevronRight className="size-5"/>}><input className={expenseField} value={draft.to||''} onChange={e=>setDraft({...draft,to:e.target.value})} placeholder="Destination"/></ExpenseField><ExpenseField label="Distance (km)" icon={<TrendingUp className="size-5"/>}><input className={expenseField} type="number" value={draft.distance||''} onChange={e=>setDraft({...draft,distance:Number(e.target.value)})} placeholder="42"/></ExpenseField></>}
-          {!['Shoot','Freelancer','Travel','Cab','Equipment','Vendor','Office','Software'].includes(conditional)&&<div className="sm:col-span-2 rounded-2xl border border-dashed border-[#ded5cf] bg-[#fbfaf8] p-4 text-sm text-slate-500">No additional CRM link is required for this category.</div>}
+          {!['Shoot','Freelancer','Travel','Cab','Equipment','Vendor','Office','Software','Other','Miscellaneous'].includes(conditional)&&<div className="sm:col-span-2 rounded-2xl border border-dashed border-[#ded5cf] bg-[#fbfaf8] p-4 text-sm text-slate-500">No additional CRM link is required for this category.</div>}
         </ExpenseFormSection>
 
         <ExpenseFormSection number="03" title="Payment & Proof" description="Track settlement progress and attach supporting proof.">
