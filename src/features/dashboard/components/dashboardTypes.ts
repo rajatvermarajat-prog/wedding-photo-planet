@@ -27,7 +27,7 @@ export interface OwnerDashboardProps {
   onOpenNewProjectModal: () => void;
   onUpdateProject: (updated: Project) => void;
   onOpenAllPaymentsModal?: () => void;
-  setActiveTab: (tab: 'dashboard' | 'projects' | 'shoots' | 'data' | 'team' | 'deliveries') => void;
+  setActiveTab: (tab: 'dashboard' | 'projects' | 'shoots' | 'data' | 'team' | 'deliveries' | 'expenses') => void;
   onProjectStatusNavigate?: (status: ProjectStatus | 'all') => void;
   team?: TeamMember[];
   attendance?: AttendanceRecord[];

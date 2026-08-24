@@ -464,8 +464,8 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
         {/* Left Column (2 Cols wide): financial ledgers */}
         <div className="space-y-5 xl:col-span-2">
           
-          <MonthlyPayments payments={filteredClientPaymentLogs} totalReceived={totalMonthlyPaymentsReceived} totalRevenue={totalRevenue} fromDate={finFromDate} toDate={finToDate} formatDate={formatDateDots} onRecordPayment={() => onOpenAllPaymentsModal ? onOpenAllPaymentsModal() : setActiveTab('projects')} />
-          <MonthlyOfficeExpenses expenses={filteredOfficeExpenses} allExpenses={officeExpenses} totalExpenses={totalMonthlyExpenses} totalPaidPayroll={totalPaidPayroll} categoryFilter={expenseCategoryFilter} setCategoryFilter={setExpenseCategoryFilter} spentByFilter={expenseSpentByFilter} setSpentByFilter={setExpenseSpentByFilter} fromDate={finFromDate} toDate={finToDate} formatDate={formatDateDots} onAdd={() => setShowAddExpenseModal(true)} onEdit={handleOpenEditExpense} onDelete={setExpenseToDelete} />
+          <MonthlyPayments payments={filteredClientPaymentLogs} totalReceived={totalMonthlyPaymentsReceived} totalRevenue={totalRevenue} fromDate={finFromDate} toDate={finToDate} formatDate={formatDateDots} onRecordPayment={() => setActiveTab('expenses')} />
+          <MonthlyOfficeExpenses expenses={filteredOfficeExpenses} allExpenses={officeExpenses} totalExpenses={totalMonthlyExpenses} totalPaidPayroll={totalPaidPayroll} categoryFilter={expenseCategoryFilter} setCategoryFilter={setExpenseCategoryFilter} spentByFilter={expenseSpentByFilter} setSpentByFilter={setExpenseSpentByFilter} fromDate={finFromDate} toDate={finToDate} formatDate={formatDateDots} onAdd={() => setActiveTab('expenses')} onEdit={handleOpenEditExpense} onDelete={setExpenseToDelete} />
 
         </div>
 
