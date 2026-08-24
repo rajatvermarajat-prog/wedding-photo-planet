@@ -732,6 +732,34 @@ export const ShootManagement: React.FC<ShootManagementProps> = ({ projects, onUp
                                 </div>
                               </div>
 
+                              {/* Team Breakdown Banner */}
+                              {(() => {
+                                const roleCounts: Record<string, number> = {};
+                                (s.crewAssignments || []).forEach((c) => {
+                                  if (c.role) {
+                                    roleCounts[c.role] = (roleCounts[c.role] || 0) + 1;
+                                  }
+                                });
+                                const entries = Object.entries(roleCounts);
+                                return (
+                                  <div className="flex flex-wrap items-center gap-2 bg-[#f8f5f2] p-2.5 rounded-xl border border-[#e6ded8] text-xs">
+                                    <span className="text-[10px] font-black text-[#6d2f45] uppercase tracking-wider flex items-center gap-1.5 shrink-0">
+                                      <Users className="w-3.5 h-3.5 text-[#8f3655]" />
+                                      TEAM BREAKDOWN:
+                                    </span>
+                                    {entries.length === 0 ? (
+                                      <span className="text-[10px] text-slate-400 italic">No crew assigned yet</span>
+                                    ) : (
+                                      entries.map(([role, count]) => (
+                                        <span key={role} className="px-2.5 py-1 bg-white border border-[#dfd6d0] text-slate-800 rounded-lg font-bold text-xs shadow-2xs">
+                                          {role}: <span className="text-[#8f3655] font-extrabold">{count}</span>
+                                        </span>
+                                      ))
+                                    )}
+                                  </div>
+                                );
+                              })()}
+
                             {/* Crew List */}
                             <div className="space-y-1.5 pt-2 border-t border-slate-100">
                               <div className="flex items-center justify-between gap-2">
