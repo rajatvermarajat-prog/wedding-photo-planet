@@ -7,7 +7,7 @@ import { DashboardHeader } from './DashboardHeader';
 import { DashboardKpiGrid } from './DashboardKpiGrid';
 import { DashboardSecurityAlerts } from './DashboardSecurityAlerts';
 import { TeamActivity } from './TeamActivity';
-import { FinancialCollectionStatus } from './FinancialCollectionStatus';
+
 import { ClientProjectsDeadlines } from './ClientProjectsDeadlines';
 import { UpcomingShoots } from './UpcomingShoots';
 import { FinancialFilterBar } from './FinancialFilterBar';
@@ -455,7 +455,6 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
         <UpcomingShoots shoots={upcomingShoots} onOpen={() => setActiveTab('shoots')} />
       </div>
 
-      <FinancialCollectionStatus totalRevenue={totalRevenue} totalAdvanceReceived={totalAdvanceReceived} totalBalanceDue={totalBalanceDue} currentUserName={currentUser?.name} />
 
       <FinancialFilterBar fromDate={finFromDate} toDate={finToDate} setFromDate={setFinFromDate} setToDate={setFinToDate} />
       <MonthlyProfitLoss fromDate={finFromDate} toDate={finToDate} totalPayments={totalMonthlyPaymentsReceived} paymentCount={filteredClientPaymentLogs.length} totalExpenses={totalMonthlyExpenses} totalPaidPayroll={totalPaidPayroll} formatDate={formatDateDots} onAddExpense={() => router.push('/expenses/new')} onRecordPayment={() => router.push('/payments/new')} />
