@@ -54,16 +54,16 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const navItems = [
     { id: 'dashboard' as TabType, label: 'Dashboard', icon: LayoutDashboard },
     { id: 'owner_workspace' as TabType, label: 'Owner Workspace', icon: Crown },
-    { id: 'equipment' as TabType, label: 'Equipment Inventory', icon: Camera },
-    { id: 'shoots' as TabType, label: 'Shoot Management', icon: Film },
+    { id: 'leads' as TabType, label: 'Leads & Inquiries', icon: Target },
     { id: 'projects' as TabType, label: 'Projects', icon: FolderKanban },
     ...(!isOwner ? [{ id: 'roles' as TabType, label: 'My Desk', icon: Briefcase }] : []),
-    { id: 'leads' as TabType, label: 'Leads & Inquiries', icon: Target },
-    { id: 'expenses' as TabType, label: 'Finance', icon: Banknote },
+    { id: 'shoots' as TabType, label: 'Shoot Management', icon: Film },
     { id: 'data' as TabType, label: 'Data Management', icon: HardDrive },
     { id: 'team' as TabType, label: 'Team & Attendance', icon: Users },
     { id: 'freelancers' as TabType, label: 'Freelancer Team', icon: UserCheck },
+    { id: 'expenses' as TabType, label: 'Finance', icon: Banknote },
     { id: 'clients' as TabType, label: 'Clients', icon: Heart },
+    { id: 'equipment' as TabType, label: 'Equipment Inventory', icon: Camera },
     { id: 'access' as TabType, label: 'Roles & Permissions', icon: ShieldCheck },
   ].filter((item) => allowed(item.id));
 
