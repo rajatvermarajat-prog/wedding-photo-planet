@@ -46,6 +46,7 @@ export interface CrewMemberAssignment {
   hardDriveName?: string;
   copyInHD?: string;
   backupInHD?: string;
+  backupDataSizeGB?: number;
 }
 
 export interface ShootEvent {

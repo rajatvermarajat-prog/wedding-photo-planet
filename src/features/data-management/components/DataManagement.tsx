@@ -11,7 +11,7 @@ interface DataManagementProps {
 export const DataManagement: React.FC<DataManagementProps> = ({ projects = [], onUpdateProject, onSelectProject }) => {
   const [expandedProjectId, setExpandedProjectId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
-  const [backupFilter, setBackupFilter] = useState<'all' | 'pending' | 'secured' | 'cloud'>('all');
+  const [backupFilter, setBackupFilter] = useState<'all' | 'data_received' | 'pending_data' | 'backup_pending' | 'cloud_synced'>('all');
 
   const totalGB = (projects || []).reduce((acc, p) => {
     const backup: Partial<Project['dataBackup']> = p.dataBackup || {};
@@ -23,17 +23,25 @@ export const DataManagement: React.FC<DataManagementProps> = ({ projects = [], o
   }, 0);
   const totalTB = (totalGB / 1000).toFixed(2);
 
-  const cardOffloadedCount = (projects || []).filter(p => p.dataBackup?.offloadedFromCards).length;
-  const hdd2DoneCount = (projects || []).filter(p => p.dataBackup?.hardDrive2Done).length;
+  // Logical workflow statistics
+  const dataReceivedCount = (projects || []).filter(p => p.dataBackup?.offloadedFromCards || p.dataBackup?.hardDrive1Done).length;
+  const pendingDataCount = (projects || []).filter(p => !p.dataBackup?.offloadedFromCards && !p.dataBackup?.hardDrive1Done).length;
+  const backupPendingCount = (projects || []).filter(p => (p.dataBackup?.offloadedFromCards || p.dataBackup?.hardDrive1Done) && !p.dataBackup?.hardDrive2Done).length;
   const cloudDoneCount = (projects || []).filter(p => p.dataBackup?.cloudBackupDone).length;
 
   const visibleProjects = useMemo(() => projects.filter((project) => {
     const backup = project.dataBackup;
+    const isDataReceived = Boolean(backup?.offloadedFromCards || backup?.hardDrive1Done);
+    const isBackupDone = Boolean(backup?.hardDrive2Done);
+    const isCloudDone = Boolean(backup?.cloudBackupDone);
+    
     const text = `${project.clientWeddingTitle} ${project.name} ${project.primaryServiceType}`.toLowerCase();
     if (searchQuery.trim() && !text.includes(searchQuery.trim().toLowerCase())) return false;
-    if (backupFilter === 'pending') return !backup?.hardDrive2Done;
-    if (backupFilter === 'secured') return Boolean(backup?.hardDrive2Done);
-    if (backupFilter === 'cloud') return Boolean(backup?.cloudBackupDone);
+    
+    if (backupFilter === 'data_received') return isDataReceived;
+    if (backupFilter === 'pending_data') return !isDataReceived;
+    if (backupFilter === 'backup_pending') return isDataReceived && !isBackupDone;
+    if (backupFilter === 'cloud_synced') return isCloudDone;
     return true;
   }), [projects, searchQuery, backupFilter]);
 
@@ -111,16 +119,68 @@ export const DataManagement: React.FC<DataManagementProps> = ({ projects = [], o
       
       <section className="relative overflow-hidden rounded-3xl border border-[#ddc89c]/35 bg-[radial-gradient(circle_at_88%_8%,rgba(221,200,156,.2),transparent_30%),linear-gradient(125deg,#704758,#55333f_50%,#38262d)] p-5 text-white shadow-xl sm:p-7"><div className="absolute -bottom-20 -right-10 size-64 rounded-full border-[34px] border-white/[.04]" /><div className="relative flex flex-col justify-between gap-5 xl:flex-row xl:items-center"><div className="max-w-3xl"><span className="flex w-fit items-center gap-1.5 rounded-full border border-white/20 bg-white/10 px-3 py-1 text-xs font-extrabold uppercase tracking-[.14em] text-[#f0dce3]"><ShieldCheck className="size-4 text-emerald-300" />Storage control centre</span><h1 className="mt-3 flex items-center gap-3 text-2xl font-black tracking-tight sm:text-3xl"><span className="grid size-11 place-items-center rounded-2xl bg-white/10"><Database className="size-6 text-[#f1c8d5]" /></span>Data Management</h1><p className="mt-2 text-sm font-medium leading-relaxed text-[#eadfe2] sm:text-base">Track every RAW-data handover from memory card to primary drive, mirror drive, and cloud backup.</p></div><div className="rounded-2xl border border-white/20 bg-black/10 px-4 py-3 text-sm"><p className="text-[10px] font-black uppercase tracking-[.14em] text-rose-200">Studio storage</p><p className="mt-1 flex items-baseline gap-1 text-2xl font-black">{totalTB}<span className="text-sm text-[#eadfe2]">TB</span></p><p className="text-xs font-medium text-[#eadfe2]">{totalGB.toLocaleString()} GB logged</p></div></div></section>
 
-      <section className="grid grid-cols-2 gap-3 sm:grid-cols-4">{[
-        { label: 'Total RAW data', value: `${totalTB} TB`, hint: `${totalGB.toLocaleString()} GB logged`, icon: Database, tone: 'text-slate-700 bg-white border-[#e2d9d3]' },
-        { label: 'Cards offloaded', value: `${cardOffloadedCount} / ${projects.length}`, hint: 'Primary copy complete', icon: Upload, tone: 'text-indigo-800 bg-indigo-50 border-indigo-200' },
-        { label: 'Mirror secured', value: `${hdd2DoneCount} / ${projects.length}`, hint: 'Second drive verified', icon: HardDrive, tone: 'text-emerald-800 bg-emerald-50 border-emerald-200' },
-        { label: 'Cloud synced', value: `${cloudDoneCount} / ${projects.length}`, hint: 'Off-site backup ready', icon: Cloud, tone: 'text-sky-800 bg-sky-50 border-sky-200' },
-      ].map(({ label, value, hint, icon: Icon, tone }) => <div key={label} className={`rounded-2xl border p-3.5 shadow-[0_8px_24px_rgba(48,44,46,.04)] ${tone}`}><div className="flex items-start justify-between gap-2"><div><p className="text-[10px] font-black uppercase tracking-[.12em] opacity-70">{label}</p><p className="mt-1 text-2xl font-black">{value}</p><p className="text-[11px] font-semibold opacity-75">{hint}</p></div><Icon className="size-5 opacity-70" /></div></div>)}</section>
+      <section className="grid grid-cols-2 gap-3 sm:grid-cols-5">{[
+        { label: 'All Shoots / Projects', value: `${projects.length}`, hint: `${totalTB} TB (${totalGB.toLocaleString()} GB)`, icon: Database, tone: 'text-slate-700 bg-white border-[#e2d9d3]', key: 'all' },
+        { label: 'Data Received', value: `${dataReceivedCount}`, hint: 'Cards offloaded & HD-1', icon: Upload, tone: 'text-indigo-800 bg-indigo-50 border-indigo-200', key: 'data_received' },
+        { label: 'Pending Data', value: `${pendingDataCount}`, hint: 'Awaiting card offload', icon: AlertTriangle, tone: 'text-[#8f3655] bg-rose-50 border-rose-200', key: 'pending_data' },
+        { label: 'Backup Pending', value: `${backupPendingCount}`, hint: 'Needs HD-2 mirror copy', icon: Clock, tone: 'text-amber-800 bg-amber-50 border-amber-200', key: 'backup_pending' },
+        { label: 'Cloud Synced', value: `${cloudDoneCount}`, hint: 'Off-site backup complete', icon: Cloud, tone: 'text-emerald-800 bg-emerald-50 border-emerald-200', key: 'cloud_synced' },
+      ].map(({ label, value, hint, icon: Icon, tone, key }) => (
+        <button
+          key={label}
+          type="button"
+          onClick={() => setBackupFilter(key as typeof backupFilter)}
+          className={`rounded-2xl border p-3.5 text-left transition shadow-[0_8px_24px_rgba(48,44,46,.04)] cursor-pointer hover:opacity-90 ${tone} ${
+            backupFilter === key ? 'ring-2 ring-[#8f3655] shadow-md' : ''
+          }`}
+        >
+          <div className="flex items-start justify-between gap-2">
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-[.12em] opacity-70">{label}</p>
+              <p className="mt-1 text-2xl font-black">{value}</p>
+              <p className="text-[11px] font-semibold opacity-75">{hint}</p>
+            </div>
+            <Icon className="size-5 opacity-70 shrink-0" />
+          </div>
+        </button>
+      ))}</section>
 
-      <section className="rounded-2xl border border-[#e2d9d3] bg-white p-4 shadow-[0_8px_24px_rgba(48,44,46,.05)] sm:p-5"><div className="flex flex-wrap items-start justify-between gap-3"><div><h2 className="flex items-center gap-2 text-base font-black text-slate-800"><ShieldCheck className="size-5 text-[#8f3655]" />Wedding shoot data workflow</h2><p className="mt-1 text-sm text-slate-500">Every shoot should follow this simple 4-step safety process before editing starts.</p></div><span className="rounded-full bg-rose-50 px-3 py-1.5 text-xs font-bold text-[#8f3655]">Click a project below to update it</span></div><div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">{[{ icon: Upload, title: '1. Collect cards', text: 'Receive data from every shooter after the event.' }, { icon: HardDrive, title: '2. Primary copy', text: 'Copy cards to the studio working drive.' }, { icon: ShieldCheck, title: '3. Mirror backup', text: 'Create a second verified drive copy.' }, { icon: Cloud, title: '4. Cloud / archive', text: 'Sync off-site, then mark ready for edit.' }].map(({ icon: Icon, title, text }) => <div key={title} className="flex gap-3 rounded-2xl border border-[#e2d9d3] bg-[#fbfaf8] p-3.5"><span className="grid size-10 shrink-0 place-items-center rounded-xl bg-rose-100 text-[#8f3655]"><Icon className="size-5" /></span><div><p className="text-sm font-extrabold text-slate-800">{title}</p><p className="mt-0.5 text-xs leading-relaxed text-slate-500">{text}</p></div></div>)}</div></section>
+      <section className="rounded-2xl border border-[#e2d9d3] bg-white p-4 shadow-[0_8px_24px_rgba(48,44,46,.05)] sm:p-5">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h2 className="flex items-center gap-2 text-base font-black text-slate-800">
+              <ShieldCheck className="size-5 text-[#8f3655]" />
+              Wedding shoot data workflow
+            </h2>
+            <p className="mt-1 text-sm text-slate-500">
+              Every shoot should follow this simple 4-step safety process before editing starts.
+            </p>
+          </div>
+          <span className="rounded-full bg-rose-50 px-3 py-1.5 text-xs font-bold text-[#8f3655]">
+            Click a project below to update it
+          </span>
+        </div>
+        <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          {[
+            { icon: Database, title: '1. All Shoot / Projects', text: 'All scheduled shoot events and total RAW data storage logged.' },
+            { icon: Upload, title: '2. Data Received', text: 'Receive data cards from shooters and offload to primary HD-1.' },
+            { icon: AlertTriangle, title: '3. Pending Data', text: 'Shoots pending data offload or uncollected memory cards.' },
+            { icon: HardDrive, title: '4. Backup Pending', text: 'Verify and create secondary mirror drive copy (HD-2) for safety.' },
+          ].map(({ icon: Icon, title, text }) => (
+            <div key={title} className="flex gap-3 rounded-2xl border border-[#e2d9d3] bg-[#fbfaf8] p-3.5">
+              <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-rose-100 text-[#8f3655]">
+                <Icon className="size-5" />
+              </span>
+              <div>
+                <p className="text-sm font-extrabold text-slate-800">{title}</p>
+                <p className="mt-0.5 text-xs leading-relaxed text-slate-500">{text}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
 
-      <section className="rounded-2xl border border-[#e2d9d3] bg-white p-3 shadow-[0_8px_24px_rgba(48,44,46,.05)] sm:p-4"><div className="mb-3 flex items-center gap-2 text-sm font-extrabold text-slate-700"><SlidersHorizontal className="size-4 text-[#8f3655]" />Find project data</div><div className="grid grid-cols-1 gap-3 sm:grid-cols-2"><label className="relative"><Search className="absolute left-3 top-1/2 size-5 -translate-y-1/2 text-[#9b4865]" /><input value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} placeholder="Search client or project…" className="w-full rounded-xl border border-[#ded5cf] bg-[#fbfaf8] py-2.5 pl-10 pr-3 text-sm font-semibold text-slate-900 outline-none placeholder:text-slate-400 focus:border-[#9b4865] focus:ring-4 focus:ring-rose-100" /></label><label className="relative"><ShieldCheck className="pointer-events-none absolute left-3 top-1/2 size-5 -translate-y-1/2 text-[#9b4865]" /><select value={backupFilter} onChange={(event) => setBackupFilter(event.target.value as typeof backupFilter)} className="w-full appearance-none rounded-xl border border-[#ded5cf] bg-[#fbfaf8] py-2.5 pl-10 pr-3 text-sm font-bold text-slate-700 outline-none focus:border-[#9b4865] focus:ring-4 focus:ring-rose-100"><option value="all">All backup statuses</option><option value="pending">Needs mirror backup</option><option value="secured">Mirror drive secured</option><option value="cloud">Cloud backup completed</option></select></label></div></section>
+      <section className="rounded-2xl border border-[#e2d9d3] bg-white p-3 shadow-[0_8px_24px_rgba(48,44,46,.05)] sm:p-4"><div className="mb-3 flex items-center gap-2 text-sm font-extrabold text-slate-700"><SlidersHorizontal className="size-4 text-[#8f3655]" />Find project data</div><div className="grid grid-cols-1 gap-3 sm:grid-cols-2"><label className="relative"><Search className="absolute left-3 top-1/2 size-5 -translate-y-1/2 text-[#9b4865]" /><input value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} placeholder="Search client or project…" className="w-full rounded-xl border border-[#ded5cf] bg-[#fbfaf8] py-2.5 pl-10 pr-3 text-sm font-semibold text-slate-900 outline-none placeholder:text-slate-400 focus:border-[#9b4865] focus:ring-4 focus:ring-rose-100" /></label><label className="relative"><ShieldCheck className="pointer-events-none absolute left-3 top-1/2 size-5 -translate-y-1/2 text-[#9b4865]" /><select value={backupFilter} onChange={(event) => setBackupFilter(event.target.value as typeof backupFilter)} className="w-full appearance-none rounded-xl border border-[#ded5cf] bg-[#fbfaf8] py-2.5 pl-10 pr-3 text-sm font-bold text-slate-700 outline-none focus:border-[#9b4865] focus:ring-4 focus:ring-rose-100"><option value="all">All Shoots / Projects ({projects.length})</option><option value="data_received">Data Received ({dataReceivedCount})</option><option value="pending_data">Pending Data ({pendingDataCount})</option><option value="backup_pending">Backup Pending ({backupPendingCount})</option><option value="cloud_synced">Cloud Synced ({cloudDoneCount})</option></select></label></div></section>
 
       {/* Projects Storage Table */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
@@ -299,13 +359,34 @@ export const DataManagement: React.FC<DataManagementProps> = ({ projects = [], o
 
                             <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                               {[
-                                { key: 'offloadedFromCards' as const, label: 'Cards collected', hint: 'All shooter cards copied', icon: Upload, done: backup.offloadedFromCards },
-                                { key: 'hardDrive1Done' as const, label: 'Primary drive', hint: backup.hardDrive1 || 'Set primary drive', icon: HardDrive, done: backup.hardDrive1Done },
-                                { key: 'hardDrive2Done' as const, label: 'Mirror backup', hint: backup.hardDrive2 || 'Set mirror drive', icon: ShieldCheck, done: backup.hardDrive2Done },
-                                { key: 'cloudBackupDone' as const, label: 'Cloud / archive', hint: 'Off-site copy complete', icon: Cloud, done: backup.cloudBackupDone },
-                              ].map(({ key, label, hint, icon: Icon, done }) => <button key={key} type="button" onClick={() => handleUpdateBackup(p.id, { [key]: !done })} className={`rounded-2xl border p-3 text-left transition ${done ? 'border-emerald-300 bg-emerald-50 text-emerald-900' : 'border-[#e2d9d3] bg-[#fbfaf8] text-slate-700 hover:border-rose-300 hover:bg-rose-50'}`}><div className="flex items-center justify-between gap-2"><Icon className={`size-5 ${done ? 'text-emerald-700' : 'text-[#8f3655]'}`} />{done ? <CheckCircle2 className="size-4 text-emerald-700" /> : <Clock className="size-4 text-amber-600" />}</div><p className="mt-2 text-sm font-extrabold">{label}</p><p className="mt-0.5 text-xs leading-snug opacity-75">{done ? 'Completed' : hint}</p></button>)}
+                                { key: 'offloadedFromCards' as const, label: '1. All Shoot / Projects', hint: `${p.shoots?.length || 0} events logged`, icon: Database, done: Boolean(p.shoots && p.shoots.length > 0) },
+                                { key: 'hardDrive1Done' as const, label: '2. Data Received', hint: backup.hardDrive1 || 'Cards offloaded & HD-1', icon: Upload, done: backup.offloadedFromCards || backup.hardDrive1Done },
+                                { key: 'offloadedFromCards' as const, label: '3. Pending Data', hint: (backup.offloadedFromCards || backup.hardDrive1Done) ? 'Data Received' : 'Awaiting card offload', icon: AlertTriangle, done: backup.offloadedFromCards || backup.hardDrive1Done, isPendingFlag: true },
+                                { key: 'hardDrive2Done' as const, label: '4. Backup Pending', hint: backup.hardDrive2 || 'HD-2 Mirror Copy', icon: HardDrive, done: backup.hardDrive2Done },
+                              ].map(({ key, label, hint, icon: Icon, done, isPendingFlag }) => {
+                                const isCompleted = isPendingFlag ? done : done;
+                                return (
+                                  <button
+                                    key={label}
+                                    type="button"
+                                    onClick={() => !isPendingFlag && handleUpdateBackup(p.id, { [key]: !done })}
+                                    className={`rounded-2xl border p-3 text-left transition ${
+                                      isCompleted
+                                        ? 'border-emerald-300 bg-emerald-50 text-emerald-900'
+                                        : 'border-[#e2d9d3] bg-[#fbfaf8] text-slate-700 hover:border-rose-300 hover:bg-rose-50'
+                                    }`}
+                                  >
+                                    <div className="flex items-center justify-between gap-2">
+                                      <Icon className={`size-5 ${isCompleted ? 'text-emerald-700' : 'text-[#8f3655]'}`} />
+                                      {isCompleted ? <CheckCircle2 className="size-4 text-emerald-700" /> : <Clock className="size-4 text-amber-600" />}
+                                    </div>
+                                    <p className="mt-2 text-sm font-extrabold">{label}</p>
+                                    <p className="mt-0.5 text-xs leading-snug opacity-75">{isCompleted ? 'Completed' : hint}</p>
+                                  </button>
+                                );
+                              })}
                             </div>
-                            <p className="-mt-2 text-xs text-slate-500">Tap any step to mark it complete or reopen it. This is your project’s backup checklist.</p>
+                            <p className="-mt-2 text-xs text-slate-500">Tap any step to mark it complete or update backup status. This is your project’s safety checklist.</p>
 
                             {(!p.shoots || p.shoots.length === 0) ? (
                               <div className="text-slate-400 text-xs italic text-center p-4 bg-slate-50 rounded border border-dashed border-slate-200">
@@ -339,9 +420,10 @@ export const DataManagement: React.FC<DataManagementProps> = ({ projects = [], o
                                               <tr>
                                                 <th className="p-2">Role & Team Member</th>
                                                 <th className="p-2 text-center">Data Received</th>
-                                                <th className="p-2 w-28">Data Size (GB)</th>
                                                 <th className="p-2 min-w-[140px]">Primary copy drive</th>
+                                                <th className="p-2 w-28">Data Size (GB)</th>
                                                 <th className="p-2 min-w-[140px]">Mirror backup drive</th>
+                                                <th className="p-2 w-28">Mirror Size (GB)</th>
                                               </tr>
                                             </thead>
                                             <tbody className="divide-y divide-slate-100">
@@ -367,6 +449,15 @@ export const DataManagement: React.FC<DataManagementProps> = ({ projects = [], o
                                                     </label>
                                                   </td>
                                                   <td className="p-2">
+                                                    <input
+                                                      type="text"
+                                                      placeholder="Copy HD Name"
+                                                      value={c.copyInHD ?? c.hardDriveName ?? ''}
+                                                      onChange={(e) => handleUpdateCrewData(p.id, s.id, c.id, 'copyInHD', e.target.value)}
+                                                      className="w-full bg-slate-50 border border-slate-200 rounded px-2 py-0.5 text-xs font-medium focus:bg-white outline-none"
+                                                    />
+                                                  </td>
+                                                  <td className="p-2">
                                                     <div className="flex items-center gap-1">
                                                       <input
                                                         type="number"
@@ -381,20 +472,23 @@ export const DataManagement: React.FC<DataManagementProps> = ({ projects = [], o
                                                   <td className="p-2">
                                                     <input
                                                       type="text"
-                                                      placeholder="Copy HD Name"
-                                                      value={c.copyInHD ?? c.hardDriveName ?? ''}
-                                                      onChange={(e) => handleUpdateCrewData(p.id, s.id, c.id, 'copyInHD', e.target.value)}
-                                                      className="w-full bg-slate-50 border border-slate-200 rounded px-2 py-0.5 text-xs font-medium focus:bg-white outline-none"
-                                                    />
-                                                  </td>
-                                                  <td className="p-2">
-                                                    <input
-                                                      type="text"
                                                       placeholder="Backup HD Name"
                                                       value={c.backupInHD || ''}
                                                       onChange={(e) => handleUpdateCrewData(p.id, s.id, c.id, 'backupInHD', e.target.value)}
                                                       className="w-full bg-slate-50 border border-slate-200 rounded px-2 py-0.5 text-xs font-medium focus:bg-white outline-none"
                                                     />
+                                                  </td>
+                                                  <td className="p-2">
+                                                    <div className="flex items-center gap-1">
+                                                      <input
+                                                        type="number"
+                                                        placeholder="e.g. 250"
+                                                        value={c.backupDataSizeGB ?? c.dataSizeGB ?? ''}
+                                                        onChange={(e) => handleUpdateCrewData(p.id, s.id, c.id, 'backupDataSizeGB', Number(e.target.value))}
+                                                        className="w-16 bg-slate-50 border border-slate-200 rounded px-1.5 py-0.5 text-xs font-bold focus:bg-white outline-none"
+                                                      />
+                                                      <span className="text-[10px] text-slate-500 font-bold">GB</span>
+                                                    </div>
                                                   </td>
                                                 </tr>
                                               ))}
