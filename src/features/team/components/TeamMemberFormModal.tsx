@@ -14,6 +14,8 @@ import {
   Building2,
   CalendarDays,
   Camera,
+  Eye,
+  EyeOff,
   IdCard,
   Save,
   ShieldCheck,
@@ -23,7 +25,6 @@ import {
 } from 'lucide-react';
 import { EmploymentType, TeamMember, TeamMemberStatus } from '@/types';
 import type { AccessRole } from '@/features/access';
-import { ALL_PERMISSION_KEYS, findPermission } from '@/features/access';
 import { useToast } from '@/components/common';
 import {
   Avatar,
@@ -49,7 +50,7 @@ interface Props {
   member: TeamMember | null;
   team: TeamMember[];
   softwareOptions: string[];
-  onSave: (member: TeamMember, mode: 'create' | 'update') => void;
+  onSave: (member: TeamMember, mode: 'create' | 'update', password?: string) => Promise<void>;
   onClose: () => void;
   /** Pre-selects Freelancer employment type when opened from the freelancer tab. */
   defaultEmploymentType?: EmploymentType;
@@ -86,11 +87,22 @@ interface FormState {
   skills: string;
   softwares: string[];
   accessRoleId: string;
-  extraPermissions: string[];
-  deniedPermissions: string[];
+  password: string;
 }
 
 const CUSTOM_ROLE = '__custom__';
+
+function isValidPassword(password: string): boolean {
+  return password.length >= 10 && /[a-z]/.test(password) && /[A-Z]/.test(password) && /\d/.test(password);
+}
+
+function passwordValidationMessage(password: string): string {
+  if (!password) return 'Temporary password is required.';
+  if (password.length < 10) return 'Password must be at least 10 characters.';
+  if (!/[A-Z]/.test(password)) return 'Password must include an uppercase letter.';
+  if (!/[a-z]/.test(password)) return 'Password must include a lowercase letter.';
+  return 'Password must include a digit.';
+}
 
 function emptyForm(defaultEmploymentType?: EmploymentType): FormState {
   return {
@@ -123,8 +135,7 @@ function emptyForm(defaultEmploymentType?: EmploymentType): FormState {
     skills: '',
     softwares: [],
     accessRoleId: '',
-    extraPermissions: [],
-    deniedPermissions: [],
+    password: '',
   };
 }
 
@@ -160,8 +171,7 @@ function formFromMember(member: TeamMember, roleOptions: string[]): FormState {
     skills: (member.skills || []).join(', '),
     softwares: member.assignedSoftwares || (member.assignedSoftware ? [member.assignedSoftware] : []),
     accessRoleId: member.accessRoleId || '',
-    extraPermissions: member.extraPermissions || [],
-    deniedPermissions: member.deniedPermissions || [],
+    password: '',
   };
 }
 
@@ -180,12 +190,17 @@ export const TeamMemberFormModal: React.FC<Props> = ({
   const roleOptions = useMemo(() => getRoleOptions(team), [team]);
   const [form, setForm] = useState<FormState>(() => emptyForm(defaultEmploymentType));
   const [softwareInput, setSoftwareInput] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [passwordError, setPasswordError] = useState('');
+  const [isPasswordVisible, setIsPasswordVisible] = useState(false);
   const photoInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     if (!isOpen) return;
     setForm(member ? formFromMember(member, roleOptions) : emptyForm(defaultEmploymentType));
     setSoftwareInput('');
+    setPasswordError('');
+    setIsPasswordVisible(false);
     // Re-seeding only when the modal opens keeps in-progress edits from being
     // wiped by unrelated roster updates.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -217,7 +232,7 @@ export const TeamMemberFormModal: React.FC<Props> = ({
     setSoftwareInput('');
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.name.trim()) {
       showToast('Full name is required.', { variant: 'error' });
@@ -225,6 +240,18 @@ export const TeamMemberFormModal: React.FC<Props> = ({
     }
     if (!effectiveRole) {
       showToast('Pick a role, or type the custom role name.', { variant: 'error' });
+      return;
+    }
+    if (!isEdit && !form.email.trim()) {
+      showToast('Email is required to create a studio login.', { variant: 'error' });
+      return;
+    }
+    if (!isEdit && !isValidPassword(form.password)) {
+      setPasswordError(passwordValidationMessage(form.password));
+      return;
+    }
+    if (!isEdit && !form.accessRoleId) {
+      showToast('Select the employee access role before creating their login.', { variant: 'error' });
       return;
     }
 
@@ -282,15 +309,20 @@ export const TeamMemberFormModal: React.FC<Props> = ({
       assignedSoftwares: form.softwares,
       assignedSoftware: form.softwares[0] || member?.assignedSoftware,
       accessRoleId: form.accessRoleId || undefined,
-      extraPermissions: form.extraPermissions,
-      deniedPermissions: form.deniedPermissions,
       currentSoftware: member?.currentSoftware || form.softwares[0],
       workStatus: member?.workStatus || 'IDLE',
       activeTasksCount: member?.activeTasksCount ?? 0,
       completedTasksCount: member?.completedTasksCount ?? 0,
     };
 
-    onSave(saved, isEdit ? 'update' : 'create');
+    setIsSubmitting(true);
+    try {
+      await onSave(saved, isEdit ? 'update' : 'create', isEdit ? undefined : form.password);
+    } catch {
+      // The API-specific error has already been presented by the parent.
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const titleId = 'team-member-form-title';
@@ -357,6 +389,42 @@ export const TeamMemberFormModal: React.FC<Props> = ({
                 <label className={LABEL} htmlFor="tm-email">Email</label>
                 <input id="tm-email" type="email" className={FIELD} value={form.email} onChange={(e) => set('email', e.target.value)} placeholder="name@weddingphotoplanet.com" />
               </div>
+              {!isEdit && (
+                <div className="sm:col-span-2">
+                  <label className={LABEL} htmlFor="tm-password">Temporary password *</label>
+                  <div className="relative">
+                    <input
+                      id="tm-password"
+                      type={isPasswordVisible ? 'text' : 'password'}
+                      autoComplete="new-password"
+                      minLength={10}
+                      aria-invalid={Boolean(passwordError)}
+                      aria-describedby="tm-password-help"
+                      className={`${FIELD} pr-11 ${passwordError ? 'border-red-400 focus:border-red-500 focus:ring-red-100' : ''}`}
+                      value={form.password}
+                      onChange={(e) => {
+                        const password = e.target.value;
+                        set('password', password);
+                        setPasswordError(password && !isValidPassword(password) ? passwordValidationMessage(password) : '');
+                      }}
+                      placeholder="At least 10 characters: Aa1…"
+                      required
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setIsPasswordVisible((visible) => !visible)}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg p-2 text-slate-500 transition hover:bg-rose-50 hover:text-[#8f3655]"
+                      aria-label={isPasswordVisible ? 'Hide password' : 'Show password'}
+                      title={isPasswordVisible ? 'Hide password' : 'Show password'}
+                    >
+                      {isPasswordVisible ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                    </button>
+                  </div>
+                  <p id="tm-password-help" className={`mt-1 text-[11px] font-medium ${passwordError ? 'text-red-600' : 'text-slate-500'}`}>
+                    {passwordError || 'Use at least 10 characters with uppercase, lowercase, and a digit.'}
+                  </p>
+                </div>
+              )}
               <div>
                 <label className={LABEL} htmlFor="tm-gender">Gender</label>
                 <select id="tm-gender" className={FIELD} value={form.gender} onChange={(e) => set('gender', e.target.value)}>
@@ -418,31 +486,25 @@ export const TeamMemberFormModal: React.FC<Props> = ({
               </div>
             )}
 
-            {accessRoles.length > 0 && (
-              <div className="sm:col-span-2 space-y-3 rounded-2xl border border-[#eee7e2] bg-[#fbfaf8] p-4">
-                <p className={LABEL}>Access role & overrides</p>
-                <p className="text-[11px] font-medium text-slate-500">User deny beats extra allow, which beats the role. Job title above stays separate.</p>
-                <label>
-                  <span className={LABEL}>Primary access role</span>
-                  <select className={FIELD} value={form.accessRoleId} onChange={(e) => set('accessRoleId', e.target.value)}>
-                    <option value="">Match from job title</option>
-                    {accessRoles.filter((r) => r.status === 'active').map((r) => (
-                      <option key={r.id} value={r.id}>{r.name}</option>
-                    ))}
-                  </select>
-                </label>
-                <PermissionChips
-                  label="Additional user permissions"
-                  selected={form.extraPermissions}
-                  onChange={(next) => set('extraPermissions', next)}
-                />
-                <PermissionChips
-                  label="Denied permissions"
-                  selected={form.deniedPermissions}
-                  onChange={(next) => set('deniedPermissions', next)}
-                />
-              </div>
-            )}
+            <div className="sm:col-span-2 space-y-3 rounded-2xl border border-[#eee7e2] bg-[#fbfaf8] p-4">
+              <p className={LABEL}>Login access role *</p>
+              <p className="text-[11px] font-medium text-slate-500">This backend role controls the employee’s permissions. Direct user permission overrides are not supported by the API.</p>
+              <label>
+                <span className={LABEL}>Primary access role</span>
+                <select
+                  className={FIELD}
+                  value={form.accessRoleId}
+                  required={!isEdit}
+                  disabled={!isEdit && accessRoles.length === 0}
+                  onChange={(e) => set('accessRoleId', e.target.value)}
+                >
+                  <option value="">{accessRoles.length === 0 ? 'Loading backend roles…' : 'Select an access role'}</option>
+                  {accessRoles.map((role) => (
+                    <option key={role.id} value={role.id}>{role.name}</option>
+                  ))}
+                </select>
+              </label>
+            </div>
 
             <div>
               <label className={LABEL} htmlFor="tm-dept">Department</label>
@@ -636,50 +698,13 @@ export const TeamMemberFormModal: React.FC<Props> = ({
         </fieldset>
 
         <footer className="sticky bottom-0 -mx-5 -mb-5 flex items-center justify-end gap-2 border-t border-[#eee7e2] bg-white px-5 py-3">
-          <button type="button" onClick={onClose} className={BTN_GHOST}>Cancel</button>
-          <button type="submit" className={BTN_PRIMARY}>
+          <button type="button" onClick={onClose} disabled={isSubmitting} className={BTN_GHOST}>Cancel</button>
+          <button type="submit" disabled={isSubmitting} className={BTN_PRIMARY}>
             <Save className="w-4 h-4" />
-            {isEdit ? 'Save changes' : 'Add team member'}
+            {isSubmitting ? (isEdit ? 'Saving…' : 'Creating employee…') : (isEdit ? 'Save changes' : 'Add team member')}
           </button>
         </footer>
       </form>
     </Modal>
   );
 };
-
-function PermissionChips({
-  label,
-  selected,
-  onChange,
-}: {
-  label: string;
-  selected: string[];
-  onChange: (next: string[]) => void;
-}) {
-  const [q, setQ] = useState('');
-  const matches = ALL_PERMISSION_KEYS.filter((key) => {
-    const name = findPermission(key)?.label || key;
-    return !q || name.toLowerCase().includes(q.toLowerCase()) || key.includes(q.toLowerCase());
-  }).slice(0, 12);
-  const toggle = (key: string) => onChange(selected.includes(key) ? selected.filter((k) => k !== key) : [...selected, key]);
-  return (
-    <div>
-      <span className={LABEL}>{label}</span>
-      <input className={`${FIELD} mb-2`} value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search permission" />
-      <div className="flex max-h-28 flex-wrap gap-1.5 overflow-y-auto">
-        {matches.map((key) => (
-          <button
-            key={key}
-            type="button"
-            onClick={() => toggle(key)}
-            className={`rounded-full border px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-wider ${
-              selected.includes(key) ? 'border-[#8f3655] bg-[#8f3655] text-white' : 'border-[#ded5cf] bg-white text-slate-600'
-            }`}
-          >
-            {findPermission(key)?.label || key}
-          </button>
-        ))}
-      </div>
-    </div>
-  );
-}

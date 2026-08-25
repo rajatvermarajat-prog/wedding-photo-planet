@@ -24,7 +24,16 @@ import { ClientsDirectoryView } from '@/features/clients/ClientsDirectoryView';
 import { LoginScreen } from '@/components/auth/LoginScreen';
 import { LoginInput } from '@/lib/api/auth';
 import { useProjects } from '@/hooks/useProjects';
+import { useTeam, useTeamMutation } from '@/hooks/useTeam';
+import { useAttendance } from '@/hooks/useAttendance';
+import { useTaskMutations, useTasks } from '@/hooks/useTasks';
+import { useRbac } from '@/hooks/useRbac';
+import { normalizeTeamMember } from '@/features/team/teamViewModel';
+import { normalizeAttendance } from '@/features/attendance/attendanceViewModel';
+import { ApiError } from '@/lib/api/client';
+import { rbacApi } from '@/lib/api/rbac';
 import { normalizeProject } from '@/features/projects/projectViewModel';
+import { normalizeTask, taskCreateInput, taskStatusInput } from '@/features/tasks/taskViewModel';
 import { useAuthSession } from '@/components/auth/AuthSessionProvider';
 import { AISuggestionsModal } from '@/components/ai/AISuggestionsModal';
 import { OwnerDashboard } from '@/features/dashboard';
@@ -42,18 +51,16 @@ import {
 import { ScheduleShootModal, ShootManagement } from '@/features/shoots';
 import { DataManagement } from '@/features/data-management';
 import { TeamAttendance, MemberDashboardModal } from '@/features/team';
+import { EmployeeDashboardTasks } from '@/features/tasks/EmployeeDashboardTasks';
 import { DeliveriesManager } from '@/features/deliveries';
 import { FreelancerTeamManager } from '@/features/freelancers';
 import {
-  ACCESS_STORAGE_AUDIT,
   hasAnyPermission,
   hasPermission,
   PermissionProvider,
   RolesPermissionsManager,
   TAB_PERMISSIONS,
-  usePermissionRoles,
 } from '@/features/access';
-import type { AccessAuditEntry } from '@/features/access';
 import { ExpenseManagement } from '@/features/expenses';
 import { expenseService } from '@/features/expenses/services/expenseService';
 import type { Expense } from '@/features/expenses/types';
@@ -93,6 +100,21 @@ function AccessDenied() {
   );
 }
 
+function apiErrorMessage(error: unknown, fallback: string): string {
+  if (!(error instanceof ApiError)) return fallback;
+  const details = error.details
+    ?.filter((detail): detail is { field?: string; message?: string } => typeof detail === 'object' && detail !== null)
+    .map((detail) => `${detail.field ? `${detail.field}: ` : ''}${detail.message ?? ''}`.trim())
+    .filter(Boolean);
+  return details?.length ? `${error.message}\n${details.join('\n')}` : error.message;
+}
+
+function isEmployeeAttendanceUser(user: { role?: string; roles?: string[] } | null): boolean {
+  if (!user) return false;
+  const roleNames = user.roles?.length ? user.roles : [user.role ?? ''];
+  return !roleNames.some((role) => /(^|\W)(admin|owner)(\W|$)/i.test(role));
+}
+
 export default function App() {
   const router = useRouter();
   const pathname = usePathname();
@@ -103,28 +125,91 @@ export default function App() {
   // CRM entities are intentionally not restored from browser storage. They will
   // be supplied by feature API queries during the next integration phase.
   const [projects, setProjects] = useState<Project[]>([]);
-  const projectQuery = useProjects({ page: 1, limit: 50 }, Boolean(currentUser));
+  const projectQuery = useProjects(
+    { page: 1, limit: 50 },
+    Boolean(currentUser) && (pathname === '/projects' || pathname.startsWith('/projects/')),
+  );
 
   useEffect(() => {
     if (!currentUser || projectQuery.loading || projectQuery.error) return;
     setProjects(projectQuery.data.map(normalizeProject));
   }, [currentUser, projectQuery.data, projectQuery.error, projectQuery.loading]);
   const [team, setTeam] = useState<TeamMember[]>([]);
-
-  const [accessRoles, setAccessRoles] = usePermissionRoles();
-
-  const [accessAudit, setAccessAudit] = useState<AccessAuditEntry[]>(() => {
-    try {
-      const saved = localStorage.getItem(ACCESS_STORAGE_AUDIT);
-      const list = saved ? JSON.parse(saved) : [];
-      return Array.isArray(list) ? list : [];
-    } catch {
-      return [];
-    }
-  });
-
   const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
+  const canManageTeamAttendance = Boolean(currentUser?.permissions?.includes('TEAM_VIEW') || currentUser?.permissions?.includes('ATTENDANCE_MANAGE'));
+  const shouldLoadTeam = Boolean(currentUser) && (
+    pathname === '/team' || pathname.startsWith('/team/') || (pathname === '/dashboard' && canManageTeamAttendance)
+  );
+  const teamQuery = useTeam(
+    { page: 1, limit: 100 },
+    shouldLoadTeam,
+  );
+  const teamMutations = useTeamMutation(teamQuery.refresh);
+  const rbacQuery = useRbac(
+    Boolean(currentUser) && (pathname === '/team' || pathname === '/roles-permissions'),
+  );
+
+  useEffect(() => {
+    if (!currentUser || teamQuery.loading || teamQuery.error) return;
+    setTeam(teamQuery.data.map(normalizeTeamMember));
+  }, [currentUser, teamQuery.data, teamQuery.error, teamQuery.loading]);
+
+  const attendanceQuery = useAttendance(
+    { page: 1, limit: 100 },
+    Boolean(currentUser) && canManageTeamAttendance && (pathname === '/dashboard' || pathname === '/team'),
+  );
+
+  useEffect(() => {
+    if (!currentUser || attendanceQuery.loading || attendanceQuery.error) return;
+    setAttendance(attendanceQuery.data.map(normalizeAttendance));
+  }, [attendanceQuery.data, attendanceQuery.error, attendanceQuery.loading, currentUser]);
+
+  const canViewTasks = Boolean(currentUser?.permissions?.includes('TASK_VIEW'));
+  const canManageTasks = Boolean(
+    currentUser?.permissions?.includes('TASK_ASSIGN') || currentUser?.permissions?.includes('TASK_CREATE'),
+  );
+  const shouldLoadTasks = Boolean(currentUser) && canViewTasks && (
+    pathname === '/dashboard' || pathname === '/team' || pathname === '/workspaces'
+  );
+  const taskQueryInput = useMemo(() => ({
+    page: 1,
+    limit: 100,
+    ...(canManageTasks ? {} : { assigneeId: currentUser?.id }),
+  }), [canManageTasks, currentUser?.id]);
+  const taskQuery = useTasks(taskQueryInput, shouldLoadTasks);
+  const taskMutations = useTaskMutations(taskQuery.refresh);
+
+  const accessRoles = [];
+  const backendAccessRoles = useMemo(() => rbacQuery.roles.map((role) => ({
+    id: role.id,
+    name: role.name,
+    description: role.description || '',
+    type: role.type === 'SYSTEM' ? 'system' as const : 'custom' as const,
+    status: 'active' as const,
+    grants: Object.fromEntries(role.rolePermissions.map(({ permission }) => [permission.key, { enabled: true }])),
+    createdAt: role.createdAt.slice(0, 10),
+    updatedAt: role.updatedAt.slice(0, 10),
+  })), [rbacQuery.roles]);
+  // Role IDs used by employee creation must always come from the backend.
+  // Do not fall back to the retired browser-persisted role catalogue.
+  const effectiveAccessRoles = backendAccessRoles;
+  const backendPermissionModules = useMemo(() => {
+    const modules = new Map<string, { id: string; label: string; description: string; permissions: Array<{ key: string; label: string; description?: string; sensitive?: boolean }> }>();
+    rbacQuery.permissions.forEach((permission) => {
+      const current = modules.get(permission.module) ?? { id: permission.module, label: permission.module, description: 'Backend permission group', permissions: [] };
+      current.permissions.push({ key: permission.key, label: permission.label, description: permission.description ?? undefined, sensitive: permission.isSensitive });
+      modules.set(permission.module, current);
+    });
+    return [...modules.values()];
+  }, [rbacQuery.permissions]);
+
+
   const [tasks, setTasks] = useState<TeamTask[]>([]);
+
+  useEffect(() => {
+    if (!currentUser || taskQuery.loading || taskQuery.error) return;
+    setTasks(taskQuery.data.map(normalizeTask));
+  }, [currentUser, taskQuery.data, taskQuery.error, taskQuery.loading]);
 
   const [leaves, setLeaves] = useState<LeaveRequest[]>([]);
 
@@ -142,10 +227,6 @@ export default function App() {
   const [freelancerDataReceived, setFreelancerDataReceived] = useState<FreelancerDataReceived[]>([]);
 
   const [freelancerActivityLogs, setFreelancerActivityLogs] = useState<FreelancerActivityLog[]>([]);
-
-  useEffect(() => {
-    localStorage.setItem(ACCESS_STORAGE_AUDIT, JSON.stringify(accessAudit));
-  }, [accessAudit]);
 
   // Tab, Sidebar & Filter States
   const [activeTab, setActiveTabState] = useState<TabType>(() => ROUTE_TABS[pathname] || (pathname.startsWith('/projects/') ? 'projects' : 'dashboard'));
@@ -270,16 +351,41 @@ export default function App() {
     setProjects(projects.filter((p) => p.id !== projectId));
   };
 
-  const handleAddTeamMember = (member: TeamMember) => {
-    setTeam([member, ...team]);
+  const handleAddTeamMember = async (member: TeamMember, password?: string) => {
+    const roleId = member.accessRoleId;
+    if (!roleId || !password) throw new Error('Choose an access role and set a temporary password.');
+    try {
+      const phone = member.phone?.trim();
+      const employeeCode = member.employeeId?.trim();
+      await teamMutations.create({
+        fullName: member.name,
+        email: member.email?.trim() || '',
+        password,
+        phone: phone || undefined,
+        employeeCode: employeeCode || undefined,
+        roleIds: [roleId],
+      });
+    } catch (error) {
+      window.alert(apiErrorMessage(error, 'Unable to create employee.'));
+      throw error;
+    }
   };
 
-  const handleUpdateTeamMember = (updatedMember: TeamMember) => {
-    setTeam(team.map((m) => (m.id === updatedMember.id ? updatedMember : m)));
+  const handleUpdateTeamMember = async (updatedMember: TeamMember) => {
+    try {
+      await teamMutations.update(updatedMember.id, {
+        fullName: updatedMember.name, phone: updatedMember.phone, employeeCode: updatedMember.employeeId,
+        status: updatedMember.status === 'active' ? 'ACTIVE' : updatedMember.status === 'suspended' ? 'SUSPENDED' : 'INACTIVE',
+      });
+      if (updatedMember.accessRoleId) await teamMutations.setRoles(updatedMember.id, [updatedMember.accessRoleId]);
+    } catch (error) {
+      window.alert(apiErrorMessage(error, 'Unable to update employee.'));
+      throw error;
+    }
   };
 
   const handleDeleteTeamMember = (memberId: string) => {
-    setTeam(team.filter((m) => m.id !== memberId));
+    void teamMutations.remove(memberId).catch((error: unknown) => window.alert(error instanceof ApiError ? error.message : 'Unable to remove employee.'));
   };
 
   const handleRecordAttendance = (record: AttendanceRecord) => {
@@ -291,15 +397,21 @@ export default function App() {
   };
 
   const handleAddTask = (task: TeamTask) => {
-    setTasks([task, ...tasks]);
+    void taskMutations.create(taskCreateInput(task)).catch((error: unknown) => {
+      window.alert(apiErrorMessage(error, 'Unable to assign task.'));
+    });
   };
 
   const handleUpdateTask = (updatedTask: TeamTask) => {
-    setTasks(tasks.map((t) => (t.id === updatedTask.id ? updatedTask : t)));
+    void taskMutations.updateStatus(updatedTask.id, taskStatusInput(updatedTask)).catch((error: unknown) => {
+      window.alert(apiErrorMessage(error, 'Unable to update task status.'));
+    });
   };
 
   const handleDeleteTask = (taskId: string) => {
-    setTasks(tasks.filter((t) => t.id !== taskId));
+    void taskMutations.remove(taskId).catch((error: unknown) => {
+      window.alert(apiErrorMessage(error, 'Unable to archive task.'));
+    });
   };
 
   /** Upsert a leave request — new applications and approve/reject reviews. */
@@ -626,32 +738,42 @@ export default function App() {
           
           {/* Tab 1: Main Dashboard */}
           {activeTab === 'dashboard' && (
-            <OwnerDashboard
-              projects={scopedWeddings}
-              onSelectProject={(project) => handleSelectProject(project)}
-              onOpenNewProjectModal={() => {
-                if (hasPermission(currentUser, accessRoles, 'weddings.create')) router.push('/projects/new');
-              }}
-              onUpdateProject={hasPermission(currentUser, accessRoles, 'weddings.edit') ? handleUpdateProject : () => undefined}
-              onOpenAllPaymentsModal={() => {
-                if (hasPermission(currentUser, accessRoles, 'finance.view_payments') || hasPermission(currentUser, accessRoles, 'finance.record_payment')) {
-                  router.push('/payments/new');
-                }
-              }}
-              setActiveTab={setActiveTab}
-              onProjectStatusNavigate={(status) => {
-                setStatusFilter(status);
-                setActiveTab('projects');
-              }}
-              team={team}
-              attendance={attendance}
-              tasks={tasks}
-              onUpdateTask={handleUpdateTask}
-              onDeleteTask={handleDeleteTask}
-              onAddTask={handleAddTask}
-              onOpenMemberModal={(member) => setSelectedMemberForModal(member)}
-              currentUser={currentUser}
-            />
+              <OwnerDashboard
+                projects={scopedWeddings}
+                onSelectProject={(project) => handleSelectProject(project)}
+                onOpenNewProjectModal={() => {
+                  if (hasPermission(currentUser, accessRoles, 'weddings.create')) router.push('/projects/new');
+                }}
+                onUpdateProject={hasPermission(currentUser, accessRoles, 'weddings.edit') ? handleUpdateProject : () => undefined}
+                onOpenAllPaymentsModal={() => {
+                  if (hasPermission(currentUser, accessRoles, 'finance.view_payments') || hasPermission(currentUser, accessRoles, 'finance.record_payment')) {
+                    router.push('/payments/new');
+                  }
+                }}
+                setActiveTab={setActiveTab}
+                onProjectStatusNavigate={(status) => {
+                  setStatusFilter(status);
+                  setActiveTab('projects');
+                }}
+                team={team}
+                attendance={attendance}
+                tasks={tasks}
+                onUpdateTask={handleUpdateTask}
+                onDeleteTask={handleDeleteTask}
+                onAddTask={handleAddTask}
+                onOpenMemberModal={(member) => setSelectedMemberForModal(member)}
+                currentUser={currentUser}
+                attendanceSlot={currentUser && isEmployeeAttendanceUser(currentUser) && hasPermission(currentUser, accessRoles, 'tasks.view') ? (
+                  <EmployeeDashboardTasks
+                    userId={currentUser.id}
+                    tasks={tasks}
+                    canUpdate={hasPermission(currentUser, accessRoles, 'tasks.change_status')}
+                    onUpdate={handleUpdateTask}
+                    showAttendance={hasPermission(currentUser, accessRoles, 'attendance.mark')}
+                    canViewAttendance={hasPermission(currentUser, accessRoles, 'attendance.view')}
+                  />
+                ) : undefined}
+              />
           )}
 
           {/* Exclusive Owner Workspace (Visible ONLY to Owner) */}
@@ -779,7 +901,7 @@ export default function App() {
                 freelancerPayments={freelancerPayments}
                 currentUser={currentUser}
                 onNavigateToFreelancers={() => setActiveTab('freelancers')}
-                accessRoles={accessRoles}
+                accessRoles={effectiveAccessRoles}
               />
             ) : (
               <div className="bg-white rounded-3xl p-8 sm:p-12 text-center max-w-xl mx-auto border border-slate-200 shadow-xl space-y-5 my-12">
@@ -845,12 +967,14 @@ export default function App() {
           {activeTab === 'access' && (
             hasPermission(currentUser, accessRoles, 'settings.manage_roles') ? (
               <RolesPermissionsManager
-                roles={accessRoles}
-                audit={accessAudit}
+                roles={effectiveAccessRoles}
+                audit={[]}
                 team={team}
                 currentUserName={currentUser?.name || 'Admin'}
-                onSaveRoles={setAccessRoles}
-                onSaveAudit={setAccessAudit}
+                permissions={backendPermissionModules}
+                onCreateRole={async (input) => { await rbacApi.createRole(input); await rbacQuery.refresh(); }}
+                onUpdateRole={async (input) => { await rbacApi.updateRole(input.id, { name: input.name, description: input.description }); await rbacApi.setRolePermissions(input.id, input.permissionKeys); await rbacQuery.refresh(); }}
+                onDeleteRole={async (id) => { await rbacApi.removeRole(id); await rbacQuery.refresh(); }}
               />
             ) : (
               <div className="bg-white rounded-3xl p-8 sm:p-12 text-center max-w-xl mx-auto border border-slate-200 shadow-xl space-y-5 my-12">

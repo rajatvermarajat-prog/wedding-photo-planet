@@ -37,6 +37,7 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
   onAddTask,
   onOpenMemberModal,
   currentUser,
+  attendanceSlot,
 }) => {
   const router = useRouter();
   const pathname = usePathname();
@@ -447,6 +448,7 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
       <DashboardHeader currentUserName={currentUser?.name} />
       <DashboardSecurityAlerts team={team} onTeam={() => setActiveTab('team')} />
       <DashboardKpiGrid totalRevenue={totalRevenue} totalAdvanceReceived={totalAdvanceReceived} totalBalanceDue={totalBalanceDue} allProjectsCount={allProjectsCount} runningProjectsCount={runningProjectsCount} readyToDeliverCount={readyToDeliverCount} deliveredProjectsCount={deliveredProjectsCount} pendingProjectsCount={pendingProjectsCount} urgentProjectsCount={urgentProjectsCount} onPayments={onOpenAllPaymentsModal} onProjects={() => setActiveTab('projects')} onCompleted={() => onProjectStatusNavigate?.('completed')} onUrgent={() => onProjectStatusNavigate?.('urgent')} />
+      {attendanceSlot && <div className="max-w-xl">{attendanceSlot}</div>}
       <QuickActionsPanel />
       <div className="grid grid-cols-1 gap-5 xl:grid-cols-3">
         <div className="xl:col-span-2">

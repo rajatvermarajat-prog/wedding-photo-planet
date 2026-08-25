@@ -4,7 +4,6 @@ import React, { useMemo, useState } from 'react';
 import {
   CheckCircle2,
   ChevronDown,
-  Copy,
   Eye,
   Pencil,
   Plus,
@@ -18,28 +17,18 @@ import { TeamMember } from '@/types';
 import { ConfirmDeleteModal } from '@/components/common/ConfirmDeleteModal';
 import { useToast } from '@/components/common';
 import { Badge, BTN_CREAM, BTN_GHOST, BTN_PRIMARY, CARD, EmptyState, FIELD, KpiCard, LABEL, Modal, ModalHero } from '@/features/team/components/TeamUiKit';
-import { AccessAuditEntry, AccessRole, PermissionGrant, PermissionScope } from '../accessTypes';
-import {
-  ACCESS_PRESETS,
-  applyPreset,
-  diffGrants,
-  duplicateRole,
-  enabledCount,
-  makeAudit,
-  moduleSummary,
-  newCustomRole,
-  permissionLabel,
-  SCOPE_LABELS,
-} from '../accessDomain';
-import { ALL_PERMISSION_KEYS, findPermission, PERMISSION_MODULES, SENSITIVE_KEYS } from '../permissionCatalog';
+import { AccessAuditEntry, AccessRole, PermissionGrant, PermissionModule, PermissionScope } from '../accessTypes';
+import { enabledCount, SCOPE_LABELS } from '../accessDomain';
 
 interface Props {
   roles: AccessRole[];
   audit: AccessAuditEntry[];
   team: TeamMember[];
   currentUserName: string;
-  onSaveRoles: (roles: AccessRole[]) => void;
-  onSaveAudit: (entries: AccessAuditEntry[]) => void;
+  permissions: PermissionModule[];
+  onCreateRole: (input: { name: string; description: string; permissionKeys: string[] }) => Promise<void>;
+  onUpdateRole: (input: { id: string; name: string; description: string; permissionKeys: string[] }) => Promise<void>;
+  onDeleteRole: (id: string) => Promise<void>;
 }
 
 const Switch = ({ on, disabled, onClick }: { on: boolean; disabled?: boolean; onClick: () => void }) => (
@@ -62,8 +51,10 @@ export const RolesPermissionsManager: React.FC<Props> = ({
   audit,
   team,
   currentUserName,
-  onSaveRoles,
-  onSaveAudit,
+  permissions,
+  onCreateRole,
+  onUpdateRole,
+  onDeleteRole,
 }) => {
   const { showToast } = useToast();
   const [query, setQuery] = useState('');
@@ -90,58 +81,34 @@ export const RolesPermissionsManager: React.FC<Props> = ({
     setEditorRoleId(role.id);
   };
 
-  const handleCreate = () => {
+  const [pending, setPending] = useState(false);
+  const handleCreate = async () => {
     const name = createName.trim();
     if (!name) {
       showToast('Enter a role name.', { variant: 'error' });
       return;
     }
-    if (roles.some((r) => r.name.toLowerCase() === name.toLowerCase())) {
-      showToast('A role with this name already exists.', { variant: 'error' });
-      return;
-    }
-    const created = newCustomRole(name, createDesc.trim());
-    onSaveRoles([created, ...roles]);
-    setShowCreate(false);
-    setCreateName('');
-    setCreateDesc('');
-    openEditor(created);
-    showToast(`Role “${created.name}” created.`);
+    setPending(true);
+    try {
+      await onCreateRole({ name, description: createDesc.trim(), permissionKeys: [] });
+      setShowCreate(false); setCreateName(''); setCreateDesc('');
+      showToast(`Role “${name}” created.`);
+    } catch (error) { showToast(error instanceof Error ? error.message : 'Unable to create role.', { variant: 'error' }); }
+    finally { setPending(false); }
   };
 
-  const handleDuplicate = (source: AccessRole) => {
-    const copy = duplicateRole(source, `${source.name} Copy`);
-    onSaveRoles([copy, ...roles]);
-    openEditor(copy);
-    showToast(`Duplicated ${source.name}.`);
-  };
-
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (!deleting) return;
-    if (deleting.type === 'system') {
-      showToast('System roles cannot be deleted.', { variant: 'error' });
-      setDeleting(null);
-      return;
-    }
-    if (usersFor(deleting) > 0) {
-      showToast('Reassign users before deleting this role.', { variant: 'error' });
-      setDeleting(null);
-      return;
-    }
-    onSaveRoles(roles.filter((r) => r.id !== deleting.id));
-    showToast(`Deleted ${deleting.name}.`);
-    setDeleting(null);
+    setPending(true);
+    try { await onDeleteRole(deleting.id); showToast(`Deleted ${deleting.name}.`); setDeleting(null); }
+    catch (error) { showToast(error instanceof Error ? error.message : 'Unable to delete role.', { variant: 'error' }); }
+    finally { setPending(false); }
   };
 
-  const handleSaveEditor = (next: AccessRole) => {
-    const prev = roles.find((r) => r.id === next.id);
-    onSaveRoles(roles.map((r) => (r.id === next.id ? { ...next, updatedAt: new Date().toISOString().slice(0, 10) } : r)));
-    if (prev) {
-      const { added, removed } = diffGrants(prev, next);
-      if (added.length || removed.length) {
-        onSaveAudit([makeAudit(next, added, removed, currentUserName), ...audit].slice(0, 80));
-      }
-    }
+  const handleSaveEditor = async (next: AccessRole) => {
+    try {
+      await onUpdateRole({ id: next.id, name: next.name, description: next.description, permissionKeys: Object.entries(next.grants).filter(([, grant]) => grant.enabled).map(([key]) => key) });
+    } catch (error) { showToast(error instanceof Error ? error.message : 'Unable to update role.', { variant: 'error' }); return; }
     showToast('Permissions updated');
     setEditorRoleId(null);
   };
@@ -153,6 +120,7 @@ export const RolesPermissionsManager: React.FC<Props> = ({
         readOnly={readOnly}
         onBack={() => setEditorRoleId(null)}
         onSave={handleSaveEditor}
+        permissions={permissions}
       />
     );
   }
@@ -242,7 +210,6 @@ export const RolesPermissionsManager: React.FC<Props> = ({
                       <div className="flex justify-end gap-1">
                         <button type="button" className={BTN_GHOST} onClick={() => openEditor(role, true)}><Eye className="size-3.5" /> View</button>
                         <button type="button" className={BTN_PRIMARY} onClick={() => openEditor(role)}><Pencil className="size-3.5" /> Edit</button>
-                        <button type="button" className={BTN_GHOST} onClick={() => handleDuplicate(role)}><Copy className="size-3.5" /></button>
                         {role.type === 'custom' && (
                           <button type="button" className={BTN_GHOST} onClick={() => setDeleting(role)}><Trash2 className="size-3.5 text-red-600" /></button>
                         )}
@@ -286,7 +253,7 @@ export const RolesPermissionsManager: React.FC<Props> = ({
             <textarea className={`${FIELD} resize-none`} rows={3} value={createDesc} onChange={(e) => setCreateDesc(e.target.value)} placeholder="Can manage weddings, events, shoots and assigned team members." />
           </label>
           <p className="text-xs font-medium text-slate-500">New roles are saved as Custom Role. System roles stay protected.</p>
-          <button type="button" onClick={handleCreate} className={`${BTN_PRIMARY} w-full py-3`}>
+          <button type="button" disabled={pending} onClick={() => void handleCreate()} className={`${BTN_PRIMARY} w-full py-3`}>
             <Plus className="size-4" /> Create Role
           </button>
         </div>
@@ -340,25 +307,28 @@ function PermissionEditor({
   readOnly,
   onBack,
   onSave,
+  permissions,
 }: {
   role: AccessRole;
   readOnly: boolean;
   onBack: () => void;
-  onSave: (role: AccessRole) => void;
+  onSave: (role: AccessRole) => Promise<void>;
+  permissions: PermissionModule[];
 }) {
-  const { showToast } = useToast();
   const [draft, setDraft] = useState<Record<string, PermissionGrant>>(() => ({ ...role.grants }));
   const [search, setSearch] = useState('');
-  const [openMods, setOpenMods] = useState<string[]>(PERMISSION_MODULES.map((m) => m.id));
+  const [openMods, setOpenMods] = useState<string[]>(permissions.map((m) => m.id));
   const [saving, setSaving] = useState(false);
   const [pendingSensitive, setPendingSensitive] = useState<string | null>(null);
-  const [status, setStatus] = useState(role.status);
-
-  const dirty = JSON.stringify(draft) !== JSON.stringify(role.grants) || status !== role.status;
-  const enabled = ALL_PERMISSION_KEYS.filter((k) => draft[k]?.enabled).length;
+  const dirty = JSON.stringify(draft) !== JSON.stringify(role.grants);
+  const enabled = Object.values(draft).filter((grant) => grant.enabled).length;
   const q = search.trim().toLowerCase();
+  const sensitiveKeys = useMemo(
+    () => new Set(permissions.flatMap((module) => module.permissions.filter((permission) => permission.sensitive).map((permission) => permission.key))),
+    [permissions],
+  );
 
-  const visibleModules = PERMISSION_MODULES.map((mod) => ({
+  const visibleModules = permissions.map((mod) => ({
     ...mod,
     permissions: mod.permissions.filter((p) => !q || p.label.toLowerCase().includes(q) || p.key.includes(q)),
   })).filter((mod) => mod.permissions.length > 0);
@@ -369,7 +339,7 @@ function PermissionEditor({
 
   const toggle = (key: string) => {
     const next = !draft[key]?.enabled;
-    if (next && SENSITIVE_KEYS.has(key)) {
+    if (next && sensitiveKeys.has(key)) {
       setPendingSensitive(key);
       return;
     }
@@ -377,7 +347,7 @@ function PermissionEditor({
   };
 
   const selectModule = (modId: string, on: boolean) => {
-    const mod = PERMISSION_MODULES.find((m) => m.id === modId);
+    const mod = permissions.find((m) => m.id === modId);
     if (!mod) return;
     setDraft((prev) => {
       const next = { ...prev };
@@ -388,22 +358,13 @@ function PermissionEditor({
     });
   };
 
-  const applyQuick = (presetId: string) => {
-    const preset = ACCESS_PRESETS.find((p) => p.id === presetId);
-    if (!preset) return;
-    setDraft(applyPreset(preset.keys, preset.scope));
-    showToast(`${preset.label} applied. You can still customise before saving.`);
-  };
-
-  const save = () => {
+  const save = async () => {
     setSaving(true);
-    window.setTimeout(() => {
-      onSave({ ...role, grants: draft, status, updatedAt: new Date().toISOString().slice(0, 10) });
-      setSaving(false);
-    }, 280);
+    try { await onSave({ ...role, grants: draft }); }
+    finally { setSaving(false); }
   };
 
-  const summary = moduleSummary({ ...role, grants: draft });
+  const summary = permissions.map((mod) => ({ id: mod.id, label: mod.label, total: mod.permissions.length, on: mod.permissions.filter((permission) => draft[permission.key]?.enabled).length }));
 
   return (
     <div className="space-y-5 pb-24">
@@ -440,20 +401,6 @@ function PermissionEditor({
         ))}
       </div>
 
-      {!readOnly && (
-        <div className={`${CARD} p-4`}>
-          <p className={`${LABEL} mb-2`}>Permission presets</p>
-          <div className="flex flex-wrap gap-2">
-            {ACCESS_PRESETS.map((preset) => (
-              <button key={preset.id} type="button" title={preset.hint} onClick={() => applyQuick(preset.id)} className={BTN_GHOST}>
-                {preset.label}
-              </button>
-            ))}
-          </div>
-          <p className="mt-2 text-[11px] font-medium text-slate-500">Presets are a starting point. Explicit user deny still wins over these role grants.</p>
-        </div>
-      )}
-
       <div className={`${CARD} space-y-3 p-4`}>
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
           <div className="relative flex-1">
@@ -461,18 +408,9 @@ function PermissionEditor({
             <input className={`${FIELD} pl-10`} value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search permissions, e.g. download" />
           </div>
           <div className="flex gap-2">
-            <button type="button" className={BTN_GHOST} onClick={() => setOpenMods(PERMISSION_MODULES.map((m) => m.id))}>Expand All</button>
+            <button type="button" className={BTN_GHOST} onClick={() => setOpenMods(permissions.map((m) => m.id))}>Expand All</button>
             <button type="button" className={BTN_GHOST} onClick={() => setOpenMods([])}>Collapse All</button>
           </div>
-          {!readOnly && (
-            <label className="flex items-center gap-2 text-xs font-bold text-slate-600">
-              Status
-              <select className={FIELD} value={status} onChange={(e) => setStatus(e.target.value as AccessRole['status'])}>
-                <option value="active">Active</option>
-                <option value="inactive">Inactive</option>
-              </select>
-            </label>
-          )}
         </div>
       </div>
 
@@ -586,7 +524,7 @@ function PermissionEditor({
       <ConfirmDeleteModal
         isOpen={!!pendingSensitive}
         title="Enable sensitive permission"
-        itemTitle={pendingSensitive ? permissionLabel(pendingSensitive) : ''}
+        itemTitle={pendingSensitive || ''}
         message="This permission provides access to sensitive studio or financial data. Are you sure you want to enable it?"
         onConfirm={() => {
           if (pendingSensitive) setGrant(pendingSensitive, { enabled: true });

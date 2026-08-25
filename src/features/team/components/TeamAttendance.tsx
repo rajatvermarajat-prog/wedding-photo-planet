@@ -119,8 +119,8 @@ interface TeamAttendanceProps {
   attendance: AttendanceRecord[];
   projects: Project[];
   tasks?: TeamTask[];
-  onAddTeamMember: (member: TeamMember) => void;
-  onUpdateTeamMember: (member: TeamMember) => void;
+  onAddTeamMember: (member: TeamMember, password?: string) => Promise<void>;
+  onUpdateTeamMember: (member: TeamMember) => Promise<void>;
   onDeleteTeamMember?: (memberId: string) => void;
   onReorderTeam?: (newTeam: TeamMember[]) => void;
   onRecordAttendance: (record: AttendanceRecord) => void;
@@ -208,12 +208,12 @@ export const TeamAttendance: React.FC<TeamAttendanceProps> = ({
     setIsFormOpen(true);
   };
 
-  const handleSaveMember = (member: TeamMember, mode: 'create' | 'update') => {
+  const handleSaveMember = async (member: TeamMember, mode: 'create' | 'update', password?: string) => {
     if (mode === 'create') {
-      onAddTeamMember(member);
-      showToast(`${member.name} added to the team. A studio login is created with the default PIN 1234.`);
+      await onAddTeamMember(member, password);
+      showToast(`${member.name} was added to the team and can now sign in with the temporary password you set.`);
     } else {
-      onUpdateTeamMember(member);
+      await onUpdateTeamMember(member);
       showToast(`${member.name}'s profile updated.`);
       if (profileMember?.id === member.id) setProfileMember(member);
     }
@@ -232,7 +232,7 @@ export const TeamAttendance: React.FC<TeamAttendanceProps> = ({
       status: isActive ? 'inactive' : 'active',
       workStatus: isActive ? 'CLOCKED_OUT' : member.workStatus,
     };
-    onUpdateTeamMember(updated);
+    void onUpdateTeamMember(updated);
     if (profileMember?.id === member.id) setProfileMember(updated);
     showToast(
       isActive

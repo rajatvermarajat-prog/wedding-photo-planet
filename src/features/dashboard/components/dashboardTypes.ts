@@ -1,4 +1,5 @@
 import { AttendanceRecord, Project, ProjectStatus, TeamMember, TeamTask } from '@/types';
+import type { ReactNode } from 'react';
 
 export interface SalaryInstallment {
   id: string;
@@ -37,4 +38,5 @@ export interface OwnerDashboardProps {
   onAddTask?: (task: TeamTask) => void;
   onOpenMemberModal?: (member: TeamMember) => void;
   currentUser?: TeamMember | { id?: string; name?: string; role?: string; email?: string } | null;
+  attendanceSlot?: ReactNode;
 }

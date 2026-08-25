@@ -25,16 +25,16 @@ import { TabType } from '@/components/layout/Header';
 import { Badge, BTN_GHOST, BTN_PRIMARY, CARD, EmptyState, KpiCard } from '@/features/team/components/TeamUiKit';
 import { PermissionGuard, usePermission } from '@/features/access';
 import { RoleDashboards } from './RoleDashboards';
+import { MyAttendanceCard } from '@/features/attendance/MyAttendanceCard';
+import { TaskWorkspacePanel } from '@/features/tasks/TaskWorkspacePanel';
 import { WORKSPACE_COPY, workspaceKind } from '../workspaceKind';
 import {
-  attendanceHistory,
   myTasks,
   ownPayments,
   paymentPending,
   presentCount,
   projectHealth,
   teamBuckets,
-  todayAttendance,
   todayShoots,
   upcomingShoots,
   visibleProjects,
@@ -91,12 +91,13 @@ export const RoleWorkspaceHub: React.FC<Props> = (props) => {
   const assignedTasks = useMemo(() => myTasks(tasks, user), [tasks, user]);
   const todays = useMemo(() => todayShoots(shootRows), [shootRows]);
   const upcoming = useMemo(() => upcomingShoots(shootRows), [shootRows]);
-  const att = todayAttendance(attendance, user);
-  const history = attendanceHistory(attendance, user);
   const minePay = useMemo(() => ownPayments(payments, user), [payments, user]);
   const health = projectHealth(weddingRows);
   const crew = teamBuckets(team);
   const today = new Date().toISOString().slice(0, 10);
+  const canManageTeam = can('employees.view') || can('attendance.manage');
+  const canManageTaskWorkspace = can('tasks.create');
+  const isEmployeeAttendanceUser = !/(^|\W)(admin|owner)(\W|$)/i.test(String(user?.role || ''));
   const leads = useMemo(() => loadLeads().filter((l) => {
     if (!can('leads.view')) return false;
     const scope = role?.grants['leads.view']?.scope || 'all';
@@ -167,17 +168,30 @@ export const RoleWorkspaceHub: React.FC<Props> = (props) => {
             </div>
           )}
 
+          {user?.id && isEmployeeAttendanceUser && can('attendance.mark') && <MyAttendanceCard userId={user.id} canView={can('attendance.view')} />}
+
+          {kind !== 'client' && can('tasks.view') && (
+            <TaskWorkspacePanel
+              tasks={canManageTaskWorkspace ? tasks : assignedTasks}
+              title={canManageTaskWorkspace ? 'Team task progress' : "Today's assigned tasks"}
+              description={canManageTaskWorkspace ? 'Assignments and employee progress update from the same task records.' : 'Keep your assigned work up to date so your manager can track progress.'}
+              showAssignee={canManageTaskWorkspace}
+              canUpdate={can('tasks.change_status')}
+              onUpdate={props.onUpdateTask}
+            />
+          )}
+
           {kind === 'manager' && (
             <>
               <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
                 <KpiCard label="Today's Shoots" value={todays.length} hint="On the floor today" icon={Camera} tone="rose" onClick={() => setActiveTab?.('shoots')} />
                 <KpiCard label="Active Weddings" value={weddingRows.filter((p) => p.status === 'running' || p.status === 'urgent').length} hint="Work in progress" icon={FolderKanban} tone="amber" onClick={() => setActiveTab?.('projects')} />
                 <KpiCard label="Pending Tasks" value={assignedTasks.filter((t) => t.status !== 'completed').length} hint="Team follow-ups" icon={Clock3} tone="blue" />
-                <KpiCard label="Team In Today" value={presentCount(attendance, team)} hint="Present / on shoot" icon={Users} tone="emerald" onClick={() => can('employees.view') && setActiveTab?.('team')} />
+                {canManageTeam && <KpiCard label="Team In Today" value={presentCount(attendance, team)} hint="Present / on shoot" icon={Users} tone="emerald" onClick={() => setActiveTab?.('team')} />}
               </div>
               <PipelineCard projects={weddingRows} onOpen={onSelectProject} />
               <div className="grid gap-4 lg:grid-cols-2">
-                <section className={`${CARD} p-5`}>
+                {canManageTeam && <section className={`${CARD} p-5`}>
                   <h3 className="text-xs font-extrabold uppercase tracking-wider text-slate-600">Team status</h3>
                   <div className="mt-3 grid grid-cols-5 gap-2">
                     {[
@@ -193,7 +207,7 @@ export const RoleWorkspaceHub: React.FC<Props> = (props) => {
                       </div>
                     ))}
                   </div>
-                </section>
+                </section>}
                 <section className={`${CARD} p-5`}>
                   <h3 className="text-xs font-extrabold uppercase tracking-wider text-slate-600">Project health</h3>
                   <div className="mt-3 grid grid-cols-3 gap-2">
@@ -214,10 +228,8 @@ export const RoleWorkspaceHub: React.FC<Props> = (props) => {
                 <KpiCard label="Today's Tasks" value={assignedTasks.filter((t) => t.dueDate === today).length} icon={CheckCircle2} tone="rose" />
                 <KpiCard label="Today's Shoots" value={todays.length} icon={Camera} tone="amber" />
                 <KpiCard label="Open Tasks" value={assignedTasks.filter((t) => t.status !== 'completed').length} icon={Clock3} tone="blue" />
-                <KpiCard label="Attendance" value={att ? att.status.replaceAll('_', ' ') : 'Not marked'} icon={UserCheck} tone="emerald" />
+                <KpiCard label="Attendance" value={can('attendance.mark') ? 'My Attendance' : 'Unavailable'} icon={UserCheck} tone="emerald" />
               </div>
-              <AttendanceStrip att={att} history={history} user={user} attendance={attendance} onRecord={props.onRecordAttendance} onUpdate={props.onUpdateAttendance} />
-              <TaskCard tasks={assignedTasks} canEdit={can('tasks.change_status')} onUpdate={props.onUpdateTask} />
               <ScheduleCard rows={upcoming} onOpen={onSelectProject} />
             </>
           )}
@@ -231,7 +243,6 @@ export const RoleWorkspaceHub: React.FC<Props> = (props) => {
                 <KpiCard label="Pending Pay" value={minePay.filter(paymentPending).length} icon={IndianRupee} tone="red" />
               </div>
               <ScheduleCard rows={upcoming} onOpen={onSelectProject} empty="No assigned shoots." />
-              <TaskCard tasks={assignedTasks} canEdit={can('tasks.change_status')} onUpdate={props.onUpdateTask} />
               <PayCard rows={minePay} />
             </>
           )}
@@ -344,72 +355,6 @@ function greeting() {
 
 function money(n: number) {
   return `₹${Math.round(n || 0).toLocaleString('en-IN')}`;
-}
-
-function nowTime() {
-  return new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
-}
-
-function AttendanceStrip({
-  att,
-  history,
-  user,
-  attendance,
-  onRecord,
-  onUpdate,
-}: {
-  att?: AttendanceRecord;
-  history: AttendanceRecord[];
-  user?: Props['currentUser'];
-  attendance: AttendanceRecord[];
-  onRecord: (record: AttendanceRecord) => void;
-  onUpdate: (records: AttendanceRecord[]) => void;
-}) {
-  const today = new Date().toISOString().slice(0, 10);
-  const checkIn = () => {
-    if (!user) return;
-    if (att) {
-      onUpdate(attendance.map((row) => (row.id === att.id ? { ...row, inTime: nowTime(), status: 'present_office' as const } : row)));
-      return;
-    }
-    onRecord({
-      id: `att-${Date.now()}`,
-      date: today,
-      teamMemberId: user.id,
-      teamMemberName: user.name,
-      role: user.role,
-      status: 'present_office',
-      inTime: nowTime(),
-      payAmount: 0,
-      paidStatus: 'pending',
-      location: 'Studio Office',
-    });
-  };
-  const checkOut = () => {
-    if (!att) return;
-    onUpdate(attendance.map((row) => (row.id === att.id ? { ...row, outTime: nowTime() } : row)));
-  };
-  return (
-    <section className={`${CARD} p-5`}>
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h3 className="text-xs font-extrabold uppercase tracking-wider text-slate-600">Attendance</h3>
-          <p className="mt-1 text-sm font-bold text-slate-800">{att ? `${att.status.replaceAll('_', ' ')} · In ${att.inTime || '—'} · Out ${att.outTime || '—'}` : 'Not marked today'}</p>
-        </div>
-        <div className="flex gap-2">
-          <button type="button" className={BTN_PRIMARY} onClick={checkIn} disabled={!!att?.inTime}>{att?.inTime ? 'Checked in' : 'Check In'}</button>
-          <button type="button" className={BTN_GHOST} onClick={checkOut} disabled={!att?.inTime || !!att?.outTime}>Check Out</button>
-        </div>
-      </div>
-      {history.length > 0 && (
-        <div className="mt-4 space-y-1">
-          {history.map((row) => (
-            <p key={row.id} className="text-[11px] text-slate-500">{row.date} · {row.status.replaceAll('_', ' ')} · {row.location || row.inTime || '—'}</p>
-          ))}
-        </div>
-      )}
-    </section>
-  );
 }
 
 function PipelineCard({ projects, onOpen }: { projects: Project[]; onOpen?: (p: Project) => void }) {

@@ -1809,7 +1809,7 @@ export const RoleDashboards: React.FC<RoleDashboardsProps> = ({
   const [customDomainInput, setCustomDomainInput] = useState('');
   const [newTaskAssignedToId, setNewTaskAssignedToId] = useState(activeMemberId);
   const [newTaskProjectId, setNewTaskProjectId] = useState('');
-  const [newTaskCategory, setNewTaskCategory] = useState<TeamTask['category']>('sales_target');
+  const [newTaskCategory, setNewTaskCategory] = useState<TeamTask['category']>('management');
   const [newTaskDueDate, setNewTaskDueDate] = useState(new Date().toISOString().split('T')[0]);
   const [newTaskPriority, setNewTaskPriority] = useState<'high' | 'medium' | 'low'>('high');
   const [newTaskNotes, setNewTaskNotes] = useState('');
@@ -2872,6 +2872,11 @@ export const RoleDashboards: React.FC<RoleDashboardsProps> = ({
                 if (activeMember?.id) {
                   setNewTaskAssignedToId(activeMember.id);
                 }
+                setNewTaskTitle('');
+                setNewTaskCategory('management');
+                setNewBookingTarget('');
+                setNewTargetRevenue('');
+                setNewTargetLeadsCount('');
                 setShowAddTaskModal(true);
               }}
               className="px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs flex items-center gap-2 shadow-sm transition cursor-pointer"
@@ -5908,8 +5913,6 @@ export const RoleDashboards: React.FC<RoleDashboardsProps> = ({
                   <button
                     type="button"
                     onClick={() => {
-                      setNewTaskTitle('Monthly 5 Wedding Deals Target');
-                      setNewTaskCategory('sales_target');
                       setNewBookingTarget('5');
                       setNewTargetRevenue('500000');
                       setNewTargetLeadsCount('25');
@@ -5921,8 +5924,6 @@ export const RoleDashboards: React.FC<RoleDashboardsProps> = ({
                   <button
                     type="button"
                     onClick={() => {
-                      setNewTaskTitle('20 Hot Client Leads Followup');
-                      setNewTaskCategory('sales_lead');
                       setNewTargetLeadsCount('20');
                     }}
                     className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-white hover:bg-indigo-100 text-indigo-800 border border-indigo-200 cursor-pointer shadow-2xs"

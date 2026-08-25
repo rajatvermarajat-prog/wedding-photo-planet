@@ -234,6 +234,11 @@ export function hasPermission(
   requiredScope?: PermissionScope
 ): boolean {
   if (!user) return false;
+  const backendPermissions = user.permissions;
+  if (backendPermissions) {
+    const backendKey = LEGACY_PERMISSION_KEYS[key] || key;
+    return backendPermissions.includes(backendKey);
+  }
   const denied = user.deniedPermissions || [];
   if (denied.includes(key)) return false;
   const extra = user.extraPermissions || [];
@@ -248,6 +253,20 @@ export function hasPermission(
   }
   return true;
 }
+
+/** Maps preserved UI capability names to the backend's permission contract. */
+const LEGACY_PERMISSION_KEYS: Record<string, string> = {
+  'dashboard.view': 'REPORT_VIEW', 'dashboard.view_financial': 'REPORT_VIEW',
+  'settings.view': 'ORG_VIEW', 'settings.manage_roles': 'ROLE_UPDATE',
+  'leads.view': 'LEAD_VIEW', 'weddings.view': 'PROJECT_VIEW', 'weddings.create': 'PROJECT_CREATE', 'weddings.edit': 'PROJECT_UPDATE', 'weddings.delete': 'PROJECT_DELETE',
+  'shoots.view': 'SHOOT_VIEW', 'events.view': 'EVENT_VIEW',
+  'finance.view_payments': 'PAYMENT_VIEW', 'finance.manage_expenses': 'EXPENSE_VIEW', 'finance.view_invoices': 'INVOICE_VIEW', 'finance.view_reports': 'REPORT_VIEW',
+  'employees.view': 'TEAM_VIEW', 'employees.create': 'USER_CREATE', 'employees.edit': 'USER_UPDATE', 'employees.manage_attendance': 'TEAM_MANAGE',
+  'attendance.view': 'ATTENDANCE_VIEW', 'attendance.mark': 'ATTENDANCE_MARK', 'attendance.manage': 'ATTENDANCE_MANAGE',
+  'freelancers.view': 'FREELANCER_VIEW', 'clients.view': 'CLIENT_VIEW', 'clients.create': 'CLIENT_CREATE',
+  'media.view_photos': 'DELIVERY_VIEW', 'media.view_videos': 'DELIVERY_VIEW',
+  'tasks.view': 'TASK_VIEW', 'tasks.create': 'TASK_CREATE', 'tasks.edit': 'TASK_UPDATE', 'tasks.change_status': 'TASK_UPDATE',
+};
 
 export function permissionLabel(key: string) {
   return findPermission(key)?.label || key;
@@ -309,6 +328,3 @@ export function duplicateRole(source: AccessRole, name: string): AccessRole {
     updatedAt: stamp,
   };
 }
-
-export const ACCESS_STORAGE_ROLES = 'wpp_crm_access_roles';
-export const ACCESS_STORAGE_AUDIT = 'wpp_crm_access_audit';
