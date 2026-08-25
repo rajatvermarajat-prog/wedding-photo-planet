@@ -1,55 +1,54 @@
 'use client';
 
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import { TeamMember } from '@/types';
+import { ApiError } from '@/lib/api/client';
+import { authApi, LoginInput, SessionUser } from '@/lib/api/auth';
+import { TeamMemberStatus } from '@/types';
 
-export type AuthenticatedUser = TeamMember | {
-  id: string;
+export type AuthenticatedUser = Omit<SessionUser, 'status'> & {
   name: string;
   role: string;
-  email: string;
+  status: TeamMemberStatus;
 };
+
+function toAuthenticatedUser(user: SessionUser): AuthenticatedUser {
+  const statusMap: Record<string, TeamMemberStatus> = {
+    ACTIVE: 'active', INACTIVE: 'inactive', SUSPENDED: 'suspended', ON_LEAVE: 'on_leave',
+  };
+  return { ...user, name: user.fullName, role: user.roles[0] ?? 'User', status: statusMap[user.status] ?? 'inactive' };
+}
 
 interface AuthSessionValue {
   currentUser: AuthenticatedUser | null;
   isHydrated: boolean;
-  login: (user: AuthenticatedUser) => void;
-  logout: () => void;
+  login: (input: LoginInput) => Promise<AuthenticatedUser>;
+  logout: () => Promise<void>;
 }
 
 const AuthSessionContext = createContext<AuthSessionValue | null>(null);
-const AUTH_STORAGE_KEY = 'wpp_crm_logged_user';
-
 export function AuthSessionProvider({ children }: { children: React.ReactNode }) {
   const [currentUser, setCurrentUser] = useState<AuthenticatedUser | null>(null);
   const [isHydrated, setIsHydrated] = useState(false);
 
   useEffect(() => {
+    authApi.me().then((user) => setCurrentUser(toAuthenticatedUser(user))).catch((error: unknown) => {
+      if (!(error instanceof ApiError) || error.status !== 401) console.error('Unable to restore CRM session', error);
+    }).finally(() => setIsHydrated(true));
+  }, []);
+
+  const login = useCallback(async (input: LoginInput) => {
+    const user = await authApi.login(input);
+    const authenticatedUser = toAuthenticatedUser(user);
+    setCurrentUser(authenticatedUser);
+    return authenticatedUser;
+  }, []);
+
+  const logout = useCallback(async () => {
     try {
-      const savedUser = window.localStorage.getItem(AUTH_STORAGE_KEY);
-      if (savedUser) {
-        const parsedUser = JSON.parse(savedUser) as AuthenticatedUser;
-        if (parsedUser?.id && parsedUser?.name && parsedUser?.role) {
-          setCurrentUser(parsedUser);
-        } else {
-          window.localStorage.removeItem(AUTH_STORAGE_KEY);
-        }
-      }
-    } catch {
-      window.localStorage.removeItem(AUTH_STORAGE_KEY);
+      await authApi.logout();
     } finally {
-      setIsHydrated(true);
+      setCurrentUser(null);
     }
-  }, []);
-
-  const login = useCallback((user: AuthenticatedUser) => {
-    window.localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(user));
-    setCurrentUser(user);
-  }, []);
-
-  const logout = useCallback(() => {
-    window.localStorage.removeItem(AUTH_STORAGE_KEY);
-    setCurrentUser(null);
   }, []);
 
   const value = useMemo<AuthSessionValue>(() => ({

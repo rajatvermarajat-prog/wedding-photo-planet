@@ -1,6 +1,6 @@
 # Wedding Photo Planet CRM
 
-A Next.js App Router frontend for Wedding Photo Planet's studio operations. The existing CRM UI, role-based workspaces, project workflows, modals, local persistence, reports, and freelancer tools are preserved while navigation is exposed through real routes.
+A Next.js App Router frontend for Wedding Photo Planet's studio operations. It communicates with the production CRM backend over HTTP; it does not include backend source code or database access.
 
 ## Development
 
@@ -31,11 +31,15 @@ npm run build
 - `/freelancers`
 - `/deliveries`
 
-Data is currently mock/local and persisted in the browser. Backend and authentication integration remain intentionally separate for the next implementation stage.
+Authentication is integrated with the standalone backend. The remaining CRM screens are being migrated from their legacy client-side data layer feature by feature; they must not be treated as backend-integrated until that work is complete.
 
-## Backend separation
+## Architecture
 
-The frontend has no runtime dependency on the backend package. The preserved backend code now lives independently in `services/backend/` with its own `package.json`, TypeScript config, environment file and setup documentation. Install or run it from that directory only when backend development begins.
+```
+Browser → Next.js frontend → NEXT_PUBLIC_API_URL → Express API → Prisma → PostgreSQL
+```
+
+The production backend is a separate repository at `../wedding-photo-planet-backend`. This frontend has no Prisma, Express server, or database connection code. Configure its public API URL with `NEXT_PUBLIC_API_URL`; never place database credentials or backend secrets in this repository.
 
 ## Frontend organization
 

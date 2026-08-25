@@ -1,0 +1,10 @@
+import type { Project as ProjectDto } from '@/lib/api/projects';
+import type { Project } from '@/types';
+
+const legacyStatus: Record<ProjectDto['status'], Project['status']> = { LEAD:'new_project', CONFIRMED:'running', PLANNING:'running', SHOOTING:'running', EDITING:'running', DELIVERY:'ready_to_deliver', COMPLETED:'completed', CANCELLED:'pending' };
+const legacyService: Record<ProjectDto['type'], string> = { ROKA:'Roka', ENGAGEMENT:'Engagement', PRE_WEDDING:'Pre Wedding', WEDDING:'Wedding', COMPLETE_WEDDING_SERVICES:'Complete Wedding Services', HALDI_MEHENDI:'Haldi & Mehendi', SANGEET:'Sangeet', RECEPTION:'Reception', ANNIVERSARY:'Other', CORPORATE:'Other', OTHER:'Other' };
+/** Maps only API-provided values; unavailable legacy workflow sections stay empty. */
+export function normalizeProject(dto: ProjectDto): Project {
+  const budget=Number(dto.totalQuotation)||0;
+  return { id:dto.id, name:dto.name, projectName:dto.name, clientWeddingTitle:dto.client.displayName, clientContactMobile:dto.client.primaryPhone, venueLocation:[dto.venueName,dto.venueCity].filter(Boolean).join(', '), primaryServiceType:legacyService[dto.type], weddingFunctionDates:dto.weddingDate?.slice(0,10)??'', finalDeliveryDeadline:dto.deliveryDueDate?.slice(0,10)??'', totalBudget:budget, advanceReceived:0, balanceDue:budget, specialNotesMusicPreferences:dto.notes??'', status:legacyStatus[dto.status], createdAt:dto.createdAt, videoPipeline:{preWeddingVideo:'not_started',longVideo:'not_started',teaser:'not_started',highlights:'not_started',reels:'not_started',otherVideo:''}, photoPipeline:{preWeddingPhotos:'not_started',cullingSelection:'not_started',colorGradingRetouching:'not_started',albumDesigning:'not_started',albumPrinting:'not_sent',otherPhoto:''}, shoots:[], dataBackup:{offloadedFromCards:false,hardDrive1:'',hardDrive1Done:false,hardDrive2:'',hardDrive2Done:false,cloudBackupDone:false,totalDataSizeGB:0,rawCleanupStatus:'not_cleaned'}, payments:[], deliveryStatus:{rawHandoverDone:false,teaserLinkSent:false,fullFilmSent:false,reelsSent:false,highResPhotosSent:false,albumPrintedAndDelivered:false} };
+}

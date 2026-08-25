@@ -18,21 +18,13 @@ import {
   FreelancerDocument,
   LeaveRequest
 } from '@/types';
-import { INITIAL_PROJECTS, INITIAL_TEAM, INITIAL_ATTENDANCE, INITIAL_TASKS } from '@/data/mockData';
-import { mergeFreelancerCategories } from '@/features/freelancers/freelancerDomain';
-import { 
-  INITIAL_FREELANCER_CATEGORIES, 
-  INITIAL_FREELANCERS, 
-  INITIAL_FREELANCER_ASSIGNMENTS, 
-  INITIAL_FREELANCER_PAYMENTS, 
-  INITIAL_FREELANCER_ATTENDANCE, 
-  INITIAL_FREELANCER_DATA_RECEIVED, 
-  INITIAL_FREELANCER_LOGS 
-} from '@/data/mockFreelancers';
 
 import { Sidebar, TopHeader, TabType } from '@/components/layout';
 import { ClientsDirectoryView } from '@/features/clients/ClientsDirectoryView';
-import { LoginScreen, OWNER_USER } from '@/components/auth/LoginScreen';
+import { LoginScreen } from '@/components/auth/LoginScreen';
+import { LoginInput } from '@/lib/api/auth';
+import { useProjects } from '@/hooks/useProjects';
+import { normalizeProject } from '@/features/projects/projectViewModel';
 import { useAuthSession } from '@/components/auth/AuthSessionProvider';
 import { AISuggestionsModal } from '@/components/ai/AISuggestionsModal';
 import { OwnerDashboard } from '@/features/dashboard';
@@ -108,23 +100,16 @@ export default function App() {
 
   const [showLoginModal, setShowLoginModal] = useState<boolean>(false);
 
-  // Load initial state with localStorage persistence
-  const [projects, setProjects] = useState<Project[]>(() => {
-    const saved = localStorage.getItem('wpp_crm_projects');
-    return saved ? JSON.parse(saved) : INITIAL_PROJECTS;
-  });
+  // CRM entities are intentionally not restored from browser storage. They will
+  // be supplied by feature API queries during the next integration phase.
+  const [projects, setProjects] = useState<Project[]>([]);
+  const projectQuery = useProjects({ page: 1, limit: 50 }, Boolean(currentUser));
 
-  const [team, setTeam] = useState<TeamMember[]>(() => {
-    const saved = localStorage.getItem('wpp_crm_team');
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (e) {
-        return INITIAL_TEAM;
-      }
-    }
-    return INITIAL_TEAM;
-  });
+  useEffect(() => {
+    if (!currentUser || projectQuery.loading || projectQuery.error) return;
+    setProjects(projectQuery.data.map(normalizeProject));
+  }, [currentUser, projectQuery.data, projectQuery.error, projectQuery.loading]);
+  const [team, setTeam] = useState<TeamMember[]>([]);
 
   const [accessRoles, setAccessRoles] = usePermissionRoles();
 
@@ -138,164 +123,25 @@ export default function App() {
     }
   });
 
-  const [attendance, setAttendance] = useState<AttendanceRecord[]>(() => {
-    const saved = localStorage.getItem('wpp_crm_attendance');
-    return saved ? JSON.parse(saved) : INITIAL_ATTENDANCE;
-  });
+  const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
+  const [tasks, setTasks] = useState<TeamTask[]>([]);
 
-  const [tasks, setTasks] = useState<TeamTask[]>(() => {
-    const saved = localStorage.getItem('wpp_crm_tasks');
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (e) {
-        return INITIAL_TASKS;
-      }
-    }
-    return INITIAL_TASKS;
-  });
-
-  const [leaves, setLeaves] = useState<LeaveRequest[]>(() => {
-    // Leave requests power the Team module's attendance, availability and
-    // schedule views; they persist alongside the rest of the CRM state.
-    try {
-      const saved = localStorage.getItem('wpp_crm_leaves');
-      const list = saved ? JSON.parse(saved) : [];
-      return Array.isArray(list) ? list : [];
-    } catch (e) {
-      return [];
-    }
-  });
+  const [leaves, setLeaves] = useState<LeaveRequest[]>([]);
 
   // Freelancer Module Persistent States
-  const [freelancerCategories, setFreelancerCategories] = useState<FreelancerCategory[]>(() => {
-    const saved = localStorage.getItem('wpp_crm_freelancer_categories');
-    if (saved) {
-      try {
-        const parsed: FreelancerCategory[] = JSON.parse(saved);
-        return mergeFreelancerCategories(Array.isArray(parsed) ? parsed : INITIAL_FREELANCER_CATEGORIES);
-      } catch (e) {
-        return INITIAL_FREELANCER_CATEGORIES;
-      }
-    }
-    return mergeFreelancerCategories(INITIAL_FREELANCER_CATEGORIES);
-  });
+  const [freelancerCategories, setFreelancerCategories] = useState<FreelancerCategory[]>([]);
 
-  const [freelancers, setFreelancers] = useState<Freelancer[]>(() => {
-    try {
-      const saved = localStorage.getItem('wpp_crm_freelancers');
-      let list: Freelancer[] = saved ? JSON.parse(saved) : INITIAL_FREELANCERS;
-      if (!Array.isArray(list)) list = INITIAL_FREELANCERS;
-      return list.map((f) => {
-        if (!f) return f;
-        let main = f.mainCategory;
-        if (main === 'Cinematographer') main = 'Videographer';
-        if (main === 'Support & On-Location') main = 'Assistant';
-        return { ...f, mainCategory: main };
-      }).filter(Boolean);
-    } catch (e) {
-      return INITIAL_FREELANCERS;
-    }
-  });
+  const [freelancers, setFreelancers] = useState<Freelancer[]>([]);
 
-  const [freelancerAssignments, setFreelancerAssignments] = useState<FreelancerAssignment[]>(() => {
-    try {
-      const saved = localStorage.getItem('wpp_crm_freelancer_assignments');
-      const list = saved ? JSON.parse(saved) : INITIAL_FREELANCER_ASSIGNMENTS;
-      return Array.isArray(list) ? list : INITIAL_FREELANCER_ASSIGNMENTS;
-    } catch (e) {
-      return INITIAL_FREELANCER_ASSIGNMENTS;
-    }
-  });
+  const [freelancerAssignments, setFreelancerAssignments] = useState<FreelancerAssignment[]>([]);
 
-  const [freelancerPayments, setFreelancerPayments] = useState<FreelancerPayment[]>(() => {
-    try {
-      const saved = localStorage.getItem('wpp_crm_freelancer_payments');
-      const list = saved ? JSON.parse(saved) : INITIAL_FREELANCER_PAYMENTS;
-      return Array.isArray(list) ? list : INITIAL_FREELANCER_PAYMENTS;
-    } catch (e) {
-      return INITIAL_FREELANCER_PAYMENTS;
-    }
-  });
+  const [freelancerPayments, setFreelancerPayments] = useState<FreelancerPayment[]>([]);
 
-  const [freelancerAttendance, setFreelancerAttendance] = useState<FreelancerAttendance[]>(() => {
-    try {
-      const saved = localStorage.getItem('wpp_crm_freelancer_attendance');
-      const list = saved ? JSON.parse(saved) : INITIAL_FREELANCER_ATTENDANCE;
-      return Array.isArray(list) ? list : INITIAL_FREELANCER_ATTENDANCE;
-    } catch (e) {
-      return INITIAL_FREELANCER_ATTENDANCE;
-    }
-  });
+  const [freelancerAttendance, setFreelancerAttendance] = useState<FreelancerAttendance[]>([]);
 
-  const [freelancerDataReceived, setFreelancerDataReceived] = useState<FreelancerDataReceived[]>(() => {
-    try {
-      const saved = localStorage.getItem('wpp_crm_freelancer_data_received');
-      const list = saved ? JSON.parse(saved) : INITIAL_FREELANCER_DATA_RECEIVED;
-      return Array.isArray(list) ? list : INITIAL_FREELANCER_DATA_RECEIVED;
-    } catch (e) {
-      return INITIAL_FREELANCER_DATA_RECEIVED;
-    }
-  });
+  const [freelancerDataReceived, setFreelancerDataReceived] = useState<FreelancerDataReceived[]>([]);
 
-  const [freelancerActivityLogs, setFreelancerActivityLogs] = useState<FreelancerActivityLog[]>(() => {
-    try {
-      const saved = localStorage.getItem('wpp_crm_freelancer_logs');
-      const list = saved ? JSON.parse(saved) : INITIAL_FREELANCER_LOGS;
-      return Array.isArray(list) ? list : INITIAL_FREELANCER_LOGS;
-    } catch (e) {
-      return INITIAL_FREELANCER_LOGS;
-    }
-  });
-
-  // Sync state to localStorage on changes
-  useEffect(() => {
-    localStorage.setItem('wpp_crm_projects', JSON.stringify(projects));
-  }, [projects]);
-
-  useEffect(() => {
-    localStorage.setItem('wpp_crm_team', JSON.stringify(team));
-  }, [team]);
-
-  useEffect(() => {
-    localStorage.setItem('wpp_crm_attendance', JSON.stringify(attendance));
-  }, [attendance]);
-
-  useEffect(() => {
-    localStorage.setItem('wpp_crm_tasks', JSON.stringify(tasks));
-  }, [tasks]);
-
-  useEffect(() => {
-    localStorage.setItem('wpp_crm_leaves', JSON.stringify(leaves));
-  }, [leaves]);
-
-  useEffect(() => {
-    localStorage.setItem('wpp_crm_freelancer_categories', JSON.stringify(freelancerCategories));
-  }, [freelancerCategories]);
-
-  useEffect(() => {
-    localStorage.setItem('wpp_crm_freelancers', JSON.stringify(freelancers));
-  }, [freelancers]);
-
-  useEffect(() => {
-    localStorage.setItem('wpp_crm_freelancer_assignments', JSON.stringify(freelancerAssignments));
-  }, [freelancerAssignments]);
-
-  useEffect(() => {
-    localStorage.setItem('wpp_crm_freelancer_payments', JSON.stringify(freelancerPayments));
-  }, [freelancerPayments]);
-
-  useEffect(() => {
-    localStorage.setItem('wpp_crm_freelancer_attendance', JSON.stringify(freelancerAttendance));
-  }, [freelancerAttendance]);
-
-  useEffect(() => {
-    localStorage.setItem('wpp_crm_freelancer_data_received', JSON.stringify(freelancerDataReceived));
-  }, [freelancerDataReceived]);
-
-  useEffect(() => {
-    localStorage.setItem('wpp_crm_freelancer_logs', JSON.stringify(freelancerActivityLogs));
-  }, [freelancerActivityLogs]);
+  const [freelancerActivityLogs, setFreelancerActivityLogs] = useState<FreelancerActivityLog[]>([]);
 
   useEffect(() => {
     localStorage.setItem(ACCESS_STORAGE_AUDIT, JSON.stringify(accessAudit));
@@ -390,8 +236,8 @@ export default function App() {
   };
 
   // Authentication Handlers
-  const handleLogin = (user: TeamMember | typeof OWNER_USER) => {
-    login(user);
+  const handleLogin = async (input: LoginInput) => {
+    const user = await login(input);
     setShowLoginModal(false);
     
     if (user.role === 'Owner') {
@@ -402,8 +248,7 @@ export default function App() {
   };
 
   const handleLogout = () => {
-    localStorage.removeItem('wpp_crm_logged_user');
-    logout();
+    void logout();
     setShowLoginModal(false);
   };
 
@@ -674,7 +519,6 @@ export default function App() {
   if (!currentUser) {
     return (
       <LoginScreen
-        team={team}
         onLogin={handleLogin}
         onAddTeamMember={handleAddTeamMember}
       />
@@ -858,32 +702,7 @@ export default function App() {
 
           {/* Tab 2: Projects / Client Project Management */}
           {activeTab === 'projects' && (
-            <ProjectsManager
-              projects={scopedWeddings}
-              statusFilter={statusFilter}
-              setStatusFilter={setStatusFilter}
-              onSelectProject={(project) => handleSelectProject(project, currentUser?.role)}
-              onUpdateProject={handleUpdateProject}
-              onEditProject={(project) => {
-                if (!hasPermission(currentUser, accessRoles, 'weddings.edit')) return;
-                setEditingProject(project);
-                setIsFormModalOpen(true);
-              }}
-              onDeleteProject={hasPermission(currentUser, accessRoles, 'weddings.delete') ? handleDeleteProject : () => undefined}
-              onOpenNewProjectModal={() => {
-                if (!hasPermission(currentUser, accessRoles, 'weddings.create')) return;
-                setEditingProject(null);
-                setIsFormModalOpen(true);
-              }}
-              onOpenAllPaymentsModal={() => {
-                if (hasPermission(currentUser, accessRoles, 'finance.view_payments')) setIsAllPaymentsModalOpen(true);
-              }}
-              onGenerateInvoice={(project) => {
-                if (hasPermission(currentUser, accessRoles, 'finance.view_invoices')) setSelectedProjectForInvoice(project);
-              }}
-              currentUser={currentUser}
-              userRole={currentUser?.role}
-            />
+            <ProjectsManager projects={scopedWeddings} statusFilter={statusFilter} setStatusFilter={setStatusFilter} onSelectProject={(project) => handleSelectProject(project, currentUser?.role)} onUpdateProject={handleUpdateProject} onEditProject={(project) => { if (!hasPermission(currentUser, accessRoles, 'weddings.edit')) return; setEditingProject(project); setIsFormModalOpen(true); }} onDeleteProject={hasPermission(currentUser, accessRoles, 'weddings.delete') ? handleDeleteProject : () => undefined} onOpenNewProjectModal={() => { if (!hasPermission(currentUser, accessRoles, 'weddings.create')) return; setEditingProject(null); setIsFormModalOpen(true); }} onOpenAllPaymentsModal={() => { if (hasPermission(currentUser, accessRoles, 'finance.view_payments')) setIsAllPaymentsModalOpen(true); }} onGenerateInvoice={(project) => { if (hasPermission(currentUser, accessRoles, 'finance.view_invoices')) setSelectedProjectForInvoice(project); }} currentUser={currentUser} userRole={currentUser?.role} />
           )}
 
           {/* Tab 3: Shoot Management */}
@@ -1042,15 +861,7 @@ export default function App() {
           )}
 
           {activeTab === 'clients' && (
-            <ClientsDirectoryView
-              projects={scopedClients}
-              onOpenClient={(project) => handleSelectProject(project, currentUser?.role)}
-              onAddClient={() => {
-                if (!hasPermission(currentUser, accessRoles, 'clients.create') && !hasPermission(currentUser, accessRoles, 'weddings.create')) return;
-                setEditingProject(null);
-                setIsFormModalOpen(true);
-              }}
-            />
+            <ClientsDirectoryView projects={scopedClients} onOpenClient={(project) => handleSelectProject(project, currentUser?.role)} onAddClient={() => { if (!hasPermission(currentUser, accessRoles, 'clients.create') && !hasPermission(currentUser, accessRoles, 'weddings.create')) return; setEditingProject(null); setIsFormModalOpen(true); }} />
           )}
 
           </>
@@ -1080,7 +891,6 @@ export default function App() {
       {/* Switch Account / Role Login Modal */}
       {showLoginModal && (
         <LoginScreen
-          team={team}
           onLogin={handleLogin}
           onAddTeamMember={handleAddTeamMember}
           onClose={() => setShowLoginModal(false)}
