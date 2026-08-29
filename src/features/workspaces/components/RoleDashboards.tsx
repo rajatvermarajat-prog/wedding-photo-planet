@@ -366,7 +366,7 @@ const EditorAttendanceLogTable: React.FC<{
 // Manager Personal Daily To-Do Task Notebook Component
 const ManagerPersonalTodoWidget: React.FC<{ activeMember: TeamMember | null }> = () => {
   const { can } = usePermission();
-  if (!can('dashboard.view_todos') || !can('personal.todo')) return null;
+  if (!can('dashboard.view_todos')) return null;
   return <PersonalTodoPanel />;
 };
 

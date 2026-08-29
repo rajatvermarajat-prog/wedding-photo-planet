@@ -350,7 +350,7 @@ export const ROLE_UI_MODULE_OVERRIDE: Record<string, string> = {
   INVOICE_CANCEL: 'finance',
 };
 
-export const ROLE_UI_HIDDEN_KEYS = new Set(['TEAM_MANAGE']);
+export const ROLE_UI_HIDDEN_KEYS = new Set(['TEAM_MANAGE', 'PERSONAL_TODO']);
 
 export const TEAM_PERMISSION_ORDER = [
   'TEAM_VIEW',

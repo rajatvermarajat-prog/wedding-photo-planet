@@ -7,6 +7,7 @@ export interface PersonalTodo {
   title: string;
   priority: PersonalTodoPriority;
   dueDate: string | null;
+  category?: string | null;
   completed: boolean;
   createdAt: string;
   updatedAt: string;
@@ -16,6 +17,7 @@ export interface CreatePersonalTodoInput {
   title: string;
   priority?: PersonalTodoPriority;
   dueDate?: string;
+  category?: string;
 }
 
 export interface UpdatePersonalTodoInput {
@@ -23,6 +25,7 @@ export interface UpdatePersonalTodoInput {
   priority?: PersonalTodoPriority;
   dueDate?: string | null;
   completed?: boolean;
+  category?: string | null;
 }
 
 function queryString(query: { page?: number; limit?: number; completed?: boolean }): string {

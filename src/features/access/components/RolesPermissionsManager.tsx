@@ -90,7 +90,7 @@ export const RolesPermissionsManager: React.FC<Props> = ({
     }
     setPending(true);
     try {
-      await onCreateRole({ name, description: createDesc.trim(), permissionKeys: [] });
+      await onCreateRole({ name, description: createDesc.trim(), permissionKeys: ['NOTIFICATION_VIEW'] });
       setShowCreate(false); setCreateName(''); setCreateDesc('');
       showToast(`Role “${name}” created.`);
     } catch (error) { showToast(error instanceof Error ? error.message : 'Unable to create role.', { variant: 'error' }); }
@@ -315,14 +315,29 @@ function PermissionEditor({
   onSave: (role: AccessRole) => Promise<void>;
   permissions: PermissionModule[];
 }) {
-  const [draft, setDraft] = useState<Record<string, PermissionGrant>>(() => ({ ...role.grants }));
+  const [draft, setDraft] = useState<Record<string, PermissionGrant>>(() => {
+    const next = { ...role.grants };
+    permissions
+      .filter((mod) => mod.id === 'notification')
+      .forEach((mod) => {
+        mod.permissions.forEach((p) => {
+          next[p.key] = { enabled: true, scope: next[p.key]?.scope || 'all' };
+        });
+      });
+    return next;
+  });
   const [search, setSearch] = useState('');
   const [openMods, setOpenMods] = useState<string[]>(permissions.map((m) => m.id));
   const [saving, setSaving] = useState(false);
   const [pendingSensitive, setPendingSensitive] = useState<string | null>(null);
   const isSystemAdmin = role.type === 'system' && role.name === 'ADMIN';
+  const isAlwaysOn = (modId: string, key?: string) =>
+    modId === 'notification' || key === 'NOTIFICATION_VIEW';
   const isLocked = (modId: string, key?: string) =>
-    readOnly || (isSystemAdmin && modId !== 'dashboard') || (isSystemAdmin && key === 'DASHBOARD_VIEW');
+    readOnly ||
+    isAlwaysOn(modId, key) ||
+    (isSystemAdmin && modId !== 'dashboard') ||
+    (isSystemAdmin && key === 'DASHBOARD_VIEW');
   const dirty = JSON.stringify(draft) !== JSON.stringify(role.grants);
   const enabled = Object.values(draft).filter((grant) => grant.enabled).length;
   const q = search.trim().toLowerCase();

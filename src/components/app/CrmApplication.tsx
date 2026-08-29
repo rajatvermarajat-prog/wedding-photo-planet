@@ -273,9 +273,10 @@ export default function App() {
 
   const canAccessTab = useCallback(
     (tab: TabType) => {
-      if (tab === 'owner_workspace' || tab === 'equipment') {
+      if (tab === 'equipment') {
         return currentUser?.role === 'Owner';
       }
+      if (tab === 'owner_workspace') return true;
       const key = TAB_PERMISSIONS[tab];
       if (!key) return true;
       return hasAnyPermission(currentUser, accessRoles, key);
@@ -307,7 +308,7 @@ export default function App() {
       return;
     }
     if (!canAccessTab(activeTab)) {
-      const fallback = (['dashboard', 'roles', 'leads', 'projects', 'shoots'] as TabType[]).find((tab) => canAccessTab(tab));
+      const fallback = (['owner_workspace', 'dashboard', 'roles', 'leads', 'projects', 'shoots'] as TabType[]).find((tab) => canAccessTab(tab));
       if (fallback) setActiveTab(fallback);
     }
   }, [currentUser, activeTab, canAccessTab, setActiveTab]);
@@ -867,8 +868,7 @@ export default function App() {
               />
           )}
 
-          {/* Exclusive Owner Workspace (Visible ONLY to Owner) */}
-          {activeTab === 'owner_workspace' && currentUser?.role === 'Owner' && (
+          {activeTab === 'owner_workspace' && (
             <OwnerWorkspace
               projects={projects}
               activeTeamMembers={team}

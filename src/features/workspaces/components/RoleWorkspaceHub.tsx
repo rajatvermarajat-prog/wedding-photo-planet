@@ -187,7 +187,7 @@ export const RoleWorkspaceHub: React.FC<Props> = (props) => {
                   onUpdate={props.onUpdateTask}
                 />
               )}
-              {can('dashboard.view_todos') && can('personal.todo') && <PersonalTodoPanel />}
+              {can('dashboard.view_todos') && <PersonalTodoPanel />}
             </div>
           )}
 

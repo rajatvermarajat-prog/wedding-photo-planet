@@ -2,30 +2,23 @@
 
 import { useState } from 'react';
 import { Calendar, Check, ListTodo, Plus, Trash2 } from 'lucide-react';
-import { usePermission } from '@/features/access';
 import { usePersonalTodos } from '@/hooks/usePersonalTodos';
-import { ApiError } from '@/lib/api/client';
 import type { PersonalTodoPriority } from '@/lib/api/personalTodos';
 
 type Filter = 'all' | 'pending' | 'completed';
 
 export function PersonalTodoPanel({ title = 'Personal To-Do' }: { title?: string }) {
-  const { can } = usePermission();
-  const allowed = can('personal.todo');
-  const { data, loading, error, pending, create, update, remove, clearCompleted } = usePersonalTodos(allowed);
+  const { data, loading, error, pending, create, update, remove, clearCompleted } = usePersonalTodos(true);
   const [text, setText] = useState('');
   const [priority, setPriority] = useState<PersonalTodoPriority>('MEDIUM');
   const [dueDate, setDueDate] = useState('');
   const [filter, setFilter] = useState<Filter>('all');
   const [actionError, setActionError] = useState<string | null>(null);
-  if (!allowed) return null;
 
   const pendingCount = data.filter((item) => !item.completed).length;
   const completedCount = data.length - pendingCount;
   const rows = data.filter((item) => filter === 'all' || (filter === 'pending' ? !item.completed : item.completed));
-  const message = error instanceof ApiError && error.status === 403
-    ? 'You do not have permission to manage personal to-dos.'
-    : error?.message;
+  const message = error?.message;
 
   const fail = (reason: unknown, fallback: string) => {
     setActionError(reason instanceof Error ? reason.message : fallback);
