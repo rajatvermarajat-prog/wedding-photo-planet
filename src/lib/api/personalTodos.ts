@@ -28,7 +28,7 @@ export interface UpdatePersonalTodoInput {
 function queryString(query: { page?: number; limit?: number; completed?: boolean }): string {
   const params = new URLSearchParams();
   Object.entries(query).forEach(([key, value]) => {
-    if (value !== undefined && value !== '') params.set(key, String(value));
+    if (value !== undefined) params.set(key, String(value));
   });
   const value = params.toString();
   return value ? `?${value}` : '';

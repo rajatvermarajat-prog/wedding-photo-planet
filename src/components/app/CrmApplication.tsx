@@ -406,7 +406,7 @@ export default function App() {
     });
   };
 
-  const dataHandoverTimer = useRef<ReturnType<typeof setTimeout>>();
+  const dataHandoverTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   const handleUpdateDataHandover = (updatedProject: Project) => {
     setProjects((prev) => prev.map((p) => (p.id === updatedProject.id ? updatedProject : p)));
