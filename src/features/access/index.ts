@@ -1,5 +1,5 @@
 export type { AccessRole, AccessAuditEntry, AccessUser, PermissionScope } from './accessTypes';
-export { PERMISSION_MODULES, ALL_PERMISSION_KEYS, findPermission } from './permissionCatalog';
+export { PERMISSION_MODULES, ALL_PERMISSION_KEYS, findPermission, BACKEND_MODULE_META, BACKEND_MODULE_ORDER, ROLE_UI_MODULE_OVERRIDE, ROLE_UI_HIDDEN_KEYS, TEAM_PERMISSION_ORDER, FINANCE_PERMISSION_ORDER } from './permissionCatalog';
 export {
   DEFAULT_ACCESS_ROLES,
   ACCESS_PRESETS,

@@ -17,22 +17,46 @@ export type WorkspaceKind =
 const KIND_BY_ROLE: Record<string, WorkspaceKind> = {
   super_admin: 'admin',
   admin: 'admin',
+  owner: 'admin',
+  studio_owner: 'admin',
   manager: 'manager',
+  studio_manager: 'manager',
+  account_manager: 'manager',
   employee: 'employee',
+  member: 'employee',
   freelancer: 'freelancer',
   photographer: 'photographer',
   cinematographer: 'cinematographer',
   photo_editor: 'photo_editor',
   video_editor: 'video_editor',
   sales_executive: 'sales',
+  sales: 'sales',
   accountant: 'finance',
+  finance: 'finance',
   hr: 'hr',
   client: 'client',
 };
 
-export function workspaceKind(role?: AccessRole): WorkspaceKind {
-  if (!role) return 'employee';
-  return KIND_BY_ROLE[role.id] || (role.name.toLowerCase().includes('client') ? 'client' : 'employee');
+function roleKey(value: string): string {
+  return value.trim().toLowerCase().replace(/[\s-]+/g, '_');
+}
+
+export function isStudioAdmin(user?: { role?: string; roles?: string[] } | null): boolean {
+  if (!user) return false;
+  return [user.role, ...(user.roles ?? [])].some((name) => {
+    const key = roleKey(String(name || ''));
+    return key === 'admin' || key === 'super_admin' || key === 'owner' || key === 'studio_owner';
+  });
+}
+
+export function workspaceKind(role?: AccessRole | null, userRole?: string, userRoles?: string[]): WorkspaceKind {
+  const candidates = [role?.id, role?.name, userRole, ...(userRoles || [])].filter(Boolean) as string[];
+  for (const candidate of candidates) {
+    const mapped = KIND_BY_ROLE[roleKey(candidate)];
+    if (mapped) return mapped;
+  }
+  if (candidates.some((c) => c.toLowerCase().includes('client'))) return 'client';
+  return 'employee';
 }
 
 export const WORKSPACE_COPY: Record<WorkspaceKind, { eyebrow: string; title: string; blurb: string }> = {

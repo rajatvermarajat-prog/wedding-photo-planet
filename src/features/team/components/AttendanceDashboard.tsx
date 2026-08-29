@@ -65,6 +65,7 @@ interface Props {
   onSaveAttendance: (record: AttendanceRecord) => void;
   onOpenMarkAttendance: (member: TeamMember, dateKey: string) => void;
   onOpenProfile: (member: TeamMember) => void;
+  canManage?: boolean;
 }
 
 const ALL = 'all';
@@ -77,6 +78,7 @@ export const AttendanceDashboard: React.FC<Props> = ({
   onSaveAttendance,
   onOpenMarkAttendance,
   onOpenProfile,
+  canManage = false,
 }) => {
   const { showToast } = useToast();
   const today = getTodayDateString();
@@ -304,7 +306,7 @@ export const AttendanceDashboard: React.FC<Props> = ({
                   <tbody className="divide-y divide-slate-100">
                     {filteredRows.map(({ member, day }) => {
                       const hours = day.workingHours ?? computeWorkingHours(day.checkIn, day.checkOut);
-                      const canStamp = isPastOrToday && day.kind !== 'leave' && day.kind !== 'weekly_off' && day.kind !== 'holiday';
+                      const canStamp = canManage && isPastOrToday && day.kind !== 'leave' && day.kind !== 'weekly_off' && day.kind !== 'holiday';
                       return (
                         <tr key={member.id} className="hover:bg-slate-50 transition">
                           <TD>
@@ -353,6 +355,7 @@ export const AttendanceDashboard: React.FC<Props> = ({
                                   <LogOut className="w-3.5 h-3.5" /> Out
                                 </button>
                               )}
+                              {canManage && (
                               <button
                                 type="button"
                                 onClick={() => onOpenMarkAttendance(member, dateKey)}
@@ -361,6 +364,7 @@ export const AttendanceDashboard: React.FC<Props> = ({
                               >
                                 <Pencil className="w-3.5 h-3.5" />
                               </button>
+                              )}
                             </div>
                           </TD>
                         </tr>

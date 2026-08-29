@@ -23,16 +23,22 @@ interface AuthSessionValue {
   isHydrated: boolean;
   login: (input: LoginInput) => Promise<AuthenticatedUser>;
   logout: () => Promise<void>;
+  refresh: (force?: boolean) => Promise<void>;
 }
 
 const AuthSessionContext = createContext<AuthSessionValue | null>(null);
+let lastMeAt = 0;
+
 export function AuthSessionProvider({ children }: { children: React.ReactNode }) {
   const [currentUser, setCurrentUser] = useState<AuthenticatedUser | null>(null);
   const [isHydrated, setIsHydrated] = useState(false);
 
   useEffect(() => {
-    authApi.me().then((user) => setCurrentUser(toAuthenticatedUser(user))).catch((error: unknown) => {
-      if (!(error instanceof ApiError) || error.status !== 401) console.error('Unable to restore CRM session', error);
+    authApi.me().then((user) => {
+      lastMeAt = Date.now();
+      setCurrentUser(toAuthenticatedUser(user));
+    }).catch((error: unknown) => {
+      if (error instanceof ApiError && (error.status === 401 || error.status === 429)) return;
     }).finally(() => setIsHydrated(true));
   }, []);
 
@@ -46,17 +52,44 @@ export function AuthSessionProvider({ children }: { children: React.ReactNode })
   const logout = useCallback(async () => {
     try {
       await authApi.logout();
+    } catch {
+      // Local session still ends if the API is briefly unreachable.
     } finally {
       setCurrentUser(null);
     }
   }, []);
+
+  const refresh = useCallback(async (force?: boolean) => {
+    const now = Date.now();
+    if (!force && now - lastMeAt < 15_000) return;
+    lastMeAt = now;
+    try {
+      const user = await authApi.me();
+      setCurrentUser(toAuthenticatedUser(user));
+    } catch (error: unknown) {
+      if (error instanceof ApiError && (error.status === 401 || error.status === 429)) return;
+    }
+  }, []);
+
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') void refresh(true);
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('focus', onVisible);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('focus', onVisible);
+    };
+  }, [refresh]);
 
   const value = useMemo<AuthSessionValue>(() => ({
     currentUser,
     isHydrated,
     login,
     logout,
-  }), [currentUser, isHydrated, login, logout]);
+    refresh,
+  }), [currentUser, isHydrated, login, logout, refresh]);
 
   return <AuthSessionContext.Provider value={value}>{children}</AuthSessionContext.Provider>;
 }

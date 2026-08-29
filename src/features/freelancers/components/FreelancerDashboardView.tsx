@@ -26,10 +26,10 @@ interface FreelancerDashboardViewProps {
   categories: FreelancerCategory[];
   projects?: Project[];
   onTabChange: (subTab: string) => void;
-  onAddFreelancerClick: () => void;
-  onAssignShootClick: () => void;
-  onRecordPaymentClick: () => void;
-  onManageCategoriesClick: () => void;
+  onAddFreelancerClick?: () => void;
+  onAssignShootClick?: () => void;
+  onRecordPaymentClick?: () => void;
+  onManageCategoriesClick?: () => void;
   onOpenProfile: (freelancer: Freelancer) => void;
   onFilterCategory?: (categoryName: string) => void;
 }
@@ -103,12 +103,16 @@ export const FreelancerDashboardView: React.FC<FreelancerDashboardViewProps> = (
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center gap-2">
+        {onAssignShootClick && (
         <button type="button" onClick={onAssignShootClick} className={BTN_GHOST}>
           <Film className="size-3.5" /> Assign Shoot
         </button>
+        )}
+        {onRecordPaymentClick && (
         <button type="button" onClick={onRecordPaymentClick} className={BTN_GHOST}>
           <CreditCard className="size-3.5" /> Record Payment
         </button>
+        )}
       </div>
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
@@ -188,9 +192,11 @@ export const FreelancerDashboardView: React.FC<FreelancerDashboardViewProps> = (
               title="No upcoming freelancer shoots"
               message="Assign photographers and cinematographers to booked weddings."
               action={
+                onAssignShootClick ? (
                 <button type="button" onClick={onAssignShootClick} className={BTN_PRIMARY}>
                   <Film className="size-3.5" /> Assign Shoot
                 </button>
+                ) : undefined
               }
             />
           ) : (
@@ -256,12 +262,18 @@ export const FreelancerDashboardView: React.FC<FreelancerDashboardViewProps> = (
               title="No freelancers yet"
               message="Build your production team by adding photographers, cinematographers, drone operators, editors and assistants."
               action={
+                onAddFreelancerClick || onManageCategoriesClick ? (
                 <div className="flex flex-wrap justify-center gap-2">
+                  {onAddFreelancerClick && (
                   <button type="button" onClick={onAddFreelancerClick} className={BTN_PRIMARY}>
                     <UserPlus className="size-3.5" /> Add Freelancer
                   </button>
+                  )}
+                  {onManageCategoriesClick && (
                   <button type="button" onClick={onManageCategoriesClick} className={BTN_GHOST}>Manage Categories</button>
+                  )}
                 </div>
+                ) : undefined
               }
             />
           ) : (

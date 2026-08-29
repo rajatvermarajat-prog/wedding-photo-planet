@@ -313,7 +313,15 @@ export const LeadsManagement: React.FC<LeadsManagementProps> = ({ currentUser })
   // User details & Role Determination
   const userName = currentUser?.name || 'Studio Owner';
   const userRole = currentUser?.role || 'Owner';
-  const seeAllLeads = can('leads.view') && (role?.grants['leads.view']?.scope === 'all');
+  const usingBackend = Array.isArray((currentUser as { permissions?: string[] } | null)?.permissions);
+  const canCreateLead = can('leads.create');
+  const canEditLead = can('leads.edit');
+  const canDeleteLead = can('leads.delete');
+  const canAssignLead = can('leads.assign');
+  const canChangeLeadStatus = can('leads.change_status') || can('leads.edit');
+  const seeAllLeads = usingBackend
+    ? can('leads.view')
+    : can('leads.view') && role?.grants['leads.view']?.scope === 'all';
   const isOwner = seeAllLeads || can('reports.view_sales');
 
   useEffect(() => {
@@ -337,6 +345,7 @@ export const LeadsManagement: React.FC<LeadsManagementProps> = ({ currentUser })
   });
 
   const handleOpenAddModal = () => {
+    if (!canCreateLead) return;
     setEditingLead(null);
     setClientName('');
     setMobile('');
@@ -353,6 +362,7 @@ export const LeadsManagement: React.FC<LeadsManagementProps> = ({ currentUser })
   };
 
   const handleOpenEditModal = (lead: OwnerLead) => {
+    if (!canEditLead) return;
     setEditingLead(lead);
     setClientName(lead.clientName || '');
     setMobile(lead.mobile || '');
@@ -370,6 +380,7 @@ export const LeadsManagement: React.FC<LeadsManagementProps> = ({ currentUser })
 
   const handleSaveLead = (e: React.FormEvent) => {
     e.preventDefault();
+    if (editingLead ? !canEditLead : !canCreateLead) return;
     if (!mobile.trim()) {
       alert('Please enter a valid mobile number for the inquiry.');
       return;
@@ -468,6 +479,7 @@ export const LeadsManagement: React.FC<LeadsManagementProps> = ({ currentUser })
   };
 
   const handleUpdateStatus = (id: string, newStatus: LeadStatus, finalAmt?: number, advAmt?: number) => {
+    if (!canChangeLeadStatus) return;
     setLeads((prev) =>
       prev.map((l) => {
         if (l.id === id) {
@@ -507,6 +519,7 @@ export const LeadsManagement: React.FC<LeadsManagementProps> = ({ currentUser })
   };
 
   const handleUpdateAssignedTo = (id: string, newAssignedTo: string) => {
+    if (!canAssignLead) return;
     const today = new Date().toISOString().split('T')[0];
     setLeads((prev) =>
       prev.map((l) => {
@@ -530,7 +543,7 @@ export const LeadsManagement: React.FC<LeadsManagementProps> = ({ currentUser })
 
   const handleSaveQuickNote = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!noteModalLead) return;
+    if (!canEditLead || !noteModalLead) return;
 
     const trimmed = quickNoteText.trim();
     setLeads((prev) =>
@@ -555,6 +568,7 @@ export const LeadsManagement: React.FC<LeadsManagementProps> = ({ currentUser })
   };
 
   const handleDeleteLead = (leadOrId: string | OwnerLead) => {
+    if (!canDeleteLead) return;
     if (typeof leadOrId === 'object') {
       setLeadToDelete(leadOrId);
     } else {
@@ -591,7 +605,7 @@ export const LeadsManagement: React.FC<LeadsManagementProps> = ({ currentUser })
 
   const handleSaveQuotation = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!quotationModalLead || !newQuoteFileName.trim()) return;
+    if (!canEditLead || !quotationModalLead || !newQuoteFileName.trim()) return;
 
     const today = new Date().toISOString().split('T')[0];
     const newQuote: LeadQuotationFile = {
@@ -754,7 +768,7 @@ export const LeadsManagement: React.FC<LeadsManagementProps> = ({ currentUser })
 
   return (
     <div className="h-fit space-y-6 animate-in fade-in duration-300">
-      <LeadsHeader userName={userName} userRole={userRole} isOwner={isOwner} activeView={activeSubTab} onViewChange={setActiveSubTab} onAddLead={handleOpenAddModal} />
+      <LeadsHeader userName={userName} userRole={userRole} isOwner={isOwner} canAddLead={canCreateLead} activeView={activeSubTab} onViewChange={setActiveSubTab} onAddLead={handleOpenAddModal} />
 
       {/* YEARLY & MONTHLY TARGETING & GOALS WIDGET (Visible to Owner & Managers only) */}
       {isOwner && activeSubTab === 'list' && (
@@ -1078,7 +1092,9 @@ export const LeadsManagement: React.FC<LeadsManagementProps> = ({ currentUser })
                       <td colSpan={10} className="p-12 text-center text-slate-400 italic">
                         {isOwner
                           ? 'No lead records found matching your current filter criteria.'
-                          : 'No leads found assigned to or created by you. Use "+ Add Lead / Inquiry" to add your new inquiries!'}
+                          : canCreateLead
+                            ? 'No leads found assigned to or created by you. Use "+ Add Lead" to add your new inquiries!'
+                            : 'No leads found assigned to or created by you.'}
                       </td>
                     </tr>
                   ) : (
@@ -1136,7 +1152,7 @@ export const LeadsManagement: React.FC<LeadsManagementProps> = ({ currentUser })
                             <td className="p-3.5 font-bold text-slate-800 align-top">
                               <div className="py-0.5">
                                 <p className="text-slate-900 font-extrabold text-xs">{lead.eventType}</p>
-                                {!lead.notes && (
+                                {!lead.notes && canEditLead && (
                                   <button
                                     onClick={() => {
                                       setNoteModalLead(lead);
@@ -1191,7 +1207,7 @@ export const LeadsManagement: React.FC<LeadsManagementProps> = ({ currentUser })
                                 <UserCheck className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
                                 <select
                                   value={lead.assignedTo || ''}
-                                  disabled={!isOwner && lead.assignedTo !== userName}
+                                  disabled={!canAssignLead}
                                   onChange={(e) => handleUpdateAssignedTo(lead.id, e.target.value)}
                                   className="bg-transparent border-none p-0 focus:outline-none font-extrabold text-indigo-900 text-xs cursor-pointer w-full disabled:cursor-not-allowed truncate"
                                 >
@@ -1254,6 +1270,7 @@ export const LeadsManagement: React.FC<LeadsManagementProps> = ({ currentUser })
                             <div className="py-0.5">
                               <select
                                 value={lead.status}
+                                disabled={!canChangeLeadStatus}
                                 onChange={(e) => {
                                   const newSt = e.target.value as LeadStatus;
                                   if (newSt === 'booked') {
@@ -1365,6 +1382,7 @@ export const LeadsManagement: React.FC<LeadsManagementProps> = ({ currentUser })
                               >
                                 <History className="w-4 h-4" />
                               </button>
+                              {canEditLead && (
                               <button
                                 onClick={() => handleOpenEditModal(lead)}
                                 title="Edit Lead Details"
@@ -1372,7 +1390,8 @@ export const LeadsManagement: React.FC<LeadsManagementProps> = ({ currentUser })
                               >
                                 <Edit3 className="w-4 h-4" />
                               </button>
-                              {isOwner && (
+                              )}
+                              {canDeleteLead && (
                                 <button
                                   onClick={() => handleDeleteLead(lead)}
                                   title="Delete Lead"
@@ -1507,10 +1526,9 @@ export const LeadsManagement: React.FC<LeadsManagementProps> = ({ currentUser })
         itemTitle={leadToDelete?.clientName || 'Inquiry Record'}
         message={`Are you sure you want to delete lead "${leadToDelete?.clientName || 'Inquiry Record'}"? This action cannot be undone.`}
         onConfirm={() => {
-          if (leadToDelete) {
-            setLeads((prev) => prev.filter((l) => l.id !== leadToDelete.id));
-            setLeadToDelete(null);
-          }
+          if (!canDeleteLead || !leadToDelete) return;
+          setLeads((prev) => prev.filter((l) => l.id !== leadToDelete.id));
+          setLeadToDelete(null);
         }}
         onCancel={() => setLeadToDelete(null)}
       />

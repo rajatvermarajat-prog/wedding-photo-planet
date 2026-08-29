@@ -42,7 +42,7 @@ interface FreelancerProfileModalProps {
   attendanceRecords: FreelancerAttendance[];
   dataReceivedList: FreelancerDataReceived[];
   activityLogs: FreelancerActivityLog[];
-  onEdit: (freelancer: Freelancer) => void;
+  onEdit?: (freelancer: Freelancer) => void;
   onClose: () => void;
   onAddPaymentClick?: (freelancerId: string) => void;
   onAssignShootClick?: (freelancerId: string) => void;
@@ -188,6 +188,7 @@ export const FreelancerProfileModal: React.FC<FreelancerProfileModalProps> = ({
 
             {/* Quick Action Buttons */}
             <div className="flex flex-wrap md:flex-col gap-2 w-full md:w-auto">
+              {onEdit && (
               <button
                 onClick={() => onEdit(freelancer)}
                 className="flex-1 md:flex-none px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold rounded-xl border border-slate-700 transition flex items-center justify-center gap-1.5"
@@ -195,6 +196,7 @@ export const FreelancerProfileModal: React.FC<FreelancerProfileModalProps> = ({
                 <Edit3 className="w-3.5 h-3.5 text-[#c48a9a]" />
                 <span>Edit Profile</span>
               </button>
+              )}
 
               {onAssignShootClick && (
                 <button

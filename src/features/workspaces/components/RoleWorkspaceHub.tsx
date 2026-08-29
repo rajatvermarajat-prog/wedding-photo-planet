@@ -10,6 +10,7 @@ import {
   Clock3,
   Film,
   FolderKanban,
+  HardDrive,
   Heart,
   Image as ImageIcon,
   IndianRupee,
@@ -27,6 +28,7 @@ import { PermissionGuard, usePermission } from '@/features/access';
 import { RoleDashboards } from './RoleDashboards';
 import { MyAttendanceCard } from '@/features/attendance/MyAttendanceCard';
 import { TaskWorkspacePanel } from '@/features/tasks/TaskWorkspacePanel';
+import { PersonalTodoPanel } from '@/features/tasks/PersonalTodoPanel';
 import { WORKSPACE_COPY, workspaceKind } from '../workspaceKind';
 import {
   myTasks,
@@ -82,9 +84,12 @@ export const RoleWorkspaceHub: React.FC<Props> = (props) => {
   const { currentUser, projects, tasks, attendance, team, setActiveTab, onSelectProject, payments = [] } = props;
   const { can, role, roles } = usePermission();
   const [hubTab, setHubTab] = useState<HubTab>('desk');
-  const kind = workspaceKind(role);
-  const copy = WORKSPACE_COPY[kind];
   const user = currentUser;
+  const userRoles = user && 'roles' in user && Array.isArray((user as { roles?: string[] }).roles)
+    ? (user as { roles: string[] }).roles
+    : undefined;
+  const kind = workspaceKind(role, user && 'role' in user ? user.role : undefined, userRoles);
+  const copy = WORKSPACE_COPY[kind];
 
   const weddingRows = useMemo(() => visibleProjects(projects, user, roles, 'weddings.view'), [projects, user, roles]);
   const shootRows = useMemo(() => visibleShoots(projects, user, roles), [projects, user, roles]);
@@ -109,7 +114,6 @@ export const RoleWorkspaceHub: React.FC<Props> = (props) => {
   const shortcuts = [
     { label: 'Dashboard', tab: 'dashboard' as TabType, icon: LayoutDashboard, key: 'dashboard.view' },
     { label: 'Weddings', tab: 'projects' as TabType, icon: FolderKanban, key: 'weddings.view' },
-    { label: 'Events', tab: 'shoots' as TabType, icon: CalendarDays, key: 'events.view' },
     { label: 'Shoots', tab: 'shoots' as TabType, icon: Film, key: 'shoots.view' },
     { label: 'Clients', tab: 'clients' as TabType, icon: Heart, key: 'clients.view' },
     { label: 'Leads', tab: 'leads' as TabType, icon: Target, key: 'leads.view' },
@@ -118,6 +122,7 @@ export const RoleWorkspaceHub: React.FC<Props> = (props) => {
     { label: 'Finance', tab: 'expenses' as TabType, icon: IndianRupee, key: 'finance.view_payments' },
     { label: 'Expenses', tab: 'expenses' as TabType, icon: Banknote, key: 'finance.manage_expenses' },
     { label: 'Reports', tab: 'dashboard' as TabType, icon: FolderKanban, key: 'reports.view' },
+    { label: 'Data Management', tab: 'data' as TabType, icon: HardDrive, key: 'data.view' },
     { label: 'Team', tab: 'team' as TabType, icon: Users, key: 'employees.view' },
     { label: 'Freelancers', tab: 'freelancers' as TabType, icon: UserCheck, key: 'freelancers.view' },
   ].filter((item) => can(item.key));
@@ -168,17 +173,22 @@ export const RoleWorkspaceHub: React.FC<Props> = (props) => {
             </div>
           )}
 
-          {user?.id && isEmployeeAttendanceUser && can('attendance.mark') && <MyAttendanceCard userId={user.id} canView={can('attendance.view')} />}
+          {user?.id && isEmployeeAttendanceUser && can('attendance.mark') && can('dashboard.view_attendance') && <MyAttendanceCard userId={user.id} canView={can('attendance.view')} />}
 
-          {kind !== 'client' && can('tasks.view') && (
-            <TaskWorkspacePanel
-              tasks={canManageTaskWorkspace ? tasks : assignedTasks}
-              title={canManageTaskWorkspace ? 'Team task progress' : "Today's assigned tasks"}
-              description={canManageTaskWorkspace ? 'Assignments and employee progress update from the same task records.' : 'Keep your assigned work up to date so your manager can track progress.'}
-              showAssignee={canManageTaskWorkspace}
-              canUpdate={can('tasks.change_status')}
-              onUpdate={props.onUpdateTask}
-            />
+          {kind !== 'client' && (
+            <div className="grid gap-5 lg:grid-cols-2">
+              {can('tasks.view') && can('dashboard.view_tasks') && (
+                <TaskWorkspacePanel
+                  tasks={canManageTaskWorkspace ? tasks : assignedTasks}
+                  title={canManageTaskWorkspace ? 'Team task progress' : "Today's assigned tasks"}
+                  description={canManageTaskWorkspace ? 'Assignments and employee progress update from the same task records.' : 'Keep your assigned work up to date so your manager can track progress.'}
+                  showAssignee={canManageTaskWorkspace}
+                  canUpdate={can('tasks.change_status')}
+                  onUpdate={props.onUpdateTask}
+                />
+              )}
+              {can('dashboard.view_todos') && can('personal.todo') && <PersonalTodoPanel />}
+            </div>
           )}
 
           {kind === 'manager' && (

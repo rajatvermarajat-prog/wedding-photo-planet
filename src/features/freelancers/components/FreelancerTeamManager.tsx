@@ -31,6 +31,7 @@ import {
   Users,
 } from 'lucide-react';
 import { BTN_CREAM, BTN_GHOST, CARD, TOGGLE_ACTIVE, TOGGLE_IDLE } from '@/features/team/components/TeamUiKit';
+import { usePermission } from '@/features/access';
 
 type FreelancerTab = 'dashboard' | 'all_freelancers' | 'calendar' | 'payments' | 'reports';
 
@@ -95,6 +96,13 @@ export const FreelancerTeamManager: React.FC<FreelancerTeamManagerProps> = (prop
     focusShootId,
   } = props;
 
+  const { can } = usePermission();
+  const canCreate = can('freelancers.create');
+  const canEdit = can('freelancers.edit');
+  const canDelete = can('freelancers.delete');
+  const canAssign = can('freelancers.edit');
+  const canPay = can('freelancers.manage_payments');
+
   const [activeSubTab, setActiveSubTab] = useState<FreelancerTab>(focusDate ? 'calendar' : 'dashboard');
   const [showCategoriesModal, setShowCategoriesModal] = useState(false);
   const [showFreelancerFormModal, setShowFreelancerFormModal] = useState(false);
@@ -113,16 +121,19 @@ export const FreelancerTeamManager: React.FC<FreelancerTeamManagerProps> = (prop
   }, [focusDate]);
 
   const openAssign = (freelancerId?: string) => {
+    if (!canAssign) return;
     setAssignFreelancerId(freelancerId);
     setShowAssignView(true);
   };
 
   const handleOpenAddForm = () => {
+    if (!canCreate) return;
     setEditingFreelancer(null);
     setShowFreelancerFormModal(true);
   };
 
   const handleOpenEditForm = (freelancer: Freelancer) => {
+    if (!canEdit) return;
     setEditingFreelancer(freelancer);
     setShowFreelancerFormModal(true);
   };
@@ -153,13 +164,17 @@ export const FreelancerTeamManager: React.FC<FreelancerTeamManagerProps> = (prop
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
+            {canEdit && (
             <button type="button" onClick={() => setShowCategoriesModal(true)} className={BTN_GHOST + ' !border-white/20 !bg-white/10 !text-white hover:!bg-white/15'}>
               <Tag className="size-3.5" /> Categories
             </button>
+            )}
+            {canCreate && (
             <button type="button" onClick={handleOpenAddForm} className={BTN_CREAM}>
               <UserPlus className="size-4" />
               Add Freelancer
             </button>
+            )}
           </div>
         </div>
       </section>
@@ -199,10 +214,10 @@ export const FreelancerTeamManager: React.FC<FreelancerTeamManagerProps> = (prop
             }
             setActiveSubTab(tab as FreelancerTab);
           }}
-          onAddFreelancerClick={handleOpenAddForm}
-          onAssignShootClick={() => openAssign()}
-          onRecordPaymentClick={() => setActiveSubTab('payments')}
-          onManageCategoriesClick={() => setShowCategoriesModal(true)}
+          onAddFreelancerClick={canCreate ? handleOpenAddForm : undefined}
+          onAssignShootClick={canAssign ? () => openAssign() : undefined}
+          onRecordPaymentClick={canPay ? () => setActiveSubTab('payments') : undefined}
+          onManageCategoriesClick={canEdit ? () => setShowCategoriesModal(true) : undefined}
           onOpenProfile={(f) => setSelectedProfileFreelancer(f)}
           onFilterCategory={(name) => {
             setListCategory(name);
@@ -218,12 +233,12 @@ export const FreelancerTeamManager: React.FC<FreelancerTeamManagerProps> = (prop
           assignments={assignments}
           payments={payments}
           onOpenProfile={(f) => setSelectedProfileFreelancer(f)}
-          onEditFreelancer={handleOpenEditForm}
-          onAddFreelancerClick={handleOpenAddForm}
-          onAssignShootClick={(id) => openAssign(id)}
-          onRecordPaymentClick={() => setActiveSubTab('payments')}
-          onDeleteFreelancer={onDeleteFreelancer}
-          onManageCategoriesClick={() => setShowCategoriesModal(true)}
+          onEditFreelancer={canEdit ? handleOpenEditForm : undefined}
+          onAddFreelancerClick={canCreate ? handleOpenAddForm : undefined}
+          onAssignShootClick={canAssign ? (id) => openAssign(id) : undefined}
+          onRecordPaymentClick={canPay ? () => setActiveSubTab('payments') : undefined}
+          onDeleteFreelancer={canDelete ? onDeleteFreelancer : undefined}
+          onManageCategoriesClick={canEdit ? () => setShowCategoriesModal(true) : undefined}
           initialCategory={listCategory}
         />
       )}
@@ -234,12 +249,12 @@ export const FreelancerTeamManager: React.FC<FreelancerTeamManagerProps> = (prop
           freelancers={freelancers}
           projects={projects}
           focusDate={calendarDate}
-          onAssignShoot={() => openAssign()}
+          onAssignShoot={canAssign ? () => openAssign() : undefined}
         />
       )}
 
       {activeSubTab === 'payments' && (
-        <FreelancerPaymentsView payments={payments} assignments={assignments} freelancers={freelancers} onSavePayment={onSavePayment} />
+        <FreelancerPaymentsView payments={payments} assignments={assignments} freelancers={freelancers} onSavePayment={canPay ? onSavePayment : undefined} />
       )}
 
       {activeSubTab === 'reports' && (
@@ -252,7 +267,7 @@ export const FreelancerTeamManager: React.FC<FreelancerTeamManagerProps> = (prop
         />
       )}
 
-      {showCategoriesModal && (
+      {canEdit && showCategoriesModal && (
         <CategoriesManagerModal
           categories={categories}
           onSaveCategories={onSaveCategories}
@@ -260,7 +275,7 @@ export const FreelancerTeamManager: React.FC<FreelancerTeamManagerProps> = (prop
         />
       )}
 
-      {showFreelancerFormModal && (
+      {(canCreate || canEdit) && showFreelancerFormModal && (
         <FreelancerFormModal
           existingFreelancer={editingFreelancer}
           categories={categories}
@@ -280,26 +295,26 @@ export const FreelancerTeamManager: React.FC<FreelancerTeamManagerProps> = (prop
           attendanceRecords={attendanceRecords}
           dataReceivedList={dataReceivedList}
           activityLogs={activityLogs}
-          onEdit={(f) => {
+          onEdit={canEdit ? (f) => {
             setSelectedProfileFreelancer(null);
             handleOpenEditForm(f);
-          }}
+          } : undefined}
           onClose={() => setSelectedProfileFreelancer(null)}
-          onAddPaymentClick={() => {
+          onAddPaymentClick={canPay ? () => {
             setSelectedProfileFreelancer(null);
             setActiveSubTab('payments');
-          }}
-          onAssignShootClick={(id) => {
+          } : undefined}
+          onAssignShootClick={canAssign ? (id) => {
             setSelectedProfileFreelancer(null);
             openAssign(id);
-          }}
-          onUpdateDocument={onUpdateDocument}
-          onDeleteFreelancer={onDeleteFreelancer}
-          onSaveFreelancer={onSaveFreelancer}
+          } : undefined}
+          onUpdateDocument={canEdit ? onUpdateDocument : undefined}
+          onDeleteFreelancer={canDelete ? onDeleteFreelancer : undefined}
+          onSaveFreelancer={canEdit ? onSaveFreelancer : undefined}
         />
       )}
 
-      {showAssignView && (
+      {canAssign && showAssignView && (
         <AssignShootModal
           freelancers={freelancers}
           projects={projects}

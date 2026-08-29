@@ -69,12 +69,12 @@ interface Props {
   leaves: LeaveRequest[];
   today: string;
   onOpenProfile: (member: TeamMember) => void;
-  onEditMember: (member: TeamMember) => void;
-  onToggleActive: (member: TeamMember) => void;
-  onMarkAttendance: (member: TeamMember) => void;
-  onAssignShoot: (member: TeamMember) => void;
-  onApplyLeave: (member: TeamMember) => void;
-  onAddMember: () => void;
+  onEditMember?: (member: TeamMember) => void;
+  onToggleActive?: (member: TeamMember) => void;
+  onMarkAttendance?: (member: TeamMember) => void;
+  onAssignShoot?: (member: TeamMember) => void;
+  onApplyLeave?: (member: TeamMember) => void;
+  onAddMember?: () => void;
   /** Rendered above the roster — keeps the existing software-guard panel in place. */
   monitoringSlot?: React.ReactNode;
 }
@@ -92,11 +92,11 @@ function MemberActions({
 }: {
   member: TeamMember;
   onOpenProfile: (member: TeamMember) => void;
-  onEditMember: (member: TeamMember) => void;
-  onMarkAttendance: (member: TeamMember) => void;
-  onAssignShoot: (member: TeamMember) => void;
-  onApplyLeave: (member: TeamMember) => void;
-  onToggleActive: (member: TeamMember) => void;
+  onEditMember?: (member: TeamMember) => void;
+  onMarkAttendance?: (member: TeamMember) => void;
+  onAssignShoot?: (member: TeamMember) => void;
+  onApplyLeave?: (member: TeamMember) => void;
+  onToggleActive?: (member: TeamMember) => void;
 }) {
   const [open, setOpen] = useState(false);
   const btnRef = useRef<HTMLButtonElement>(null);
@@ -140,11 +140,11 @@ function MemberActions({
   }, [open]);
 
   const items = [
-    { label: 'Mark attendance', icon: UserCheck, run: () => onMarkAttendance(member) },
-    { label: 'Assign to shoot', icon: Camera, run: () => onAssignShoot(member) },
-    { label: 'Apply leave', icon: CalendarPlus, run: () => onApplyLeave(member) },
-    { label: isActive ? 'Deactivate member' : 'Reactivate member', icon: Power, run: () => onToggleActive(member), tone: isActive ? 'text-amber-700 hover:bg-amber-50' : 'text-emerald-700 hover:bg-emerald-50' },
-  ];
+    onMarkAttendance && { label: 'Mark attendance', icon: UserCheck, run: () => onMarkAttendance(member) },
+    onAssignShoot && { label: 'Assign to shoot', icon: Camera, run: () => onAssignShoot(member) },
+    onApplyLeave && { label: 'Apply leave', icon: CalendarPlus, run: () => onApplyLeave(member) },
+    onToggleActive && { label: isActive ? 'Deactivate member' : 'Reactivate member', icon: Power, run: () => onToggleActive(member), tone: isActive ? 'text-amber-700 hover:bg-amber-50' : 'text-emerald-700 hover:bg-emerald-50' },
+  ].filter(Boolean) as Array<{ label: string; icon: typeof Users; run: () => void; tone?: string }>;
 
   const btn = 'inline-flex min-h-9 flex-1 cursor-pointer items-center justify-center gap-1 rounded-lg px-2.5 py-1.5 text-[11px] font-extrabold transition sm:flex-none';
 
@@ -153,9 +153,12 @@ function MemberActions({
       <button type="button" onClick={() => onOpenProfile(member)} className={`${btn} border border-[#ded5cf] bg-white text-slate-700 hover:border-rose-300 hover:bg-[#fbfaf8]`}>
         <Users className="size-3.5 text-[#8f3655]" /> View
       </button>
+      {onEditMember && (
       <button type="button" onClick={() => onEditMember(member)} className={`${btn} border border-[#ded5cf] bg-white text-slate-700 hover:border-rose-300 hover:bg-[#fbfaf8]`}>
         <Pencil className="size-3.5" /> Edit
       </button>
+      )}
+      {items.length > 0 && (
       <button
         ref={btnRef}
         type="button"
@@ -165,6 +168,7 @@ function MemberActions({
       >
         More <ChevronDown className={`size-3.5 transition ${open ? 'rotate-180' : ''}`} />
       </button>
+      )}
       {open && typeof document !== 'undefined' && createPortal(
         <div
           ref={menuRef}
@@ -393,9 +397,11 @@ export const TeamDirectory: React.FC<Props> = ({
               </div>
             )}
 
+            {onAddMember && (
             <button type="button" onClick={onAddMember} className={BTN_PRIMARY}>
               <UserPlus className="w-4 h-4" /> Add member
             </button>
+            )}
           </div>
         </div>
 
@@ -478,9 +484,11 @@ export const TeamDirectory: React.FC<Props> = ({
             title="No team members yet"
             message="Add your photographers, cinematographers, editors and coordinators to start tracking attendance, availability and shoot assignments."
             action={
+              onAddMember ? (
               <button type="button" onClick={onAddMember} className={BTN_PRIMARY}>
                 <UserPlus className="w-4 h-4" /> Add your first team member
               </button>
+              ) : undefined
             }
           />
         </div>

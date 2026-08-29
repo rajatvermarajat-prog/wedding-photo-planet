@@ -32,6 +32,7 @@ import {
   TeamMember,
 } from '@/types';
 import { useToast } from '@/components/common';
+import { usePermission } from '@/features/access';
 import {
   Avatar,
   BTN_GHOST,
@@ -83,6 +84,11 @@ export const ShootAssignmentView: React.FC<Props> = ({
   onClearFocusMember,
   onOpenProfile,
 }) => {
+  const { can } = usePermission();
+  const canAssign =
+    can('shoots.assign_photographer') ||
+    can('shoots.assign_cinematographer') ||
+    can('shoots.assign_freelancer');
   const today = getTodayDateString();
   const [filter, setFilter] = useState<ShootFilter>('upcoming');
   const [search, setSearch] = useState('');
@@ -121,6 +127,7 @@ export const ShootAssignmentView: React.FC<Props> = ({
   };
 
   const addCrew = (project: Project, shoot: ShootEvent, member: TeamMember, role: string) => {
+    if (!canAssign) return;
     const crew: CrewMemberAssignment = {
       // Using the member id as the crew id links the booking back to the roster
       // for availability, attendance and double-booking checks.
@@ -134,6 +141,7 @@ export const ShootAssignmentView: React.FC<Props> = ({
   };
 
   const removeCrew = (project: Project, shoot: ShootEvent, crewId: string, role: string) => {
+    if (!canAssign) return;
     saveShoot(project, {
       ...shoot,
       crewAssignments: (shoot.crewAssignments || []).filter((c) => !(c.id === crewId && c.role === role)),
@@ -266,6 +274,7 @@ export const ShootAssignmentView: React.FC<Props> = ({
                                     <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />
                                   </span>
                                 )}
+                                {canAssign && (
                                 <button
                                   type="button"
                                   onClick={() => removeCrew(project, shoot, c.id, c.role)}
@@ -274,6 +283,7 @@ export const ShootAssignmentView: React.FC<Props> = ({
                                 >
                                   <Trash2 className="w-3.5 h-3.5" />
                                 </button>
+                                )}
                               </li>
                             );
                           })}
@@ -291,8 +301,9 @@ export const ShootAssignmentView: React.FC<Props> = ({
                             <button
                               key={role}
                               type="button"
-                              onClick={() => setPicker({ project, shoot, role })}
-                              className="rounded-xl border border-slate-200 bg-white p-2.5 text-left hover:border-rose-300 hover:shadow-sm transition cursor-pointer"
+                              onClick={() => { if (canAssign) setPicker({ project, shoot, role }); }}
+                              disabled={!canAssign}
+                              className={`rounded-xl border border-slate-200 bg-white p-2.5 text-left ${canAssign ? 'hover:border-rose-300 hover:shadow-sm cursor-pointer' : 'opacity-70 cursor-default'} transition`}
                             >
                               <p className="flex items-center gap-1 truncate text-[10px] font-extrabold uppercase tracking-wider text-slate-500">
                                 <RoleIcon role={role} className="size-3.5 text-[#8f3655]" /> {role}
@@ -300,9 +311,11 @@ export const ShootAssignmentView: React.FC<Props> = ({
                               <p className={`text-xs font-black mt-0.5 ${filled.length ? 'text-emerald-700' : 'text-slate-400'}`}>
                                 {filled.length ? `${filled.length} assigned` : 'Select…'}
                               </p>
+                              {canAssign && (
                               <p className="text-[10px] font-bold text-[#8f3655] mt-1 inline-flex items-center gap-0.5">
                                 <Plus className="w-3 h-3" /> Add crew
                               </p>
+                              )}
                             </button>
                           );
                         })}
@@ -316,7 +329,7 @@ export const ShootAssignmentView: React.FC<Props> = ({
         </div>
       )}
 
-      {picker && (
+      {picker && canAssign && (
         <CrewPickerModal
           project={picker.project}
           shoot={picker.shoot}

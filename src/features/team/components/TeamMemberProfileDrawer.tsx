@@ -80,12 +80,12 @@ interface Props {
   projects: Project[];
   leaves: LeaveRequest[];
   onClose: () => void;
-  onEdit: (member: TeamMember) => void;
-  onUpdateMember: (member: TeamMember) => void;
-  onMarkAttendance: (member: TeamMember) => void;
-  onAssignShoot: (member: TeamMember) => void;
-  onApplyLeave: (member: TeamMember) => void;
-  onToggleActive: (member: TeamMember) => void;
+  onEdit?: (member: TeamMember) => void;
+  onUpdateMember?: (member: TeamMember) => void;
+  onMarkAttendance?: (member: TeamMember) => void;
+  onAssignShoot?: (member: TeamMember) => void;
+  onApplyLeave?: (member: TeamMember) => void;
+  onToggleActive?: (member: TeamMember) => void;
   onOpenFullDashboard?: (member: TeamMember) => void;
 }
 
@@ -163,7 +163,7 @@ export const TeamMemberProfileDrawer: React.FC<Props> = ({
   const isActive = (member.status || 'active') === 'active';
 
   const handleUpload = (file?: File | null) => {
-    if (!file) return;
+    if (!file || !onUpdateMember) return;
     if (file.size > 3_000_000) {
       showToast('Documents must be under 3 MB.', { variant: 'error' });
       return;
@@ -186,6 +186,7 @@ export const TeamMemberProfileDrawer: React.FC<Props> = ({
   };
 
   const removeDocument = (docId: string) => {
+    if (!onUpdateMember) return;
     onUpdateMember({ ...member, documents: (member.documents || []).filter((d) => d.id !== docId) });
     showToast('Document removed.');
   };
@@ -218,15 +219,16 @@ export const TeamMemberProfileDrawer: React.FC<Props> = ({
         </div>
 
         <div className="relative flex flex-wrap items-center gap-1.5">
-          <button type="button" onClick={() => onEdit(member)} className={BTN_GHOST}><Pencil className="w-3.5 h-3.5" /> Edit</button>
-          <button type="button" onClick={() => onMarkAttendance(member)} className={BTN_GHOST}><CalendarCheck className="w-3.5 h-3.5" /> Mark attendance</button>
-          <button type="button" onClick={() => onAssignShoot(member)} className={BTN_GHOST}><Camera className="w-3.5 h-3.5" /> Assign shoot</button>
-          <button type="button" onClick={() => onApplyLeave(member)} className={BTN_GHOST}><CalendarPlus className="w-3.5 h-3.5" /> Apply leave</button>
+          {onEdit && <button type="button" onClick={() => onEdit(member)} className={BTN_GHOST}><Pencil className="w-3.5 h-3.5" /> Edit</button>}
+          {onMarkAttendance && <button type="button" onClick={() => onMarkAttendance(member)} className={BTN_GHOST}><CalendarCheck className="w-3.5 h-3.5" /> Mark attendance</button>}
+          {onAssignShoot && <button type="button" onClick={() => onAssignShoot(member)} className={BTN_GHOST}><Camera className="w-3.5 h-3.5" /> Assign shoot</button>}
+          {onApplyLeave && <button type="button" onClick={() => onApplyLeave(member)} className={BTN_GHOST}><CalendarPlus className="w-3.5 h-3.5" /> Apply leave</button>}
           {onOpenFullDashboard && (
             <button type="button" onClick={() => onOpenFullDashboard(member)} className={BTN_GHOST}>
               <LayoutDashboard className="w-3.5 h-3.5" /> Full dashboard
             </button>
           )}
+          {onToggleActive && (
           <button
             type="button"
             onClick={() => onToggleActive(member)}
@@ -236,6 +238,7 @@ export const TeamMemberProfileDrawer: React.FC<Props> = ({
           >
             <Power className="w-3.5 h-3.5" /> {isActive ? 'Deactivate' : 'Reactivate'}
           </button>
+          )}
         </div>
 
         <nav className="relative flex items-center gap-1 overflow-x-auto rounded-2xl border border-white/25 bg-[#24171c]/55 p-1.5">
@@ -534,6 +537,7 @@ export const TeamMemberProfileDrawer: React.FC<Props> = ({
               <FileText className="w-3.5 h-3.5 text-[#8f3655]" /> Documents ({(member.documents || []).length})
             </h3>
 
+            {onUpdateMember && (
             <div className="flex flex-wrap items-end gap-2">
               <div className="w-44">
                 <label className="block text-[10px] font-extrabold uppercase tracking-wider text-slate-500 mb-1" htmlFor="doc-type">Type</label>
@@ -546,6 +550,7 @@ export const TeamMemberProfileDrawer: React.FC<Props> = ({
                 <Upload className="w-4 h-4" /> Attach document
               </button>
             </div>
+            )}
 
             {(member.documents || []).length === 0 ? (
               <EmptyState icon={FileText} title="No documents on file" message="Attach ID proof, contracts or agreements. Files are stored with the member record." />
@@ -563,6 +568,7 @@ export const TeamMemberProfileDrawer: React.FC<Props> = ({
                       {doc.fileUrl && (
                         <a href={doc.fileUrl} target="_blank" rel="noreferrer" className={BTN_GHOST}>Open</a>
                       )}
+                      {onUpdateMember && (
                       <button
                         type="button"
                         onClick={() => removeDocument(doc.id)}
@@ -571,6 +577,7 @@ export const TeamMemberProfileDrawer: React.FC<Props> = ({
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
+                      )}
                     </div>
                   </li>
                 ))}

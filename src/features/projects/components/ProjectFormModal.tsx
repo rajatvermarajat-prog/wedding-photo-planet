@@ -4,13 +4,16 @@ import { computeAutoProjectStatus } from '@/utils/projectStatusCalculator';
 import { RoleColumnCrewManager } from './RoleColumnCrewManager';
 import { ConfirmDeleteModal } from '@/components/common/ConfirmDeleteModal';
 import { useToast } from '@/components/common';
+import { mergeAssignees, FREELANCER_ASSIGNEE, UNASSIGNED_ASSIGNEE, assigneeSelectValue } from '@/features/projects/assigneeOptions';
+import { useTeam } from '@/hooks/useTeam';
+import { normalizeTeamMember } from '@/features/team/teamViewModel';
 import { ArrowLeft, ArrowRight, X, Save, IndianRupee, Phone, MapPin, Music, Link2, Calendar, Sparkles, Plus, Trash2, Camera, CheckSquare, UserCheck, Folder, Upload, FileText, Eye, Paperclip, Users, UserPlus } from 'lucide-react';
 
 interface ProjectFormModalProps {
   isOpen: boolean;
   variant?: 'modal' | 'page';
   onClose: () => void;
-  onSave: (project: Project) => void;
+  onSave: (project: Project) => void | Promise<void>;
   existingProject?: Project | null;
   team?: TeamMember[];
 }
@@ -23,20 +26,12 @@ export const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
   existingProject,
   team = [],
 }) => {
-  if (!isOpen) return null;
   const { showToast } = useToast();
+  const teamQuery = useTeam({ page: 1, limit: 100 }, isOpen);
+  const loadedTeam = teamQuery.data.map(normalizeTeamMember);
+  const activeTeamMembers = mergeAssignees(team, loadedTeam);
 
-  const activeTeamMembers = team && team.length > 0
-    ? team
-    : [
-        { id: 't1', name: 'Rajat Verma', role: 'Owner / Lead' },
-        { id: 't2', name: 'Vikram Sharma', role: 'Video Editor' },
-        { id: 't3', name: 'Pooja Verma', role: 'Photo Editor' },
-        { id: 't4', name: 'Rahul Kapoor', role: 'Cinematographer' },
-        { id: 't5', name: 'Amit Kumar', role: 'Drone Operator' },
-        { id: 't6', name: 'Sunil Sharma', role: 'Assistant' },
-        { id: 't7', name: 'Deepak Saini', role: 'Assistant' },
-      ];
+  if (!isOpen) return null;
 
   // Form State initialized with defaults or existing values
   const [clientWeddingTitle, setClientWeddingTitle] = useState(existingProject?.clientWeddingTitle || '');
@@ -426,12 +421,20 @@ export const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
   // Balance due calculation
   const balanceDue = Math.max(0, Number(totalBudget || 0) - Number(advanceReceived || 0));
   const hasFinancialAmount = totalBudget !== '' || advanceReceived !== '';
+  const [saving, setSaving] = useState(false);
 
-  const handleSubmit = (e?: React.SyntheticEvent) => {
+  const handleSubmit = async (e?: React.SyntheticEvent) => {
     e?.preventDefault();
+    if (saving) return;
 
     if (!clientWeddingTitle.trim()) {
       showToast('Please enter the Client / Wedding Title.', { variant: 'error' });
+      setActiveStep(1);
+      return;
+    }
+
+    if (!clientContactMobile.trim()) {
+      showToast('Please enter the client mobile number so the project can be saved.', { variant: 'error' });
       setActiveStep(1);
       return;
     }
@@ -502,9 +505,18 @@ export const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
     const autoWork = computeAutoProjectStatus(newProject);
     newProject.status = autoWork.autoStatus;
 
-    onSave(newProject);
-    showToast(existingProject ? 'Project updated successfully.' : 'Project created successfully.');
-    onClose();
+    setSaving(true);
+    try {
+      await onSave(newProject);
+    const assigned = [...new Set(tasks.map((row) => row.assignedTo?.trim()).filter((name) => name && name !== 'Unassigned'))];
+    const extra = assigned.length ? ` Assigned to ${assigned.join(', ')}.` : '';
+      showToast((existingProject ? 'Project saved to the studio records.' : 'Project created and saved.') + extra);
+      onClose();
+    } catch {
+      showToast('Project could not be saved. Please try again.', { variant: 'error' });
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -1017,37 +1029,40 @@ export const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
                           Assigned To
                         </label>
                         {(() => {
-                          const isStandardMember = activeTeamMembers.some((m) => m.name === task.assignedTo) || task.assignedTo === 'Unassigned' || !task.assignedTo;
-                          const isCustom = !isStandardMember || task.assignedTo === 'Other';
+                          const selectValue = assigneeSelectValue(task.assignedTo, activeTeamMembers);
+                          const isFreelancer = selectValue === FREELANCER_ASSIGNEE;
                           return (
                             <>
                               <select
-                                value={isCustom ? 'other' : task.assignedTo}
+                                value={selectValue}
                                 onChange={(e) => {
                                   const val = e.target.value;
-                                  if (val === 'other') {
-                                    handleTaskChange(index, 'assignedTo', 'Other');
-                                  } else {
-                                    handleTaskChange(index, 'assignedTo', val);
-                                  }
+                                  const member = activeTeamMembers.find((row) => row.name === val);
+                                  setTasks((current) =>
+                                    current.map((row, i) =>
+                                      i === index
+                                        ? { ...row, assignedTo: val, assignedToId: member?.id || '' }
+                                        : row,
+                                    ),
+                                  );
                                 }}
                                 className="w-full bg-white border border-slate-200 rounded px-2 py-1 text-xs text-slate-800 font-semibold mb-1"
                               >
+                                <option value={UNASSIGNED_ASSIGNEE}>Unassigned</option>
                                 {activeTeamMembers.map((m) => (
                                   <option key={m.id || m.name} value={m.name}>
-                                    {m.name} ({m.role})
+                                    {m.name}{m.role ? ` (${m.role})` : ''}
                                   </option>
                                 ))}
-                                <option value="Unassigned">Unassigned</option>
-                                <option value="other">Other</option>
+                                <option value={FREELANCER_ASSIGNEE}>Freelancer</option>
                               </select>
 
-                              {isCustom && (
+                              {isFreelancer && (
                                 <input
                                   type="text"
-                                  placeholder="Type custom name..."
-                                  value={task.assignedTo === 'Other' ? '' : task.assignedTo}
-                                  onChange={(e) => handleTaskChange(index, 'assignedTo', e.target.value || 'Other')}
+                                  placeholder="Freelancer name (optional)"
+                                  value={task.assignedTo === FREELANCER_ASSIGNEE ? '' : task.assignedTo}
+                                  onChange={(e) => handleTaskChange(index, 'assignedTo', e.target.value.trim() || FREELANCER_ASSIGNEE)}
                                   className="w-full bg-amber-50 border border-amber-300 rounded px-2 py-1 text-xs text-slate-800 font-bold placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-amber-500"
                                 />
                               )}
@@ -1084,11 +1099,12 @@ export const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
             <button
               key="wizard-submit"
               type="button"
-              onClick={handleSubmit}
-              className="group flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#8f3655] to-[#6d2f45] px-6 py-2.5 text-sm font-extrabold text-white shadow-[0_8px_20px_rgba(109,47,69,.25)] transition hover:-translate-y-0.5 hover:shadow-lg"
+              onClick={() => void handleSubmit()}
+              disabled={saving}
+              className="group flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#8f3655] to-[#6d2f45] px-6 py-2.5 text-sm font-extrabold text-white shadow-[0_8px_20px_rgba(109,47,69,.25)] transition hover:-translate-y-0.5 hover:shadow-lg disabled:opacity-60"
             >
               <Save className="size-4" />
-              <span>{existingProject ? 'Save Project Changes' : 'Save & Create Project'}</span>
+              <span>{saving ? 'Saving…' : existingProject ? 'Save Project Changes' : 'Save & Create Project'}</span>
             </button>
             }
           </div>

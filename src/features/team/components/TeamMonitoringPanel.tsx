@@ -156,11 +156,11 @@ const MemberSoftwareManager: React.FC<MemberSoftwareManagerProps> = ({
 interface TeamMonitoringPanelProps {
   team: TeamMember[];
   softwareOptions: string[];
-  onUpdateTeamMember: (member: TeamMember) => void;
+  onUpdateTeamMember?: (member: TeamMember) => void;
   onReorderTeam?: (team: TeamMember[]) => void;
   onDeleteTeamMember?: (memberId: string) => void;
   onOpenMember: (member: TeamMember) => void;
-  onEditMember: (member: TeamMember) => void;
+  onEditMember?: (member: TeamMember) => void;
   /** Renders only the alert banners — used at the top of the module shell. */
   bannersOnly?: boolean;
   /** Renders only the roster cards grid (no guard panel / banners). */
@@ -218,6 +218,7 @@ export const TeamMonitoringPanel: React.FC<TeamMonitoringPanelProps> = ({
   };
 
   const handleAddPermittedSoftware = (member: TeamMember, software: string) => {
+    if (!onUpdateTeamMember) return;
     const trimmed = software.trim();
     if (!trimmed) return;
     const current = getPermittedSoftwares(member);
@@ -233,6 +234,7 @@ export const TeamMonitoringPanel: React.FC<TeamMonitoringPanelProps> = ({
   };
 
   const handleRemovePermittedSoftware = (member: TeamMember, software: string) => {
+    if (!onUpdateTeamMember) return;
     const updated = getPermittedSoftwares(member).filter((s) => s !== software);
     onUpdateTeamMember({
       ...member,
@@ -244,14 +246,17 @@ export const TeamMonitoringPanel: React.FC<TeamMonitoringPanelProps> = ({
   };
 
   const handleWorkStatusChange = (member: TeamMember, newStatus: TeamMember['workStatus']) => {
+    if (!onUpdateTeamMember) return;
     onUpdateTeamMember({ ...member, workStatus: newStatus, isLoggedOut: newStatus === 'LOCKED' });
   };
 
   const handleClockOut = (member: TeamMember) => {
+    if (!onUpdateTeamMember) return;
     onUpdateTeamMember({ ...member, workStatus: 'CLOCKED_OUT' });
   };
 
   const handleResetMemberSoftware = (member: TeamMember) => {
+    if (!onUpdateTeamMember) return;
     const list = getPermittedSoftwares(member);
     onUpdateTeamMember({
       ...member,
@@ -263,6 +268,7 @@ export const TeamMonitoringPanel: React.FC<TeamMonitoringPanelProps> = ({
   };
 
   const handleSimulateUnauthorizedUsage = () => {
+    if (!onUpdateTeamMember) return;
     const target = team.find((t) => t.id === selectedSimMemberId);
     if (!target) return;
 
@@ -295,7 +301,7 @@ export const TeamMonitoringPanel: React.FC<TeamMonitoringPanelProps> = ({
 
   const handleUnlockSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!unlockMember) return;
+    if (!unlockMember || !onUpdateTeamMember) return;
     if (unlockPin !== '1234' && unlockPin.trim().length < 4) {
       setUnlockError('Invalid PIN! Use 1234 or the owner password.');
       return;
@@ -395,12 +401,14 @@ export const TeamMonitoringPanel: React.FC<TeamMonitoringPanelProps> = ({
                     <span className="block text-[11px] text-amber-800 font-medium">Permitted Softwares (Limit 2-3): {getPermittedSoftwares(m).join(' | ')}</span>
                   </div>
                 </div>
+                {onUpdateTeamMember && (
                 <button
                   onClick={() => handleResetMemberSoftware(m)}
                   className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg font-bold text-[11px] uppercase tracking-wider flex-shrink-0"
                 >
                   Clear Warning
                 </button>
+                )}
               </div>
             ))}
 
@@ -413,6 +421,7 @@ export const TeamMonitoringPanel: React.FC<TeamMonitoringPanelProps> = ({
                     <span className="font-bold text-slate-900">{m.name}</span> has been automatically logged out due to unauthorized app limit exceed!
                   </div>
                 </div>
+                {onUpdateTeamMember && (
                 <button
                   onClick={() => setUnlockMember(m)}
                   className="px-3.5 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded-lg font-bold text-xs uppercase tracking-wider flex items-center gap-1.5 flex-shrink-0 shadow-xs"
@@ -420,6 +429,7 @@ export const TeamMonitoringPanel: React.FC<TeamMonitoringPanelProps> = ({
                   <Unlock className="w-3.5 h-3.5" />
                   <span>Re-Login / Unlock</span>
                 </button>
+                )}
               </div>
             ))}
           </div>
@@ -639,6 +649,7 @@ export const TeamMonitoringPanel: React.FC<TeamMonitoringPanelProps> = ({
 
                   {/* Status Badge & Edit Button */}
                   <div className="flex items-center gap-2">
+                    {onEditMember && (
                     <button
                       type="button"
                       onClick={(e) => {
@@ -651,6 +662,7 @@ export const TeamMonitoringPanel: React.FC<TeamMonitoringPanelProps> = ({
                       <Pencil className="w-3.5 h-3.5" />
                       <span>Edit</span>
                     </button>
+                    )}
 
                     {isLocked ? (
                       <span className="px-2.5 py-1 rounded-full text-[10px] font-black bg-red-100 text-red-700 border border-red-300 flex items-center gap-1 uppercase tracking-wider">

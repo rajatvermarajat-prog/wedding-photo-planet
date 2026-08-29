@@ -32,6 +32,10 @@ export const authApi = {
     return data;
   },
   async logout(): Promise<void> {
-    await apiRequest<void>('/auth/logout', { method: 'POST' });
+    try {
+      await apiRequest<void>('/auth/logout', { method: 'POST' });
+    } catch {
+      return;
+    }
   },
 };

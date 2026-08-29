@@ -62,7 +62,7 @@ export const ClientsDirectoryView: React.FC<ClientsDirectoryViewProps> = ({
   onAddClient,
 }) => {
   const { can } = usePermission();
-  const canAdd = can('clients.create') || can('weddings.create');
+  const canAdd = can('clients.create');
   const canSeePay = can('finance.view_payments');
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<ClientFilter>('all');
@@ -133,7 +133,7 @@ export const ClientsDirectoryView: React.FC<ClientsDirectoryViewProps> = ({
     { id: 'balance', label: 'Balance Due', detail: 'Pending collection', count: stats.balance, icon: CircleDollarSign },
     { id: 'completed', label: 'Completed', detail: 'Work finished', count: stats.completed, icon: CheckCircle2 },
     { id: 'urgent', label: 'Urgent', detail: 'Needs attention', count: stats.urgent, icon: AlertCircle, danger: true },
-  ];
+  ].filter((chip) => canSeePay || chip.id !== 'balance');
 
   return (
     <div className="space-y-6 pb-12">

@@ -77,7 +77,7 @@ export const RolesPermissionsManager: React.FC<Props> = ({
   const editing = roles.find((r) => r.id === editorRoleId) || null;
 
   const openEditor = (role: AccessRole, view = false) => {
-    setReadOnly(view || (role.id === 'super_admin' && role.type === 'system'));
+    setReadOnly(view);
     setEditorRoleId(role.id);
   };
 
@@ -141,7 +141,7 @@ export const RolesPermissionsManager: React.FC<Props> = ({
               Roles & Permissions
             </h1>
             <p className="mt-2 text-sm font-medium leading-relaxed text-[#eadfe2] sm:text-base">
-              Decide what each role can see, create, edit, approve or export — without touching code.
+              Decide what each role can see on the Dashboard, and what they can create, edit, approve or export.
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -320,6 +320,9 @@ function PermissionEditor({
   const [openMods, setOpenMods] = useState<string[]>(permissions.map((m) => m.id));
   const [saving, setSaving] = useState(false);
   const [pendingSensitive, setPendingSensitive] = useState<string | null>(null);
+  const isSystemAdmin = role.type === 'system' && role.name === 'ADMIN';
+  const isLocked = (modId: string, key?: string) =>
+    readOnly || (isSystemAdmin && modId !== 'dashboard') || (isSystemAdmin && key === 'DASHBOARD_VIEW');
   const dirty = JSON.stringify(draft) !== JSON.stringify(role.grants);
   const enabled = Object.values(draft).filter((grant) => grant.enabled).length;
   const q = search.trim().toLowerCase();
@@ -328,16 +331,38 @@ function PermissionEditor({
     [permissions],
   );
 
-  const visibleModules = permissions.map((mod) => ({
-    ...mod,
-    permissions: mod.permissions.filter((p) => !q || p.label.toLowerCase().includes(q) || p.key.includes(q)),
-  })).filter((mod) => mod.permissions.length > 0);
+  const visibleModules = permissions
+    .map((mod) => {
+      if (!q) return mod;
+      const moduleHit =
+        mod.label.toLowerCase().includes(q) ||
+        mod.id.toLowerCase().includes(q) ||
+        (mod.description || '').toLowerCase().includes(q);
+      if (moduleHit) return mod;
+      return {
+        ...mod,
+        permissions: mod.permissions.filter(
+          (p) => p.label.toLowerCase().includes(q) || p.key.toLowerCase().includes(q) || (p.description || '').toLowerCase().includes(q)
+        ),
+      };
+    })
+    .filter((mod) => mod.permissions.length > 0);
+
+  const jumpToModule = (id: string) => {
+    setSearch('');
+    setOpenMods((prev) => (prev.includes(id) ? prev : [...prev, id]));
+    window.setTimeout(() => {
+      document.getElementById(`role-mod-${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 80);
+  };
 
   const setGrant = (key: string, patch: Partial<PermissionGrant>) => {
     setDraft((prev) => ({ ...prev, [key]: { enabled: false, scope: 'all', ...prev[key], ...patch } }));
   };
 
   const toggle = (key: string) => {
+    const modId = permissions.find((module) => module.permissions.some((p) => p.key === key))?.id || '';
+    if (isLocked(modId, key)) return;
     const next = !draft[key]?.enabled;
     if (next && sensitiveKeys.has(key)) {
       setPendingSensitive(key);
@@ -348,10 +373,11 @@ function PermissionEditor({
 
   const selectModule = (modId: string, on: boolean) => {
     const mod = permissions.find((m) => m.id === modId);
-    if (!mod) return;
+    if (!mod || isLocked(modId)) return;
     setDraft((prev) => {
       const next = { ...prev };
       mod.permissions.forEach((p) => {
+        if (isSystemAdmin && p.key === 'DASHBOARD_VIEW') return;
         next[p.key] = { enabled: on, scope: next[p.key]?.scope || 'all' };
       });
       return next;
@@ -374,6 +400,11 @@ function PermissionEditor({
             <button type="button" onClick={onBack} className="text-xs font-bold text-[#ddc89c]">← All roles</button>
             <h1 className="mt-2 text-2xl font-black">{role.name}</h1>
             <p className="mt-1 text-sm text-[#eadfe2]">{role.description}</p>
+            {isSystemAdmin && (
+              <p className="mt-2 text-xs font-semibold text-[#ddc89c]">
+                Dashboard widgets can be shown or hidden for Admin. All other Admin permissions stay granted.
+              </p>
+            )}
             <p className="mt-2 text-sm font-extrabold text-[#ddc89c]">{enabled} permissions enabled</p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -391,13 +422,18 @@ function PermissionEditor({
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
         {summary.map((row) => (
-          <div key={row.id} className={`${CARD} p-3`}>
+          <button
+            key={row.id}
+            type="button"
+            onClick={() => jumpToModule(row.id)}
+            className={`${CARD} p-3 text-left transition hover:-translate-y-0.5 hover:border-rose-300 hover:shadow-md`}
+          >
             <p className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500">{row.label}</p>
             <p className="mt-1 text-sm font-black text-slate-900">{row.on}/{row.total}</p>
             <div className="mt-2 h-1.5 rounded-full bg-[#f6f1ee]">
               <div className="h-full rounded-full bg-[#8f3655]" style={{ width: `${row.total ? (row.on / row.total) * 100 : 0}%` }} />
             </div>
-          </div>
+          </button>
         ))}
       </div>
 
@@ -414,11 +450,21 @@ function PermissionEditor({
         </div>
       </div>
 
+      {visibleModules.length === 0 && q && (
+        <div className={CARD}>
+          <EmptyState
+            icon={Search}
+            title="No permissions match this search"
+            message="Try a module name like finance, clients or team — or a permission like view, create or edit."
+          />
+        </div>
+      )}
+
       {visibleModules.map((mod) => {
         const open = openMods.includes(mod.id);
         const onCount = mod.permissions.filter((p) => draft[p.key]?.enabled).length;
         return (
-          <section key={mod.id} className={CARD}>
+          <section key={mod.id} id={`role-mod-${mod.id}`} className={`${CARD} scroll-mt-24`}>
             <button
               type="button"
               onClick={() => setOpenMods((prev) => (prev.includes(mod.id) ? prev.filter((id) => id !== mod.id) : [...prev, mod.id]))}
@@ -432,7 +478,7 @@ function PermissionEditor({
             </button>
             {open && (
               <div className="border-t border-[#eee7e2] px-5 py-4">
-                {!readOnly && (
+                {!readOnly && !isLocked(mod.id) && (
                   <div className="mb-3 flex gap-2">
                     <button type="button" className={BTN_GHOST} onClick={() => selectModule(mod.id, true)}>Select All</button>
                     <button type="button" className={BTN_GHOST} onClick={() => selectModule(mod.id, false)}>Clear All</button>
@@ -457,7 +503,7 @@ function PermissionEditor({
                               {perm.sensitive && <p className="text-[10px] font-extrabold uppercase tracking-wider text-[#8f3655]">Sensitive</p>}
                             </td>
                             <td className="py-3 pr-3">
-                              <Switch on={!!g.enabled} disabled={readOnly} onClick={() => toggle(perm.key)} />
+                              <Switch on={!!g.enabled} disabled={isLocked(mod.id, perm.key)} onClick={() => toggle(perm.key)} />
                             </td>
                             <td className="py-3">
                               {g.enabled && (perm.scopes || []).length > 1 ? (
@@ -488,7 +534,7 @@ function PermissionEditor({
                       <article key={perm.key} className="rounded-2xl border border-[#eee7e2] bg-[#fbfaf8] p-3">
                         <div className="flex items-center justify-between gap-3">
                           <p className="text-sm font-bold text-slate-800">{perm.label}</p>
-                          <Switch on={!!g.enabled} disabled={readOnly} onClick={() => toggle(perm.key)} />
+                          <Switch on={!!g.enabled} disabled={isLocked(mod.id, perm.key)} onClick={() => toggle(perm.key)} />
                         </div>
                         {g.enabled && (perm.scopes || []).length > 1 && (
                           <select
@@ -525,6 +571,7 @@ function PermissionEditor({
         isOpen={!!pendingSensitive}
         title="Enable sensitive permission"
         itemTitle={pendingSensitive || ''}
+        confirmLabel="Enable"
         message="This permission provides access to sensitive studio or financial data. Are you sure you want to enable it?"
         onConfirm={() => {
           if (pendingSensitive) setGrant(pendingSensitive, { enabled: true });

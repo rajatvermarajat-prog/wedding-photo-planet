@@ -1,5 +1,5 @@
 import React from 'react';
-import { AlertTriangle, Trash2, X } from 'lucide-react';
+import { AlertTriangle, ShieldCheck, Trash2, X } from 'lucide-react';
 
 interface ConfirmDeleteModalProps {
   isOpen: boolean;
@@ -7,6 +7,7 @@ interface ConfirmDeleteModalProps {
   message?: string;
   itemTitle?: string;
   projectTitle?: string;
+  confirmLabel?: string;
   onConfirm: () => void;
   onCancel: () => void;
 }
@@ -17,12 +18,15 @@ export const ConfirmDeleteModal: React.FC<ConfirmDeleteModalProps> = ({
   message,
   itemTitle,
   projectTitle,
+  confirmLabel = 'Delete',
   onConfirm,
   onCancel,
 }) => {
   if (!isOpen) return null;
 
   const displayTitle = itemTitle || projectTitle || '';
+  const isDelete = confirmLabel.toLowerCase() === 'delete';
+  const ConfirmIcon = isDelete ? Trash2 : ShieldCheck;
 
   return (
     <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto animate-in fade-in duration-150">
@@ -32,7 +36,7 @@ export const ConfirmDeleteModal: React.FC<ConfirmDeleteModalProps> = ({
         <div className="p-4 bg-red-50 border-b border-red-100 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-full bg-red-100 text-red-600 flex items-center justify-center flex-shrink-0">
-              <Trash2 className="w-4 h-4" />
+              <ConfirmIcon className="w-4 h-4" />
             </div>
             <div>
               <h3 className="text-sm font-bold text-red-900 uppercase tracking-tight">
@@ -73,7 +77,7 @@ export const ConfirmDeleteModal: React.FC<ConfirmDeleteModalProps> = ({
           )}
 
           <p className="text-slate-500 text-[11px]">
-            To confirm, please click <strong className="text-red-600">Delete</strong> button below.
+            To confirm, please click <strong className="text-red-600">{confirmLabel}</strong> button below.
           </p>
         </div>
 
@@ -92,8 +96,8 @@ export const ConfirmDeleteModal: React.FC<ConfirmDeleteModalProps> = ({
             onClick={onConfirm}
             className="px-4 py-2 rounded bg-red-600 hover:bg-red-700 text-white font-bold text-xs uppercase tracking-wider shadow-xs transition flex items-center gap-1.5 cursor-pointer font-black"
           >
-            <Trash2 className="w-3.5 h-3.5" />
-            <span>Delete</span>
+            <ConfirmIcon className="w-3.5 h-3.5" />
+            <span>{confirmLabel}</span>
           </button>
         </div>
 

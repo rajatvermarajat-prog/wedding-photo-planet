@@ -25,6 +25,7 @@ import {
   MoreHorizontal
 } from 'lucide-react';
 import { ProjectStatus, TeamMember } from '@/types';
+import { NotificationBell } from '@/features/notifications/NotificationBell';
 
 export type TabType = 'dashboard' | 'roles' | 'projects' | 'shoots' | 'expenses' | 'data' | 'team' | 'freelancers' | 'clients' | 'deliveries' | 'owner_workspace' | 'equipment' | 'leads' | 'access';
 
@@ -361,6 +362,8 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
               </div>
             </details>
           )}
+
+          {currentUser && <NotificationBell enabled />}
 
           {currentUser && (
             <div className="hidden items-center gap-2 rounded-2xl border border-[#e8ddd7] bg-white/80 py-1 pl-1 pr-3 sm:flex">

@@ -513,7 +513,7 @@ export const ProjectsManager: React.FC<ProjectsManagerProps> = ({
         isOpen={!!projectToDelete}
         projectTitle={projectToDelete?.clientWeddingTitle || ''}
         onConfirm={() => {
-          if (projectToDelete) {
+          if (canDeleteWedding && projectToDelete) {
             onDeleteProject(projectToDelete.id);
             setProjectToDelete(null);
           }

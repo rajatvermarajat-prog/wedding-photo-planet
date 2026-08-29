@@ -20,7 +20,7 @@ interface FreelancerPaymentsViewProps {
   payments: FreelancerPayment[];
   assignments: FreelancerAssignment[];
   freelancers: Freelancer[];
-  onSavePayment: (payment: FreelancerPayment) => void;
+  onSavePayment?: (payment: FreelancerPayment) => void;
 }
 
 export const FreelancerPaymentsView: React.FC<FreelancerPaymentsViewProps> = ({
@@ -79,6 +79,7 @@ export const FreelancerPaymentsView: React.FC<FreelancerPaymentsViewProps> = ({
       createdBy: 'Accounts Admin',
     };
 
+    if (!onSavePayment) return;
     onSavePayment(createdPayment);
     setShowPaymentModal(false);
     setTransactionId('');
@@ -163,6 +164,7 @@ export const FreelancerPaymentsView: React.FC<FreelancerPaymentsViewProps> = ({
             <option value="Check">Check</option>
           </select>
 
+          {onSavePayment && (
           <button
             onClick={() => setShowPaymentModal(true)}
             className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl transition shadow-xs flex items-center gap-1.5 whitespace-nowrap"
@@ -170,6 +172,7 @@ export const FreelancerPaymentsView: React.FC<FreelancerPaymentsViewProps> = ({
             <Plus className="w-4 h-4 stroke-[3]" />
             <span>+ Record Freelancer Payment</span>
           </button>
+          )}
         </div>
       </div>
 
@@ -250,7 +253,7 @@ export const FreelancerPaymentsView: React.FC<FreelancerPaymentsViewProps> = ({
       </div>
 
       {/* RECORD PAYMENT MODAL */}
-      {showPaymentModal && (
+      {onSavePayment && showPaymentModal && (
         <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
           <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-xl overflow-hidden my-6">
             <div className="bg-slate-900 text-white p-5 flex items-center justify-between">

@@ -43,6 +43,7 @@ import {
   TeamTask,
 } from '@/types';
 import { useToast } from '@/components/common';
+import { usePermission } from '@/features/access';
 import { MemberDashboardModal } from './MemberDashboardModal';
 import { TeamDailyReportingWidget } from './TeamDailyReportingWidget';
 import { TeamMonitoringPanel } from './TeamMonitoringPanel';
@@ -165,6 +166,34 @@ export const TeamAttendance: React.FC<TeamAttendanceProps> = ({
   onNavigateToFreelancers,
   accessRoles = [],
 }) => {
+  const { can } = usePermission();
+  const canViewTeam = can('employees.view');
+  const canCreateMember = can('employees.create');
+  const canEditMember = can('employees.edit');
+  const canDeleteMember = can('employees.delete');
+  const canViewAttendance = can('attendance.view');
+  const canManageAttendance = can('attendance.manage') || can('employees.manage_attendance');
+  const canViewLeave = can('leave.view') || can('leave.request') || can('leave.approve');
+  const canRequestLeave = can('leave.request');
+  const canApproveLeave = can('leave.approve');
+  const canAssignShoot =
+    can('shoots.assign_photographer') ||
+    can('shoots.assign_cinematographer') ||
+    can('shoots.assign_freelancer');
+  const canViewFreelancers = can('freelancers.view');
+  const canCreateFreelancer = can('freelancers.create');
+  const allowedTabs = useMemo(() => {
+    const ids: TeamTabId[] = [];
+    if (canViewTeam) ids.push('team', 'schedule', 'availability', 'performance');
+    if (canViewAttendance) ids.push('attendance');
+    if (canViewAttendance && !ids.includes('schedule')) ids.push('schedule');
+    if (canViewLeave) ids.push('leave');
+    if (canAssignShoot) ids.push('assignments');
+    if (canViewFreelancers) ids.push('freelancers');
+    if (canViewAttendance || canViewTeam) ids.push('reports');
+    return [...new Set(ids)];
+  }, [canViewTeam, canViewAttendance, canViewLeave, canAssignShoot, canViewFreelancers]);
+
   const { showToast } = useToast();
   const today = getTodayDateString();
   const [activeTab, setActiveTab] = useState<TeamTabId>('team');
@@ -178,6 +207,10 @@ export const TeamAttendance: React.FC<TeamAttendanceProps> = ({
   const [leaveTarget, setLeaveTarget] = useState<TeamMember | null>(null);
   const [assignFocusMember, setAssignFocusMember] = useState<TeamMember | null>(null);
   const [dashboardMember, setDashboardMember] = useState<TeamMember | null>(null);
+
+  useEffect(() => {
+    if (!allowedTabs.includes(activeTab) && allowedTabs[0]) setActiveTab(allowedTabs[0]);
+  }, [allowedTabs, activeTab]);
 
   /** Keep an open profile in sync when its member record changes elsewhere. */
   useEffect(() => {
@@ -197,12 +230,14 @@ export const TeamAttendance: React.FC<TeamAttendanceProps> = ({
   // --------------------------------------------------------------------------
 
   const openAddMember = (asFreelancer = false) => {
+    if (asFreelancer ? !canCreateFreelancer : !canCreateMember) return;
     setFormMember(null);
     setFormDefaultType(asFreelancer ? 'Freelancer' : undefined);
     setIsFormOpen(true);
   };
 
   const openEditMember = (member: TeamMember) => {
+    if (!canEditMember) return;
     setFormMember(member);
     setFormDefaultType(undefined);
     setIsFormOpen(true);
@@ -210,9 +245,11 @@ export const TeamAttendance: React.FC<TeamAttendanceProps> = ({
 
   const handleSaveMember = async (member: TeamMember, mode: 'create' | 'update', password?: string) => {
     if (mode === 'create') {
+      if (!canCreateMember && !canCreateFreelancer) return;
       await onAddTeamMember(member, password);
       showToast(`${member.name} was added to the team and can now sign in with the temporary password you set.`);
     } else {
+      if (!canEditMember) return;
       await onUpdateTeamMember(member);
       showToast(`${member.name}'s profile updated.`);
       if (profileMember?.id === member.id) setProfileMember(member);
@@ -226,6 +263,7 @@ export const TeamAttendance: React.FC<TeamAttendanceProps> = ({
    * assignments must stay readable for a member who has left.
    */
   const handleToggleActive = (member: TeamMember) => {
+    if (!canEditMember && !canDeleteMember) return;
     const isActive = (member.status || 'active') === 'active';
     const updated: TeamMember = {
       ...member,
@@ -243,6 +281,7 @@ export const TeamAttendance: React.FC<TeamAttendanceProps> = ({
 
   /** Upsert one attendance row without disturbing the rest of the ledger. */
   const handleSaveAttendance = (record: AttendanceRecord) => {
+    if (!canManageAttendance) return;
     const exists = attendance.some((a) => a.id === record.id);
     if (exists) {
       onUpdateAttendance(attendance.map((a) => (a.id === record.id ? record : a)));
@@ -252,6 +291,8 @@ export const TeamAttendance: React.FC<TeamAttendanceProps> = ({
   };
 
   const handleSaveLeave = (leave: LeaveRequest) => {
+    const isDecision = leave.status === 'approved' || leave.status === 'rejected';
+    if (isDecision ? !canApproveLeave : !canRequestLeave) return;
     if (onSaveLeave) {
       onSaveLeave(leave);
       return;
@@ -259,17 +300,24 @@ export const TeamAttendance: React.FC<TeamAttendanceProps> = ({
     showToast('Leave storage is not wired up in this workspace yet.', { variant: 'error' });
   };
 
+  const goTab = (id: TeamTabId) => {
+    if (allowedTabs.includes(id)) setActiveTab(id);
+  };
+
   const openMarkAttendance = (member: TeamMember, date: string = today) => {
+    if (!canManageAttendance) return;
     setAttendanceTarget({ member, date });
   };
 
   const openAssignShoot = (member: TeamMember) => {
+    if (!canAssignShoot) return;
     setAssignFocusMember(member);
     setActiveTab('assignments');
     setProfileMember(null);
   };
 
   const openApplyLeave = (member?: TeamMember) => {
+    if (!canRequestLeave) return;
     setLeaveTarget(member || ({ id: '__any__' } as TeamMember));
     setActiveTab('leave');
     // The apply-leave form renders inside the Leave tab, so the drawer has to
@@ -278,6 +326,7 @@ export const TeamAttendance: React.FC<TeamAttendanceProps> = ({
   };
 
   const togglePayStatus = (recordId: string) => {
+    if (!canManageAttendance) return;
     onUpdateAttendance(
       attendance.map((a) =>
         a.id === recordId ? { ...a, paidStatus: a.paidStatus === 'paid' ? ('pending' as const) : ('paid' as const) } : a
@@ -293,13 +342,13 @@ export const TeamAttendance: React.FC<TeamAttendanceProps> = ({
   // --------------------------------------------------------------------------
 
   const quickActions = [
-    { label: 'Add Team Member', icon: UserPlus, onClick: () => openAddMember(), primary: true },
-    { label: 'Mark Attendance', icon: CalendarCheck, onClick: () => setActiveTab('attendance') },
-    { label: 'Assign Shoot', icon: Camera, onClick: () => setActiveTab('assignments') },
-    { label: 'Apply Leave', icon: CalendarPlus, onClick: () => openApplyLeave() },
-    { label: 'View Schedule', icon: CalendarClock, onClick: () => setActiveTab('schedule') },
-    { label: 'Add Freelancer', icon: UserCheck, onClick: () => openAddMember(true) },
-  ];
+    canCreateMember && { label: 'Add Team Member', icon: UserPlus, onClick: () => openAddMember(), primary: true },
+    canManageAttendance && { label: 'Mark Attendance', icon: CalendarCheck, onClick: () => setActiveTab('attendance') },
+    canAssignShoot && { label: 'Assign Shoot', icon: Camera, onClick: () => setActiveTab('assignments') },
+    canRequestLeave && { label: 'Apply Leave', icon: CalendarPlus, onClick: () => openApplyLeave() },
+    allowedTabs.includes('schedule') && { label: 'View Schedule', icon: CalendarClock, onClick: () => setActiveTab('schedule') },
+    canCreateFreelancer && { label: 'Add Freelancer', icon: UserCheck, onClick: () => openAddMember(true) },
+  ].filter(Boolean) as Array<{ label: string; icon: typeof Users; onClick: () => void; primary?: boolean }>;
 
   const pendingLeaveCount = leaves.filter((l) => l.status === 'pending').length;
 
@@ -331,6 +380,7 @@ export const TeamAttendance: React.FC<TeamAttendanceProps> = ({
             </p>
           </div>
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+            {canCreateMember && (
             <button type="button" onClick={() => openAddMember()} className={BTN_CREAM}>
               <span className="grid size-8 place-items-center rounded-xl bg-[#7d3650] text-white transition group-hover:rotate-6">
                 <Plus className="size-5" />
@@ -338,21 +388,22 @@ export const TeamAttendance: React.FC<TeamAttendanceProps> = ({
               <span>Add Team Member</span>
               <Sparkles className="size-4 text-[#aa7251]" />
             </button>
+            )}
           </div>
         </div>
       </section>
 
       <section className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5">
-        <KpiCard label="Total Team" value={kpis.totalMembers} hint="All studio staff on roster" icon={Users} tone="rose" onClick={() => setActiveTab('team')} />
+        <KpiCard label="Total Team" value={kpis.totalMembers} hint="All studio staff on roster" icon={Users} tone="rose" onClick={() => goTab('team')} />
         <KpiCard label="Active" value={kpis.activeMembers} hint={`${kpis.inactiveMembers} inactive`} icon={ShieldCheck} tone="emerald" />
-        <KpiCard label="Available Today" value={kpis.availableToday} hint="Ready for assignment" icon={UserCheck} tone="emerald" onClick={() => setActiveTab('availability')} />
-        <KpiCard label="On Shoot Today" value={kpis.onShootToday} hint="Booked on a wedding / event" icon={Camera} tone="violet" onClick={() => setActiveTab('assignments')} />
-        <KpiCard label="On Leave Today" value={kpis.onLeaveToday} hint="Approved leave" icon={Plane} tone="amber" onClick={() => setActiveTab('leave')} />
-        <KpiCard label="Present Today" value={kpis.presentToday} hint="Office, WFH or shoot" icon={CalendarCheck} tone="emerald" onClick={() => setActiveTab('attendance')} />
-        <KpiCard label="Absent Today" value={kpis.absentToday} hint="Not marked present" icon={FileText} tone="red" onClick={() => setActiveTab('attendance')} />
+        <KpiCard label="Available Today" value={kpis.availableToday} hint="Ready for assignment" icon={UserCheck} tone="emerald" onClick={() => goTab('availability')} />
+        <KpiCard label="On Shoot Today" value={kpis.onShootToday} hint="Booked on a wedding / event" icon={Camera} tone="violet" onClick={() => goTab('assignments')} />
+        <KpiCard label="On Leave Today" value={kpis.onLeaveToday} hint="Approved leave" icon={Plane} tone="amber" onClick={() => goTab('leave')} />
+        <KpiCard label="Present Today" value={kpis.presentToday} hint="Office, WFH or shoot" icon={CalendarCheck} tone="emerald" onClick={() => goTab('attendance')} />
+        <KpiCard label="Absent Today" value={kpis.absentToday} hint="Not marked present" icon={FileText} tone="red" onClick={() => goTab('attendance')} />
         <KpiCard label="WFH Today" value={kpis.wfhToday} hint="Working from home" icon={Home} tone="blue" />
-        <KpiCard label="Freelancers" value={kpis.freelancers} hint="External crew on file" icon={CircleDollarSign} tone="rose" onClick={() => setActiveTab('freelancers')} />
-        <KpiCard label="Pending Attendance" value={kpis.pendingAttendance} hint="Still unmarked today" icon={FileText} tone="amber" onClick={() => setActiveTab('attendance')} />
+        <KpiCard label="Freelancers" value={kpis.freelancers} hint="External crew on file" icon={CircleDollarSign} tone="rose" onClick={() => goTab('freelancers')} />
+        <KpiCard label="Pending Attendance" value={kpis.pendingAttendance} hint="Still unmarked today" icon={FileText} tone="amber" onClick={() => goTab('attendance')} />
       </section>
 
       <section className={`${CARD} p-3 sm:p-4`}>
@@ -364,7 +415,7 @@ export const TeamAttendance: React.FC<TeamAttendanceProps> = ({
           ))}
         </div>
         <nav className="flex items-center gap-1 overflow-x-auto rounded-2xl border border-[#e2d9d3] bg-[#f6f1ee] p-1.5" aria-label="Team sections">
-          {TEAM_TABS.map(({ id, label, icon: Icon }) => (
+          {TEAM_TABS.filter((tab) => allowedTabs.includes(tab.id)).map(({ id, label, icon: Icon }) => (
             <button
               key={id}
               type="button"
@@ -390,14 +441,14 @@ export const TeamAttendance: React.FC<TeamAttendanceProps> = ({
       <TeamMonitoringPanel
         team={team}
         softwareOptions={SOFTWARE_OPTIONS}
-        onUpdateTeamMember={onUpdateTeamMember}
-        onOpenMember={setDashboardMember}
-        onEditMember={openEditMember}
+        onUpdateTeamMember={canEditMember ? onUpdateTeamMember : undefined}
+        onOpenMember={canEditMember ? setDashboardMember : setProfileMember}
+        onEditMember={canEditMember ? openEditMember : undefined}
         bannersOnly
       />
 
       {/* ---------------- Tabs ---------------- */}
-      {activeTab === 'team' && (
+      {activeTab === 'team' && canViewTeam && (
         <TeamDirectory
           team={team}
           attendance={attendance}
@@ -405,13 +456,14 @@ export const TeamAttendance: React.FC<TeamAttendanceProps> = ({
           leaves={leaves}
           today={today}
           onOpenProfile={setProfileMember}
-          onEditMember={openEditMember}
-          onToggleActive={handleToggleActive}
-          onMarkAttendance={(member) => openMarkAttendance(member)}
-          onAssignShoot={openAssignShoot}
-          onApplyLeave={openApplyLeave}
-          onAddMember={() => openAddMember()}
+          onEditMember={canEditMember ? openEditMember : undefined}
+          onToggleActive={canEditMember || canDeleteMember ? handleToggleActive : undefined}
+          onMarkAttendance={canManageAttendance ? (member) => openMarkAttendance(member) : undefined}
+          onAssignShoot={canAssignShoot ? openAssignShoot : undefined}
+          onApplyLeave={canRequestLeave ? openApplyLeave : undefined}
+          onAddMember={canCreateMember ? () => openAddMember() : undefined}
           monitoringSlot={
+            canEditMember ? (
             <details className={`${CARD} group`}>
               <summary className="flex items-center justify-between gap-2 px-5 py-3 cursor-pointer list-none">
                 <span className="text-xs font-extrabold uppercase tracking-tight text-slate-800 flex items-center gap-2">
@@ -428,24 +480,24 @@ export const TeamAttendance: React.FC<TeamAttendanceProps> = ({
                   onOpenMember={setDashboardMember}
                   onEditMember={openEditMember}
                 />
-                {/* The original reorderable workstation cards */}
                 <TeamMonitoringPanel
                   team={team}
                   softwareOptions={SOFTWARE_OPTIONS}
                   onUpdateTeamMember={onUpdateTeamMember}
                   onReorderTeam={onReorderTeam}
-                  onDeleteTeamMember={onDeleteTeamMember}
+                  onDeleteTeamMember={canDeleteMember ? onDeleteTeamMember : undefined}
                   onOpenMember={setDashboardMember}
                   onEditMember={openEditMember}
                   cardsOnly
                 />
               </div>
             </details>
+            ) : undefined
           }
         />
       )}
 
-      {activeTab === 'attendance' && (
+      {activeTab === 'attendance' && canViewAttendance && (
         <AttendanceDashboard
           team={team}
           attendance={attendance}
@@ -454,10 +506,11 @@ export const TeamAttendance: React.FC<TeamAttendanceProps> = ({
           onSaveAttendance={handleSaveAttendance}
           onOpenMarkAttendance={openMarkAttendance}
           onOpenProfile={setProfileMember}
+          canManage={canManageAttendance}
         />
       )}
 
-      {activeTab === 'schedule' && (
+      {activeTab === 'schedule' && (canViewTeam || canViewAttendance) && (
         <TeamScheduleView
           team={team}
           attendance={attendance}
@@ -467,19 +520,19 @@ export const TeamAttendance: React.FC<TeamAttendanceProps> = ({
         />
       )}
 
-      {activeTab === 'availability' && (
+      {activeTab === 'availability' && canViewTeam && (
         <TeamAvailabilityView
           team={team}
           attendance={attendance}
           projects={projects}
           leaves={leaves}
-          onUpdateMember={onUpdateTeamMember}
-          onAssignShoot={openAssignShoot}
+          onUpdateMember={canEditMember ? onUpdateTeamMember : undefined}
+          onAssignShoot={canAssignShoot ? openAssignShoot : undefined}
           onOpenProfile={setProfileMember}
         />
       )}
 
-      {activeTab === 'leave' && (
+      {activeTab === 'leave' && canViewLeave && (
         <LeaveManagementView
           team={team}
           leaves={leaves}
@@ -489,10 +542,12 @@ export const TeamAttendance: React.FC<TeamAttendanceProps> = ({
           applyForMember={leaveTarget}
           onCloseApplyForm={() => setLeaveTarget(null)}
           onOpenApplyForm={(member) => openApplyLeave(member)}
+          canRequest={canRequestLeave}
+          canApprove={canApproveLeave}
         />
       )}
 
-      {activeTab === 'assignments' && (
+      {activeTab === 'assignments' && canAssignShoot && (
         onUpdateProject ? (
           <ShootAssignmentView
             team={team}
@@ -515,7 +570,7 @@ export const TeamAttendance: React.FC<TeamAttendanceProps> = ({
         )
       )}
 
-      {activeTab === 'freelancers' && (
+      {activeTab === 'freelancers' && canViewFreelancers && (
         <TeamFreelancersView
           team={team}
           attendance={attendance}
@@ -525,12 +580,12 @@ export const TeamAttendance: React.FC<TeamAttendanceProps> = ({
           freelancerAssignments={freelancerAssignments}
           freelancerPayments={freelancerPayments}
           onOpenProfile={setProfileMember}
-          onAddFreelancer={() => openAddMember(true)}
+          onAddFreelancer={canCreateFreelancer ? () => openAddMember(true) : undefined}
           onGoToFreelancerModule={onNavigateToFreelancers}
         />
       )}
 
-      {activeTab === 'performance' && (
+      {activeTab === 'performance' && canViewTeam && (
         <TeamPerformanceView
           team={team}
           attendance={attendance}
@@ -540,7 +595,7 @@ export const TeamAttendance: React.FC<TeamAttendanceProps> = ({
         />
       )}
 
-      {activeTab === 'reports' && (
+      {activeTab === 'reports' && (canViewAttendance || canViewTeam) && (
         <div className="space-y-5">
           <AttendanceReportsView
             team={team}
@@ -556,7 +611,7 @@ export const TeamAttendance: React.FC<TeamAttendanceProps> = ({
                 onUpdateTask={onUpdateTask}
                 onDeleteTask={onDeleteTask}
                 onAddTask={onAddTask}
-                onOpenMemberModal={setDashboardMember}
+                onOpenMemberModal={canEditMember ? setDashboardMember : setProfileMember}
               />
             }
           />
@@ -610,6 +665,7 @@ export const TeamAttendance: React.FC<TeamAttendanceProps> = ({
                           <TD className="text-slate-600 max-w-[190px] truncate">{a.projectTitle || 'Studio duty'}</TD>
                           <TD className="font-mono font-bold text-[#6d2f45]">{formatCurrency(a.payAmount)}</TD>
                           <TD className="text-right">
+                            {canManageAttendance ? (
                             <button
                               type="button"
                               onClick={() => togglePayStatus(a.id)}
@@ -621,6 +677,17 @@ export const TeamAttendance: React.FC<TeamAttendanceProps> = ({
                             >
                               {a.paidStatus === 'paid' ? 'Mark unpaid' : 'Clear payout'}
                             </button>
+                            ) : (
+                            <span
+                              className={`inline-block px-3 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider ${
+                                a.paidStatus === 'paid'
+                                  ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                                  : 'bg-amber-100 text-amber-800 border border-amber-200'
+                              }`}
+                            >
+                              {a.paidStatus === 'paid' ? 'Paid' : 'Pending'}
+                            </span>
+                            )}
                           </TD>
                         </tr>
                       ))}
@@ -655,21 +722,30 @@ export const TeamAttendance: React.FC<TeamAttendanceProps> = ({
         projects={projects}
         leaves={leaves}
         onClose={() => setProfileMember(null)}
-        onEdit={openEditMember}
-        onUpdateMember={(updated) => {
-          onUpdateTeamMember(updated);
-          setProfileMember(updated);
-        }}
-        onMarkAttendance={(member) => openMarkAttendance(member)}
-        onAssignShoot={openAssignShoot}
-        onApplyLeave={(member) => openApplyLeave(member)}
-        onToggleActive={handleToggleActive}
-        onOpenFullDashboard={(member) => {
-          setProfileMember(null);
-          setDashboardMember(member);
-        }}
+        onEdit={canEditMember ? openEditMember : undefined}
+        onUpdateMember={
+          canEditMember
+            ? (updated) => {
+                onUpdateTeamMember(updated);
+                setProfileMember(updated);
+              }
+            : undefined
+        }
+        onMarkAttendance={canManageAttendance ? (member) => openMarkAttendance(member) : undefined}
+        onAssignShoot={canAssignShoot ? openAssignShoot : undefined}
+        onApplyLeave={canRequestLeave ? (member) => openApplyLeave(member) : undefined}
+        onToggleActive={canEditMember || canDeleteMember ? handleToggleActive : undefined}
+        onOpenFullDashboard={
+          canEditMember
+            ? (member) => {
+                setProfileMember(null);
+                setDashboardMember(member);
+              }
+            : undefined
+        }
       />
 
+      {canManageAttendance && attendanceTarget && (
       <MarkAttendanceModal
         isOpen={!!attendanceTarget}
         member={attendanceTarget?.member || null}
@@ -682,9 +758,10 @@ export const TeamAttendance: React.FC<TeamAttendanceProps> = ({
         onClose={() => setAttendanceTarget(null)}
         onChangeMember={(member) => setAttendanceTarget((prev) => (prev ? { ...prev, member } : { member, date: today }))}
       />
+      )}
 
       {/* The original per-member dashboard (tasks, salary slip, software) */}
-      {dashboardMember && (
+      {canEditMember && dashboardMember && (
         <MemberDashboardModal
           member={dashboardMember}
           attendance={attendance}
