@@ -25,6 +25,7 @@ import {
   MoreHorizontal
 } from 'lucide-react';
 import { ProjectStatus, TeamMember } from '@/types';
+import { NotificationBell } from '@/features/notifications/NotificationBell';
 
 export type TabType = 'dashboard' | 'roles' | 'projects' | 'shoots' | 'expenses' | 'data' | 'team' | 'freelancers' | 'clients' | 'deliveries' | 'owner_workspace' | 'equipment' | 'leads' | 'access';
 
@@ -56,7 +57,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'owner_workspace' as TabType, label: 'Owner Workspace', icon: Crown },
     { id: 'leads' as TabType, label: 'Leads & Inquiries', icon: Target },
     { id: 'projects' as TabType, label: 'Projects', icon: FolderKanban },
-    ...(!isOwner ? [{ id: 'roles' as TabType, label: 'My Desk', icon: Briefcase }] : []),
     { id: 'shoots' as TabType, label: 'Shoot Management', icon: Film },
     { id: 'data' as TabType, label: 'Data Management', icon: HardDrive },
     { id: 'team' as TabType, label: 'Team & Attendance', icon: Users },
@@ -362,6 +362,8 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
               </div>
             </details>
           )}
+
+          {currentUser && <NotificationBell enabled />}
 
           {currentUser && (
             <div className="hidden items-center gap-2 rounded-2xl border border-[#e8ddd7] bg-white/80 py-1 pl-1 pr-3 sm:flex">

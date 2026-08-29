@@ -22,8 +22,8 @@ interface Props {
   attendance: AttendanceRecord[];
   projects: Project[];
   leaves: LeaveRequest[];
-  onUpdateMember: (member: TeamMember) => void;
-  onAssignShoot: (member: TeamMember) => void;
+  onUpdateMember?: (member: TeamMember) => void;
+  onAssignShoot?: (member: TeamMember) => void;
   onOpenProfile: (member: TeamMember) => void;
 }
 
@@ -80,6 +80,7 @@ export const TeamAvailabilityView: React.FC<Props> = ({
   }, [rows]);
 
   const setOverride = (member: TeamMember, value: string) => {
+    if (!onUpdateMember) return;
     onUpdateMember({
       ...member,
       availabilityStatus: value ? (value as AvailabilityStatus) : undefined,
@@ -143,6 +144,7 @@ export const TeamAvailabilityView: React.FC<Props> = ({
                     </p>
 
                     <div className="flex items-center gap-1.5 pl-10">
+                      {onUpdateMember && (
                       <select
                         className="text-[10px] font-bold border border-slate-200 rounded-lg px-1.5 py-1 bg-white text-slate-700 cursor-pointer"
                         value={member.availabilityStatus || ''}
@@ -153,7 +155,8 @@ export const TeamAvailabilityView: React.FC<Props> = ({
                           <option key={opt || 'auto'} value={opt}>{opt || 'Auto (derived)'}</option>
                         ))}
                       </select>
-                      {availability.status !== 'On Leave' && (
+                      )}
+                      {onAssignShoot && availability.status !== 'On Leave' && (
                         <button type="button" onClick={() => onAssignShoot(member)} className="text-[10px] font-bold text-[#8f3655] hover:text-[#6d2f45] underline cursor-pointer">
                           Assign shoot
                         </button>

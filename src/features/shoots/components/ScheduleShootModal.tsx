@@ -2,6 +2,8 @@ import React, { type ReactNode, useMemo, useState } from 'react';
 import { ArrowLeft, CalendarDays, Camera, ChevronDown, Clock3, MapPin, MessageSquareText, Plus, Sparkles, Target, Trash2, UserRound, UsersRound, X } from 'lucide-react';
 import { CrewMemberAssignment, Project, ShootEvent, TeamMember } from '@/types';
 import { useToast } from '@/components/common';
+import { usePermission } from '@/features/access';
+import { employeeAssignees } from '@/features/projects/assigneeOptions';
 
 interface Props {
   isOpen: boolean;
@@ -19,6 +21,7 @@ const field = 'w-full rounded-2xl border border-[#ded5cf] bg-[#fbfaf8] py-3 pl-1
 
 export function ScheduleShootModal({ isOpen, variant = 'modal', onClose, projects, onUpdateProject, team = [], defaultProjectId }: Props) {
   const { showToast } = useToast();
+  const { can } = usePermission();
 
   const [projectId, setProjectId] = useState(defaultProjectId || '');
   const [shootType, setShootType] = useState('');
@@ -34,9 +37,10 @@ export function ScheduleShootModal({ isOpen, variant = 'modal', onClose, project
 
   const selectedProject = projects.find((p) => p.id === projectId);
 
-  const photographerNames = useMemo(() => team.filter((m) => /photo/i.test(m.role)).map((m) => m.name), [team]);
-  const cinematographerNames = useMemo(() => team.filter((m) => /cinemat|video/i.test(m.role)).map((m) => m.name), [team]);
-  const editorNames = useMemo(() => team.filter((m) => /editor/i.test(m.role)).map((m) => m.name), [team]);
+  const crewNames = useMemo(() => employeeAssignees(team).map((m) => m.name), [team]);
+  const photographerNames = crewNames;
+  const cinematographerNames = crewNames;
+  const editorNames = crewNames;
 
   if (!isOpen) return null;
 
@@ -61,6 +65,10 @@ export function ScheduleShootModal({ isOpen, variant = 'modal', onClose, project
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!can('shoots.create')) {
+      showToast('You do not have permission to schedule a shoot.', { variant: 'error' });
+      return;
+    }
     if (!selectedProject || !shootType.trim() || !date) {
       showToast('Pick a project, shoot type, and date to schedule a shoot.', { variant: 'error' });
       return;

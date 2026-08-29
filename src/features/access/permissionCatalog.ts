@@ -16,10 +16,17 @@ export const PERMISSION_MODULES: PermissionModule[] = [
     label: 'Dashboard',
     description: 'Studio overview and live status.',
     permissions: [
-      p('dashboard.view', 'View Dashboard'),
-      p('dashboard.view_analytics', 'View Analytics'),
-      p('dashboard.view_financial', 'View Financial Summary', ALL, true),
-      p('dashboard.view_upcoming', 'View Upcoming Events'),
+      p('dashboard.view', 'Open Dashboard'),
+      p('dashboard.view_kpi', 'KPI cards (projects & status)'),
+      p('dashboard.view_financial', 'Revenue, payments, expenses and payroll', ALL, true),
+      p('dashboard.view_upcoming', 'Upcoming shoots'),
+      p('dashboard.view_projects', 'Project deadlines'),
+      p('dashboard.view_team', 'Team activity'),
+      p('dashboard.view_tasks', 'Assigned tasks'),
+      p('dashboard.view_attendance', 'My attendance'),
+      p('dashboard.view_todos', 'Personal to-do'),
+      p('dashboard.view_quick_actions', 'Quick actions'),
+      p('dashboard.view_alerts', 'Studio alerts'),
     ],
   },
   {
@@ -240,6 +247,7 @@ export const PERMISSION_MODULES: PermissionModule[] = [
       p('reports.view_employee', 'View Employee Reports'),
       p('reports.view_wedding', 'View Wedding Reports', RECORD),
       p('reports.view_sales', 'View Sales Reports'),
+      p('data.view', 'View Data Management'),
     ],
   },
   {
@@ -280,3 +288,95 @@ export function findPermission(key: string) {
 export function moduleOf(key: string) {
   return PERMISSION_MODULES.find((m) => m.permissions.some((p) => p.key === key));
 }
+
+export const BACKEND_MODULE_META: Record<string, { label: string; description: string }> = {
+  dashboard: { label: 'Dashboard', description: 'What this role sees on the studio dashboard.' },
+  organization: { label: 'Organization', description: 'Studio profile.' },
+  branch: { label: 'Branches', description: 'Studio locations.' },
+  user: { label: 'Employee accounts', description: 'View logins and assign roles.' },
+  role: { label: 'Roles', description: 'Roles and permission assignment.' },
+  lead: { label: 'Leads', description: 'Inquiries and sales pipeline.' },
+  client: { label: 'Clients', description: 'Booked couples and families.' },
+  project: { label: 'Projects', description: 'Weddings and project files.' },
+  event: { label: 'Events', description: 'Functions inside a wedding.' },
+  shoot: { label: 'Shoots', description: 'Shoot days and crew.' },
+  team: { label: 'Team & attendance', description: 'Roster, attendance and leave — view, create, edit and mark separately.' },
+  finance: { label: 'Finance', description: 'Invoices, payments and expenses — view, create and edit separately.' },
+  freelancer: { label: 'Freelancers', description: 'External crew and payouts.' },
+  task: { label: 'Tasks', description: 'Studio and editing tasks.' },
+  attendance: { label: 'Attendance & leave', description: 'View, mark and manage attendance and leave.' },
+  quotation: { label: 'Quotations', description: 'Proposals.' },
+  invoice: { label: 'Invoices', description: 'Receivables.' },
+  payment: { label: 'Payments', description: 'Cash received.' },
+  expense: { label: 'Expenses', description: 'Cost ledger.' },
+  delivery: { label: 'Deliveries', description: 'Client deliverables.' },
+  file: { label: 'Files', description: 'Storage and uploads.' },
+  notification: { label: 'Notifications', description: 'In-app messages.' },
+  report: { label: 'Reports & Data', description: 'Studio reporting and data management.' },
+  audit: { label: 'Audit', description: 'Activity trail.' },
+  setting: { label: 'Settings', description: 'Studio configuration.' },
+};
+
+export const BACKEND_MODULE_ORDER = [
+  'dashboard', 'lead', 'client', 'project', 'event', 'shoot',
+  'finance', 'team', 'user', 'attendance', 'freelancer', 'task',
+  'quotation', 'invoice', 'payment', 'expense', 'delivery',
+  'file', 'notification', 'report', 'organization', 'branch', 'role', 'audit', 'setting',
+];
+
+/** Roles UI groups these under Team even if the API still stores them on user/attendance. */
+export const ROLE_UI_MODULE_OVERRIDE: Record<string, string> = {
+  USER_CREATE: 'team',
+  USER_UPDATE: 'team',
+  USER_DELETE: 'team',
+  ATTENDANCE_VIEW: 'team',
+  ATTENDANCE_MARK: 'team',
+  ATTENDANCE_MANAGE: 'team',
+  LEAVE_VIEW: 'team',
+  LEAVE_REQUEST: 'team',
+  LEAVE_APPROVE: 'team',
+  EXPENSE_VIEW: 'finance',
+  EXPENSE_CREATE: 'finance',
+  EXPENSE_UPDATE: 'finance',
+  EXPENSE_APPROVE: 'finance',
+  EXPENSE_DELETE: 'finance',
+  PAYMENT_VIEW: 'finance',
+  PAYMENT_CREATE: 'finance',
+  PAYMENT_UPDATE: 'finance',
+  PAYMENT_ALLOCATE: 'finance',
+  INVOICE_VIEW: 'finance',
+  INVOICE_CREATE: 'finance',
+  INVOICE_UPDATE: 'finance',
+  INVOICE_CANCEL: 'finance',
+};
+
+export const ROLE_UI_HIDDEN_KEYS = new Set(['TEAM_MANAGE']);
+
+export const TEAM_PERMISSION_ORDER = [
+  'TEAM_VIEW',
+  'USER_CREATE',
+  'USER_UPDATE',
+  'USER_DELETE',
+  'ATTENDANCE_VIEW',
+  'ATTENDANCE_MARK',
+  'ATTENDANCE_MANAGE',
+  'LEAVE_VIEW',
+  'LEAVE_REQUEST',
+  'LEAVE_APPROVE',
+];
+
+export const FINANCE_PERMISSION_ORDER = [
+  'EXPENSE_VIEW',
+  'EXPENSE_CREATE',
+  'EXPENSE_UPDATE',
+  'EXPENSE_DELETE',
+  'EXPENSE_APPROVE',
+  'PAYMENT_VIEW',
+  'PAYMENT_CREATE',
+  'PAYMENT_UPDATE',
+  'PAYMENT_ALLOCATE',
+  'INVOICE_VIEW',
+  'INVOICE_CREATE',
+  'INVOICE_UPDATE',
+  'INVOICE_CANCEL',
+];

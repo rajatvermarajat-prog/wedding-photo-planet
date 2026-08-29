@@ -17,6 +17,7 @@ interface LoginFormCardProps {
   onThemeChange: (dark: boolean) => void;
   onForgotPassword: () => void;
   onGoogleLogin: () => void;
+  isSubmitting?: boolean;
   onSubmit: (event: React.FormEvent<HTMLFormElement>) => void;
 }
 
@@ -66,7 +67,7 @@ export function LoginFormCard(props: LoginFormCardProps) {
             <button type="button" onClick={props.onForgotPassword} className={isDark ? 'text-[#d8bfc7]' : 'text-[#725b61]'}>Forgot Password?</button>
           </div>
 
-          <button type="submit" className="relative flex min-h-15 w-full items-center justify-center rounded-[15px] bg-linear-to-r from-[#8e294b] to-[#721f3d] px-13 text-lg font-bold text-white shadow-[0_12px_25px_rgba(125,41,71,.23)] transition hover:-translate-y-0.5"><span>Login to Dashboard</span><i className="absolute right-2.5 grid size-10 place-items-center rounded-full bg-[#ae4969]"><ArrowRight className="size-5.5" /></i></button>
+          <button type="submit" disabled={props.isSubmitting} className="relative flex min-h-15 w-full items-center justify-center rounded-[15px] bg-linear-to-r from-[#8e294b] to-[#721f3d] px-13 text-lg font-bold text-white shadow-[0_12px_25px_rgba(125,41,71,.23)] transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-70"><span>{props.isSubmitting ? 'Signing in…' : 'Login to Dashboard'}</span><i className="absolute right-2.5 grid size-10 place-items-center rounded-full bg-[#ae4969]"><ArrowRight className="size-5.5" /></i></button>
           <div className="my-4 flex items-center gap-3 text-sm text-[#8d7e80]"><span className="h-px flex-1 bg-[#e4d7d2]" />OR<span className="h-px flex-1 bg-[#e4d7d2]" /></div>
           <button type="button" onClick={props.onGoogleLogin} className={`min-h-14 w-full rounded-[15px] border border-[#ba7288] text-[17px] font-semibold ${isDark ? 'bg-[#33242a] text-white' : 'bg-white/45 text-[#645558]'}`}><b className="mr-2 text-xl text-[#4285f4]">G</b> Continue with Google</button>
         </form>

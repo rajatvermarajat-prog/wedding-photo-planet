@@ -2,8 +2,8 @@ import React, { useState } from 'react';
 import { Project, ShootEvent, TeamMember } from '@/types';
 import { Film, Calendar, CalendarDays, MapPin, Users, CheckCircle2, ChevronDown, ChevronUp, ExternalLink, Clock, AlertCircle, Sparkles, UserPlus, Edit3, Plus, Trash2, X, UserCheck, BarChart2, FileText, Copy, Check, AlertTriangle, Search, SlidersHorizontal, ListFilter, ClipboardCheck } from 'lucide-react';
 import { getShootDateInfo, getShootTrackingStats } from '@/utils/shootTracking';
-import { INITIAL_FREELANCERS } from '@/data/mockFreelancers';
-import { INITIAL_TEAM } from '@/data/mockData';
+import { employeeAssignees } from '@/features/projects/assigneeOptions';
+import { usePermission } from '@/features/access';
 import { ScheduleShootModal } from './ScheduleShootModal';
 
 interface ShootManagementProps {
@@ -14,6 +14,13 @@ interface ShootManagementProps {
 }
 
 export const ShootManagement: React.FC<ShootManagementProps> = ({ projects, onUpdateProject, onSelectProject, team = [] }) => {
+  const { can } = usePermission();
+  const canCreate = can('shoots.create');
+  const canAssign =
+    can('shoots.assign_photographer') ||
+    can('shoots.assign_cinematographer') ||
+    can('shoots.assign_freelancer');
+  const canManageStatus = can('shoots.manage_status');
   const [selectedProjectId, setSelectedProjectId] = useState<string>('all');
   const [showScheduleShoot, setShowScheduleShoot] = useState(false);
   const [filterStatus, setFilterStatus] = useState<'all' | 'scheduled' | 'completed'>('all');
@@ -52,6 +59,7 @@ export const ShootManagement: React.FC<ShootManagementProps> = ({ projects, onUp
   };
 
   const handleOpenAssignCrew = (projectId: string, clientTitle: string, shoot: ShootEvent) => {
+    if (!canAssign) return;
     setEditingCrewShoot({
       projectId,
       shootId: shoot.id,
@@ -67,7 +75,7 @@ export const ShootManagement: React.FC<ShootManagementProps> = ({ projects, onUp
 
   const handleSaveCrewAssignments = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!editingCrewShoot) return;
+    if (!canAssign || !editingCrewShoot) return;
 
     const proj = projects.find((p) => p.id === editingCrewShoot.projectId);
     if (!proj) return;
@@ -98,18 +106,7 @@ export const ShootManagement: React.FC<ShootManagementProps> = ({ projects, onUp
 
   // List of candidate names from team & freelancers for easy click/fill
   const availableCrewNames = Array.from(
-    new Set([
-      ...INITIAL_TEAM.map((t) => t.name),
-      ...INITIAL_FREELANCERS.map((f) => f.name),
-      'Rajat Verma',
-      'Vikram Sharma',
-      'Rahul Kumar',
-      'Amit Singh',
-      'Pawan Pasi',
-      'Amit Kholi',
-      'Neha Sharma',
-      'Rohan Jha',
-    ])
+    new Set(employeeAssignees(team).map((member) => member.name).filter(Boolean)),
   );
 
   // Extract available months from projects' shoots
@@ -399,6 +396,7 @@ export const ShootManagement: React.FC<ShootManagementProps> = ({ projects, onUp
   };
 
   const toggleShootStatus = (projectId: string, shootId: string) => {
+    if (!canManageStatus) return;
     const proj = projects.find((p) => p.id === projectId);
     if (!proj) return;
 
@@ -437,7 +435,9 @@ export const ShootManagement: React.FC<ShootManagementProps> = ({ projects, onUp
           </div>
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
             <button onClick={() => { setReportMonthFilter(selectedMonth); setReportDateFilter(selectedDate); setShowReportModal(true); }} className="flex items-center justify-center gap-2 rounded-2xl border border-white/20 bg-white/10 px-4 py-3 text-sm font-extrabold text-white transition hover:bg-white/20"><BarChart2 className="size-4" />Crew report</button>
+            {canCreate && (
             <button onClick={() => setShowScheduleShoot(true)} className="group flex items-center justify-center gap-2.5 rounded-2xl border border-white/60 bg-gradient-to-r from-[#f9eee7] to-[#edcfc3] px-5 py-3 text-sm font-extrabold text-[#6d2f45] shadow-[0_10px_24px_rgba(28,13,19,.22)] transition hover:-translate-y-0.5 hover:shadow-xl"><span className="grid size-8 place-items-center rounded-xl bg-[#7d3650] text-white transition group-hover:rotate-6"><Plus className="size-5" /></span>Schedule a shoot<Sparkles className="size-4 text-[#aa7251]" /></button>
+            )}
           </div>
         </div>
       </section>
@@ -688,6 +688,7 @@ export const ShootManagement: React.FC<ShootManagementProps> = ({ projects, onUp
                                   <h4 className="text-base font-bold text-slate-900">{s.title}</h4>
                                 </div>
 
+                                {canManageStatus && (
                                 <button
                                   onClick={() => toggleShootStatus(project.id, s.id)}
                                   className={`px-2.5 py-1 rounded-lg text-xs font-black transition flex items-center gap-1 uppercase tracking-wider cursor-pointer border shadow-2xs ${
@@ -700,6 +701,7 @@ export const ShootManagement: React.FC<ShootManagementProps> = ({ projects, onUp
                                   <CheckCircle2 className="w-3.5 h-3.5" />
                                   <span>{s.status === 'completed' ? 'Shoot Done' : 'Mark Done'}</span>
                                 </button>
+                                )}
                               </div>
 
                               {/* Date Tracking Banner on Card */}
@@ -767,6 +769,7 @@ export const ShootManagement: React.FC<ShootManagementProps> = ({ projects, onUp
                                   <Users className="w-3.5 h-3.5 text-indigo-600" />
                                   Assigned Shoot Crew
                                 </span>
+                                {canAssign && (
                                 <button
                                   type="button"
                                   onClick={() => handleOpenAssignCrew(project.id, project.clientWeddingTitle || project.name, s)}
@@ -775,13 +778,14 @@ export const ShootManagement: React.FC<ShootManagementProps> = ({ projects, onUp
                                   <UserPlus className="w-3.5 h-3.5 text-indigo-600" />
                                   <span>+ Assign / Edit Crew</span>
                                 </button>
+                                )}
                               </div>
 
                               {s.crewAssignments && s.crewAssignments.length > 0 ? (
                                 <div 
-                                  onClick={() => handleOpenAssignCrew(project.id, project.clientWeddingTitle || project.name, s)}
-                                  className="grid grid-cols-2 sm:grid-cols-3 gap-1.5 text-xs cursor-pointer group"
-                                  title="Click to assign or edit team crew"
+                                  onClick={canAssign ? () => handleOpenAssignCrew(project.id, project.clientWeddingTitle || project.name, s) : undefined}
+                                  className={`grid grid-cols-2 sm:grid-cols-3 gap-1.5 text-xs group ${canAssign ? 'cursor-pointer' : ''}`}
+                                  title={canAssign ? 'Click to assign or edit team crew' : undefined}
                                 >
                                   {s.crewAssignments.map((c, idx) => (
                                     <div key={c.id || idx} className="bg-slate-50 group-hover:bg-indigo-50/50 p-1.5 rounded border border-slate-200 group-hover:border-indigo-300 transition">
@@ -795,9 +799,9 @@ export const ShootManagement: React.FC<ShootManagementProps> = ({ projects, onUp
                                 </div>
                               ) : (
                                 <div 
-                                  onClick={() => handleOpenAssignCrew(project.id, project.clientWeddingTitle || project.name, s)}
-                                  className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 text-xs cursor-pointer group"
-                                  title="Click to assign or edit team crew"
+                                  onClick={canAssign ? () => handleOpenAssignCrew(project.id, project.clientWeddingTitle || project.name, s) : undefined}
+                                  className={`grid grid-cols-2 sm:grid-cols-4 gap-1.5 text-xs group ${canAssign ? 'cursor-pointer' : ''}`}
+                                  title={canAssign ? 'Click to assign or edit team crew' : undefined}
                                 >
                                   {s.leadPhotographer && (
                                     <div className="bg-slate-50 group-hover:bg-indigo-50/50 p-1.5 rounded border border-slate-200 group-hover:border-indigo-300 transition">
@@ -863,7 +867,7 @@ export const ShootManagement: React.FC<ShootManagementProps> = ({ projects, onUp
       )}
 
       {/* CREW ASSIGNMENT MODAL */}
-      {editingCrewShoot && (
+      {editingCrewShoot && canAssign && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#24171c]/75 p-3 backdrop-blur-sm sm:p-6 animate-in fade-in duration-200">
           <div className="max-h-[92vh] w-full max-w-3xl overflow-y-auto rounded-[2rem] border border-white/50 bg-white shadow-[0_30px_90px_rgba(26,13,19,.42)]">
             <header className="relative overflow-hidden bg-[radial-gradient(circle_at_86%_10%,rgba(236,190,169,.24),transparent_32%),linear-gradient(125deg,#704758,#55333f_52%,#38262d)] px-5 py-5 text-white sm:px-7 sm:py-6">
@@ -1325,6 +1329,7 @@ export const ShootManagement: React.FC<ShootManagementProps> = ({ projects, onUp
                               </div>
                             </div>
 
+                            {canAssign && (
                             <button
                               type="button"
                               onClick={() => {
@@ -1336,6 +1341,7 @@ export const ShootManagement: React.FC<ShootManagementProps> = ({ projects, onUp
                               <UserPlus className="w-3.5 h-3.5" />
                               <span>Assign Crew</span>
                             </button>
+                            )}
                           </div>
 
                           {/* Crew Slots Grid for this shoot */}
@@ -1394,6 +1400,7 @@ export const ShootManagement: React.FC<ShootManagementProps> = ({ projects, onUp
         </div>
       )}
 
+      {canCreate && (
       <ScheduleShootModal
         isOpen={showScheduleShoot}
         onClose={() => setShowScheduleShoot(false)}
@@ -1402,6 +1409,7 @@ export const ShootManagement: React.FC<ShootManagementProps> = ({ projects, onUp
         team={team}
         defaultProjectId={selectedProjectId !== 'all' ? selectedProjectId : undefined}
       />
+      )}
 
     </div>
   );

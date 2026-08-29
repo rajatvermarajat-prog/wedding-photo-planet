@@ -111,7 +111,14 @@ export const DataManagement: React.FC<DataManagementProps> = ({ projects = [], o
     const project = projects.find((item) => item.id === projectId);
     if (!project) return;
     const fallback = { offloadedFromCards: false, hardDrive1: 'Primary drive', hardDrive1Done: false, hardDrive2: 'Mirror drive', hardDrive2Done: false, cloudBackupDone: false, totalDataSizeGB: 0, rawCleanupStatus: 'not_cleaned' as const };
-    onUpdateProject({ ...project, dataBackup: { ...(project.dataBackup || fallback), ...updates } });
+    const received = Boolean(updates.hardDrive1Done || updates.offloadedFromCards);
+    const shoots = received
+      ? (project.shoots || []).map((shoot) => ({
+          ...shoot,
+          crewAssignments: (shoot.crewAssignments || []).map((crew) => ({ ...crew, dataReceived: true })),
+        }))
+      : project.shoots;
+    onUpdateProject({ ...project, shoots, dataBackup: { ...(project.dataBackup || fallback), ...updates } });
   };
 
   return (

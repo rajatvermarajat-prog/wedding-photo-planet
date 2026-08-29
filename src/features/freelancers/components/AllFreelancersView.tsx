@@ -19,10 +19,10 @@ interface AllFreelancersViewProps {
   assignments?: FreelancerAssignment[];
   payments?: FreelancerPayment[];
   onOpenProfile: (freelancer: Freelancer) => void;
-  onEditFreelancer: (freelancer: Freelancer) => void;
-  onAddFreelancerClick: () => void;
-  onAssignShootClick: (freelancerId: string) => void;
-  onRecordPaymentClick: (freelancerId: string) => void;
+  onEditFreelancer?: (freelancer: Freelancer) => void;
+  onAddFreelancerClick?: () => void;
+  onAssignShootClick?: (freelancerId: string) => void;
+  onRecordPaymentClick?: (freelancerId: string) => void;
   onDeleteFreelancer?: (freelancerId: string) => void;
   onManageCategoriesClick?: () => void;
   initialCategory?: string;
@@ -140,9 +140,11 @@ export const AllFreelancersView: React.FC<AllFreelancersViewProps> = ({
             {onManageCategoriesClick && (
               <button type="button" onClick={onManageCategoriesClick} className={BTN_GHOST}>Manage Categories</button>
             )}
+            {onAddFreelancerClick && (
             <button type="button" onClick={onAddFreelancerClick} className={BTN_PRIMARY}>
               <UserPlus className="size-3.5" /> Add Freelancer
             </button>
+            )}
           </div>
         </div>
 
@@ -259,14 +261,18 @@ export const AllFreelancersView: React.FC<AllFreelancersViewProps> = ({
                 : 'Try a different role, city or date. Double-booked talent is hidden when a shoot date is selected.'
             }
             action={
+              onAddFreelancerClick || onManageCategoriesClick ? (
               <div className="flex flex-wrap justify-center gap-2">
+                {onAddFreelancerClick && (
                 <button type="button" onClick={onAddFreelancerClick} className={BTN_PRIMARY}>
                   <UserPlus className="size-3.5" /> Add Freelancer
                 </button>
+                )}
                 {onManageCategoriesClick && (
                   <button type="button" onClick={onManageCategoriesClick} className={BTN_GHOST}>Manage Categories</button>
                 )}
               </div>
+              ) : undefined
             }
           />
         </div>
@@ -325,9 +331,13 @@ export const AllFreelancersView: React.FC<AllFreelancersViewProps> = ({
                 <Badge className="mt-2 w-fit border-[#ded5cf] bg-white text-slate-700">{WORKING_LABELS[getWorkingStatus(freelancer)]}</Badge>
                 <div className="mt-4 flex flex-wrap gap-2 border-t border-[#eee7e2] pt-3">
                   <button type="button" onClick={() => onOpenProfile(freelancer)} className={BTN_PRIMARY}>View Profile</button>
+                  {onAssignShootClick && (
                   <button type="button" onClick={() => onAssignShootClick(freelancer.id)} className={BTN_GHOST}>Assign Shoot</button>
+                  )}
                   <button type="button" onClick={() => onOpenProfile(freelancer)} className={BTN_GHOST}>Check Availability</button>
+                  {onRecordPaymentClick && (
                   <button type="button" onClick={() => onRecordPaymentClick(freelancer.id)} className={BTN_GHOST}>Record Payment</button>
+                  )}
                 </div>
               </article>
             );
@@ -368,8 +378,12 @@ export const AllFreelancersView: React.FC<AllFreelancersViewProps> = ({
                     <TD>
                       <div className="flex flex-wrap gap-1">
                         <button type="button" onClick={() => onOpenProfile(f)} className={BTN_GHOST}>View</button>
+                        {onAssignShootClick && (
                         <button type="button" onClick={() => onAssignShootClick(f.id)} className={BTN_GHOST}>Assign</button>
+                        )}
+                        {onEditFreelancer && (
                         <button type="button" onClick={() => onEditFreelancer(f)} className={BTN_GHOST}>Edit</button>
+                        )}
                       </div>
                     </TD>
                   </tr>

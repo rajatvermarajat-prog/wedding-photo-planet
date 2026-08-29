@@ -27,7 +27,7 @@ export function projectVisible(project: Project, user: AccessUser | null | undef
     [shoot.leadPhotographer, shoot.cinematographer, shoot.droneOperator, ...(shoot.crewAssignments || []).map((c) => c.name)]
       .filter(Boolean)
       .some((name) => nameMatch(user, String(name)))
-  );
+  ) || (project.tasks || []).some((task) => nameMatch(user, task.assignedTo));
 }
 
 export function canAccessProject(

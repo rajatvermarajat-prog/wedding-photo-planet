@@ -51,4 +51,6 @@ export type AccessUser = {
   accessRoleId?: string;
   extraPermissions?: string[];
   deniedPermissions?: string[];
+  /** Authoritative permission keys returned by GET /auth/me. */
+  permissions?: string[];
 };

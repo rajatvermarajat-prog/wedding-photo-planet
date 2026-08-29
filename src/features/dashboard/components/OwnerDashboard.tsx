@@ -7,6 +7,7 @@ import { DashboardHeader } from './DashboardHeader';
 import { DashboardKpiGrid } from './DashboardKpiGrid';
 import { DashboardSecurityAlerts } from './DashboardSecurityAlerts';
 import { TeamActivity } from './TeamActivity';
+import { PersonalTodoPanel } from '@/features/tasks/PersonalTodoPanel';
 
 import { ClientProjectsDeadlines } from './ClientProjectsDeadlines';
 import { UpcomingShoots } from './UpcomingShoots';
@@ -19,6 +20,7 @@ import { SalaryPaymentModal } from './SalaryPaymentModal';
 import { ExpenseModals } from './ExpenseModals';
 import { QuickActionsPanel } from './QuickActionsPanel';
 import { useToast } from '@/components/common';
+import { usePermission } from '@/features/access';
 
 
 export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
@@ -37,10 +39,12 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
   onAddTask,
   onOpenMemberModal,
   currentUser,
+  attendanceSlot,
 }) => {
   const router = useRouter();
   const pathname = usePathname();
   const { showToast } = useToast();
+  const { can } = usePermission();
   const isAddExpensePage = pathname === '/expenses/new';
 
   useEffect(() => {
@@ -445,45 +449,49 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
     <div className="space-y-7 pb-10">
       
       <DashboardHeader currentUserName={currentUser?.name} />
-      <DashboardSecurityAlerts team={team} onTeam={() => setActiveTab('team')} />
-      <DashboardKpiGrid totalRevenue={totalRevenue} totalAdvanceReceived={totalAdvanceReceived} totalBalanceDue={totalBalanceDue} allProjectsCount={allProjectsCount} runningProjectsCount={runningProjectsCount} readyToDeliverCount={readyToDeliverCount} deliveredProjectsCount={deliveredProjectsCount} pendingProjectsCount={pendingProjectsCount} urgentProjectsCount={urgentProjectsCount} onPayments={onOpenAllPaymentsModal} onProjects={() => setActiveTab('projects')} onCompleted={() => onProjectStatusNavigate?.('completed')} onUrgent={() => onProjectStatusNavigate?.('urgent')} />
-      <QuickActionsPanel />
-      <div className="grid grid-cols-1 gap-5 xl:grid-cols-3">
-        <div className="xl:col-span-2">
-          <ClientProjectsDeadlines projects={projects} urgentProjects={urgentProjectsList} isEditor={isEditor} onSelect={onSelectProject} onViewAll={() => setActiveTab('projects')} />
+      {can('dashboard.view_alerts') && <DashboardSecurityAlerts team={team} onTeam={() => setActiveTab('team')} />}
+      <DashboardKpiGrid showRevenue={can('dashboard.view_financial')} showKpi={can('dashboard.view_kpi')} totalRevenue={totalRevenue} totalAdvanceReceived={totalAdvanceReceived} totalBalanceDue={totalBalanceDue} allProjectsCount={allProjectsCount} runningProjectsCount={runningProjectsCount} readyToDeliverCount={readyToDeliverCount} deliveredProjectsCount={deliveredProjectsCount} pendingProjectsCount={pendingProjectsCount} urgentProjectsCount={urgentProjectsCount} onPayments={onOpenAllPaymentsModal} onProjects={() => setActiveTab('projects')} onCompleted={() => onProjectStatusNavigate?.('completed')} onUrgent={() => onProjectStatusNavigate?.('urgent')} />
+      {attendanceSlot}
+      {!attendanceSlot && can('dashboard.view_todos') && can('personal.todo') && <div className="grid gap-5 lg:grid-cols-2"><PersonalTodoPanel /></div>}
+      {can('dashboard.view_quick_actions') && <QuickActionsPanel />}
+      {(can('dashboard.view_projects') || can('dashboard.view_upcoming')) && (
+        <div className="grid grid-cols-1 gap-5 xl:grid-cols-3">
+          {can('dashboard.view_projects') && (
+            <div className={can('dashboard.view_upcoming') && can('shoots.view') ? 'xl:col-span-2' : 'xl:col-span-3'}>
+              <ClientProjectsDeadlines projects={projects} urgentProjects={urgentProjectsList} isEditor={isEditor} onSelect={onSelectProject} onViewAll={() => setActiveTab('projects')} />
+            </div>
+          )}
+          {can('dashboard.view_upcoming') && can('shoots.view') && <UpcomingShoots shoots={upcomingShoots} onOpen={() => setActiveTab('shoots')} />}
         </div>
-        <UpcomingShoots shoots={upcomingShoots} onOpen={() => setActiveTab('shoots')} />
-      </div>
+      )}
 
 
-      <FinancialFilterBar fromDate={finFromDate} toDate={finToDate} setFromDate={setFinFromDate} setToDate={setFinToDate} />
-      <MonthlyProfitLoss fromDate={finFromDate} toDate={finToDate} totalPayments={totalMonthlyPaymentsReceived} paymentCount={filteredClientPaymentLogs.length} totalExpenses={totalMonthlyExpenses} totalPaidPayroll={totalPaidPayroll} formatDate={formatDateDots} onAddExpense={() => router.push('/expenses/new')} onRecordPayment={() => router.push('/payments/new')} />
-      {/* Monthly Financials & Payroll Master Grid: Payments Received + Monthly Expense (Left) & Staff Salary Status (Right) */}
-      <div className="grid grid-cols-1 gap-5 pt-1 xl:grid-cols-3">
-        
-        {/* Left Column (2 Cols wide): financial ledgers */}
-        <div className="space-y-5 xl:col-span-2">
-          
-          <MonthlyPayments payments={filteredClientPaymentLogs} totalReceived={totalMonthlyPaymentsReceived} totalRevenue={totalRevenue} fromDate={finFromDate} toDate={finToDate} formatDate={formatDateDots} onRecordPayment={() => setActiveTab('expenses')} />
-          <MonthlyOfficeExpenses expenses={filteredOfficeExpenses} allExpenses={officeExpenses} totalExpenses={totalMonthlyExpenses} totalPaidPayroll={totalPaidPayroll} categoryFilter={expenseCategoryFilter} setCategoryFilter={setExpenseCategoryFilter} spentByFilter={expenseSpentByFilter} setSpentByFilter={setExpenseSpentByFilter} fromDate={finFromDate} toDate={finToDate} formatDate={formatDateDots} onAdd={() => setActiveTab('expenses')} onEdit={handleOpenEditExpense} onDelete={setExpenseToDelete} />
+      {can('dashboard.view_financial') && (
+        <>
+          <FinancialFilterBar fromDate={finFromDate} toDate={finToDate} setFromDate={setFinFromDate} setToDate={setFinToDate} />
+          <MonthlyProfitLoss fromDate={finFromDate} toDate={finToDate} totalPayments={totalMonthlyPaymentsReceived} paymentCount={filteredClientPaymentLogs.length} totalExpenses={totalMonthlyExpenses} totalPaidPayroll={totalPaidPayroll} formatDate={formatDateDots} onAddExpense={() => router.push('/expenses/new')} onRecordPayment={() => router.push('/payments/new')} />
+          <div className="grid grid-cols-1 gap-5 pt-1 xl:grid-cols-3">
+            <div className="space-y-5 xl:col-span-2">
+              <MonthlyPayments payments={filteredClientPaymentLogs} totalReceived={totalMonthlyPaymentsReceived} totalRevenue={totalRevenue} fromDate={finFromDate} toDate={finToDate} formatDate={formatDateDots} onRecordPayment={() => setActiveTab('expenses')} />
+              <MonthlyOfficeExpenses expenses={filteredOfficeExpenses} allExpenses={officeExpenses} totalExpenses={totalMonthlyExpenses} totalPaidPayroll={totalPaidPayroll} categoryFilter={expenseCategoryFilter} setCategoryFilter={setExpenseCategoryFilter} spentByFilter={expenseSpentByFilter} setSpentByFilter={setExpenseSpentByFilter} fromDate={finFromDate} toDate={finToDate} formatDate={formatDateDots} onAdd={() => setActiveTab('expenses')} onEdit={handleOpenEditExpense} onDelete={setExpenseToDelete} />
+            </div>
+            <MonthlyStaffSalary records={salaryRecords} totalMonthlyPayroll={totalMonthlyPayroll} totalPaidPayroll={totalPaidPayroll} totalPendingPayroll={totalPendingPayroll} onTeam={() => setActiveTab('team')} onEdit={handleOpenEditModal} />
+          </div>
+        </>
+      )}
 
-        </div>
-
-        <MonthlyStaffSalary records={salaryRecords} totalMonthlyPayroll={totalMonthlyPayroll} totalPaidPayroll={totalPaidPayroll} totalPendingPayroll={totalPendingPayroll} onTeam={() => setActiveTab('team')} onEdit={handleOpenEditModal} />
-
-      </div>
-
-      {/* TEAM MEMBERS DAILY REPORTING & LOG-IN STATUS WIDGET */}
-      <TeamActivity
-        team={team}
-        attendance={attendance}
-        tasks={tasks}
-        projects={projects}
-        onUpdateTask={onUpdateTask}
-        onDeleteTask={onDeleteTask}
-        onAddTask={onAddTask}
-        onOpenMemberModal={onOpenMemberModal}
-      />
+      {can('dashboard.view_team') && (
+        <TeamActivity
+          team={team}
+          attendance={attendance}
+          tasks={tasks}
+          projects={projects}
+          onUpdateTask={onUpdateTask}
+          onDeleteTask={onDeleteTask}
+          onAddTask={onAddTask}
+          onOpenMemberModal={onOpenMemberModal}
+        />
+      )}
 
       <SalaryPaymentModal member={editingSalaryMember} close={() => setEditingSalaryMember(null)} editPaidAmount={editPaidAmount} setEditPaidAmount={setEditPaidAmount} selectedSalaryMonth={selectedSalaryMonth} setSelectedSalaryMonth={setSelectedSalaryMonth} attendanceLogs={memberAttendanceLogs} presentDays={presentDays} halfDays={halfDays} absentDays={absentDays} attendanceEarnedPay={attendanceEarnedPay} estimatedDailyRate={estimatedDailyRate} pendingAttendanceBalance={pendingAttendanceBalance} pendingBaseBalance={pendingBaseBalance} installments={editInstallments} setInstallments={setEditInstallments} addInstallment={handleAddInstallment} removeInstallment={handleRemoveInstallment} changeInstallment={handleInstallmentChange} save={handleSaveMemberSalary} />
 

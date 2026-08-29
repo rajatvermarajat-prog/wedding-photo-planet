@@ -1,34 +1,27 @@
 'use client';
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Heart, X } from 'lucide-react';
-import { TeamMember } from '@/types';
+import { ApiError } from '@/lib/api/client';
+import { LoginInput } from '@/lib/api/auth';
 import { LoginHero } from './LoginHero';
 import { LoginFormCard } from './LoginFormCard';
 import { LoginToast } from './LoginToast';
-import { DEMO_PANEL_USERS, OWNER_USER } from './authConstants';
 
 interface LoginScreenProps {
-  team: TeamMember[];
-  onLogin: (user: TeamMember | typeof OWNER_USER) => void;
-  onAddTeamMember?: (member: TeamMember) => void;
+  onLogin: (input: LoginInput) => Promise<void>;
+  onAddTeamMember?: unknown;
   onClose?: () => void;
 }
 
-export { OWNER_USER } from './authConstants';
-const normalise = (value: string) => value.trim().toLowerCase();
-
-export const LoginScreen: React.FC<LoginScreenProps> = ({ team, onLogin, onClose }) => {
+export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, onClose }) => {
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
   const [isDark, setIsDark] = useState(false);
   const [message, setMessage] = useState<{ type: 'error' | 'info'; text: string } | null>(null);
-  const accounts = useMemo(() => {
-    const extras = DEMO_PANEL_USERS.filter((demo) => !team.some((member) => member.email === demo.email || member.id === demo.id));
-    return [OWNER_USER, ...extras, ...team];
-  }, [team]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     const remembered = window.localStorage.getItem('wpp-remembered-account');
@@ -41,7 +34,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ team, onLogin, onClose
     window.localStorage.setItem('wpp-login-theme', dark ? 'dark' : 'light');
   };
 
-  const handleLogin = (event: React.FormEvent<HTMLFormElement>) => {
+  const handleLogin = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setMessage(null);
     const formData = new FormData(event.currentTarget);
@@ -54,25 +47,17 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ team, onLogin, onClose
     }
 
     setIdentifier(submittedIdentifier);
-    setPassword(submittedPassword);
-    const entered = normalise(submittedIdentifier);
-    const account = accounts.find((item) => {
-      const name = normalise(item.name);
-      return entered === normalise(item.email || '') || entered === name || entered === name.replace(/\s+/g, '');
-    });
-
-    if (!account) {
-      setMessage({ type: 'error', text: 'Account not found. Use the owner email shown below.' });
-      return;
-    }
-    if (submittedPassword !== '1234' && submittedPassword !== '0000') {
-      setMessage({ type: 'error', text: 'Incorrect password. Demo password is 1234.' });
-      return;
-    }
-
+    setPassword('');
     if (rememberMe) window.localStorage.setItem('wpp-remembered-account', submittedIdentifier);
     else window.localStorage.removeItem('wpp-remembered-account');
-    onLogin(account);
+    setIsSubmitting(true);
+    try {
+      await onLogin({ email: submittedIdentifier, password: submittedPassword });
+    } catch (error) {
+      setMessage({ type: 'error', text: error instanceof ApiError ? error.message : 'Unable to sign in. Please try again.' });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -90,9 +75,10 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ team, onLogin, onClose
           }}
           onPasswordVisibility={() => setShowPassword((value) => !value)}
           onThemeChange={selectTheme}
-          onForgotPassword={() => setMessage({ type: 'info', text: 'Demo access: use password 1234 or contact the studio owner.' })}
-          onGoogleLogin={() => setMessage({ type: 'info', text: 'Google sign-in will be available after backend authentication is connected.' })}
+          onForgotPassword={() => setMessage({ type: 'info', text: 'Please contact your administrator to reset your password.' })}
+          onGoogleLogin={() => setMessage({ type: 'info', text: 'Google sign-in is not configured for this CRM.' })}
           onSubmit={handleLogin}
+          isSubmitting={isSubmitting}
         />
         {onClose && <button type="button" onClick={onClose} aria-label="Close login" className="fixed right-4 top-4 z-70 rounded-full p-2 text-[#7d5c66] hover:bg-white/40"><X className="size-5" /></button>}
       </div>

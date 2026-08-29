@@ -62,7 +62,7 @@ export const ClientsDirectoryView: React.FC<ClientsDirectoryViewProps> = ({
   onAddClient,
 }) => {
   const { can } = usePermission();
-  const canAdd = can('clients.create') || can('weddings.create');
+  const canAdd = can('clients.create');
   const canSeePay = can('finance.view_payments');
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<ClientFilter>('all');
@@ -126,7 +126,7 @@ export const ClientsDirectoryView: React.FC<ClientsDirectoryViewProps> = ({
     [projects, today]
   );
 
-  const chips: { id: ClientFilter; label: string; detail: string; count: number; icon: typeof Heart; danger?: boolean }[] = [
+  const allChips: { id: ClientFilter; label: string; detail: string; count: number; icon: typeof Heart; danger?: boolean }[] = [
     { id: 'all', label: 'All Clients', detail: 'Booked families', count: stats.total, icon: Heart },
     { id: 'running', label: 'Active', detail: 'Work in progress', count: stats.running, icon: Clock3 },
     { id: 'upcoming', label: 'Upcoming', detail: 'Next shoot booked', count: stats.upcoming, icon: CalendarDays },
@@ -134,6 +134,7 @@ export const ClientsDirectoryView: React.FC<ClientsDirectoryViewProps> = ({
     { id: 'completed', label: 'Completed', detail: 'Work finished', count: stats.completed, icon: CheckCircle2 },
     { id: 'urgent', label: 'Urgent', detail: 'Needs attention', count: stats.urgent, icon: AlertCircle, danger: true },
   ];
+  const chips = allChips.filter((chip) => canSeePay || chip.id !== 'balance');
 
   return (
     <div className="space-y-6 pb-12">

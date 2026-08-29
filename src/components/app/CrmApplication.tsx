@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { 
   Project, 
@@ -18,28 +18,32 @@ import {
   FreelancerDocument,
   LeaveRequest
 } from '@/types';
-import { INITIAL_PROJECTS, INITIAL_TEAM, INITIAL_ATTENDANCE, INITIAL_TASKS } from '@/data/mockData';
-import { mergeFreelancerCategories } from '@/features/freelancers/freelancerDomain';
-import { 
-  INITIAL_FREELANCER_CATEGORIES, 
-  INITIAL_FREELANCERS, 
-  INITIAL_FREELANCER_ASSIGNMENTS, 
-  INITIAL_FREELANCER_PAYMENTS, 
-  INITIAL_FREELANCER_ATTENDANCE, 
-  INITIAL_FREELANCER_DATA_RECEIVED, 
-  INITIAL_FREELANCER_LOGS 
-} from '@/data/mockFreelancers';
 
 import { Sidebar, TopHeader, TabType } from '@/components/layout';
 import { ClientsDirectoryView } from '@/features/clients/ClientsDirectoryView';
-import { LoginScreen, OWNER_USER } from '@/components/auth/LoginScreen';
+import { LoginScreen } from '@/components/auth/LoginScreen';
+import { LoginInput } from '@/lib/api/auth';
+import { useProjectMutation, useProjects } from '@/hooks/useProjects';
+import { useTeam, useTeamMutation } from '@/hooks/useTeam';
+import { useAttendance } from '@/hooks/useAttendance';
+import { useTaskMutations, useTasks } from '@/hooks/useTasks';
+import { useRbac } from '@/hooks/useRbac';
+import { normalizeTeamMember } from '@/features/team/teamViewModel';
+import { normalizeAttendance } from '@/features/attendance/attendanceViewModel';
+import { ApiError } from '@/lib/api/client';
+import { rbacApi } from '@/lib/api/rbac';
+import { isPersistedProjectId, normalizeProject } from '@/features/projects/projectViewModel';
+import { persistStudioProject } from '@/features/projects/persistProject';
+import { attachShoots, persistProjectShoots, persistShootDataHandover } from '@/features/shoots/persistShoots';
+import { shootsApi } from '@/lib/api/shoots';
+import { normalizeTask, taskCreateInput, taskStatusInput } from '@/features/tasks/taskViewModel';
 import { useAuthSession } from '@/components/auth/AuthSessionProvider';
 import { AISuggestionsModal } from '@/components/ai/AISuggestionsModal';
 import { OwnerDashboard } from '@/features/dashboard';
 import { OwnerWorkspace } from '@/features/owner';
 import { EquipmentInventory } from '@/features/equipment';
 import { LeadsManagement } from '@/features/leads';
-import { RoleWorkspaceHub, canAccessProject, visibleProjects } from '@/features/workspaces';
+import { RoleWorkspaceHub, canAccessProject, isStudioAdmin, visibleProjects } from '@/features/workspaces';
 import {
   ProjectsManager,
   ProjectFormModal,
@@ -50,22 +54,14 @@ import {
 import { ScheduleShootModal, ShootManagement } from '@/features/shoots';
 import { DataManagement } from '@/features/data-management';
 import { TeamAttendance, MemberDashboardModal } from '@/features/team';
+import { EmployeeDashboardTasks } from '@/features/tasks/EmployeeDashboardTasks';
 import { DeliveriesManager } from '@/features/deliveries';
 import { FreelancerTeamManager } from '@/features/freelancers';
-import {
-  ACCESS_STORAGE_AUDIT,
-  hasAnyPermission,
-  hasPermission,
-  PermissionProvider,
-  RolesPermissionsManager,
-  TAB_PERMISSIONS,
-  usePermissionRoles,
-} from '@/features/access';
-import type { AccessAuditEntry } from '@/features/access';
+import { BACKEND_MODULE_META, BACKEND_MODULE_ORDER, FINANCE_PERMISSION_ORDER, hasAnyPermission, hasPermission, PermissionProvider, ROLE_UI_HIDDEN_KEYS, ROLE_UI_MODULE_OVERRIDE, RolesPermissionsManager, TAB_PERMISSIONS, TEAM_PERMISSION_ORDER } from '@/features/access';
 import { ExpenseManagement } from '@/features/expenses';
 import { expenseService } from '@/features/expenses/services/expenseService';
 import type { Expense } from '@/features/expenses/types';
-import { Lock, ShieldAlert, ShieldCheck, ArrowRight } from 'lucide-react';
+import { ShieldAlert, ShieldCheck, ArrowRight } from 'lucide-react';
 import { ToastProvider } from '@/components/common';
 
 const TAB_ROUTES: Record<TabType, string> = {
@@ -101,205 +97,163 @@ function AccessDenied() {
   );
 }
 
+function apiErrorMessage(error: unknown, fallback: string): string {
+  if (!(error instanceof ApiError)) return fallback;
+  const details = error.details
+    ?.filter((detail): detail is { field?: string; message?: string } => typeof detail === 'object' && detail !== null)
+    .map((detail) => `${detail.field ? `${detail.field}: ` : ''}${detail.message ?? ''}`.trim())
+    .filter(Boolean);
+  return details?.length ? `${error.message}\n${details.join('\n')}` : error.message;
+}
+
+function isEmployeeAttendanceUser(user: { role?: string; roles?: string[] } | null): boolean {
+  if (!user) return false;
+  const roleNames = user.roles?.length ? user.roles : [user.role ?? ''];
+  return !roleNames.some((role) => /(^|\W)(admin|owner)(\W|$)/i.test(role));
+}
+
 export default function App() {
   const router = useRouter();
   const pathname = usePathname();
-  const { currentUser, isHydrated, login, logout } = useAuthSession();
+  const { currentUser, isHydrated, login, logout, refresh } = useAuthSession();
 
   const [showLoginModal, setShowLoginModal] = useState<boolean>(false);
 
-  // Load initial state with localStorage persistence
-  const [projects, setProjects] = useState<Project[]>(() => {
-    const saved = localStorage.getItem('wpp_crm_projects');
-    return saved ? JSON.parse(saved) : INITIAL_PROJECTS;
-  });
+  // CRM entities are intentionally not restored from browser storage. They will
+  // be supplied by feature API queries during the next integration phase.
+  const [projects, setProjects] = useState<Project[]>([]);
+  const projectQuery = useProjects(
+    { page: 1, limit: 100 },
+    Boolean(currentUser),
+  );
 
-  const [team, setTeam] = useState<TeamMember[]>(() => {
-    const saved = localStorage.getItem('wpp_crm_team');
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (e) {
-        return INITIAL_TEAM;
-      }
-    }
-    return INITIAL_TEAM;
-  });
+  useEffect(() => {
+    if (!currentUser || projectQuery.loading || projectQuery.error) return;
+    const mapped = projectQuery.data.map(normalizeProject);
+    setProjects(mapped);
+    void shootsApi.list({ page: 1, limit: 100 })
+      .then((result) => setProjects((current) => attachShoots(current, result.items)))
+      .catch(() => undefined);
+  }, [currentUser, projectQuery.data, projectQuery.error, projectQuery.loading]);
+  const projectMutations = useProjectMutation(projectQuery.retry);
+  const [team, setTeam] = useState<TeamMember[]>([]);
+  const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
+  const canManageTeamAttendance = Boolean(
+    currentUser?.permissions?.includes('TEAM_VIEW') ||
+    currentUser?.permissions?.includes('ATTENDANCE_VIEW') ||
+    currentUser?.permissions?.includes('ATTENDANCE_MANAGE')
+  );
+  const shouldLoadTeam = Boolean(currentUser);
+  const teamQuery = useTeam(
+    { page: 1, limit: 100 },
+    shouldLoadTeam,
+  );
+  const teamMutations = useTeamMutation(teamQuery.refresh);
+  const rbacQuery = useRbac(
+    Boolean(currentUser) && (pathname === '/team' || pathname === '/roles-permissions'),
+  );
 
-  const [accessRoles, setAccessRoles] = usePermissionRoles();
+  useEffect(() => {
+    if (!currentUser || teamQuery.loading) return;
+    setTeam(teamQuery.data.map(normalizeTeamMember));
+  }, [currentUser, teamQuery.data, teamQuery.error, teamQuery.loading]);
 
-  const [accessAudit, setAccessAudit] = useState<AccessAuditEntry[]>(() => {
-    try {
-      const saved = localStorage.getItem(ACCESS_STORAGE_AUDIT);
-      const list = saved ? JSON.parse(saved) : [];
-      return Array.isArray(list) ? list : [];
-    } catch {
-      return [];
-    }
-  });
+  const attendanceQuery = useAttendance(
+    { page: 1, limit: 100 },
+    Boolean(currentUser) && canManageTeamAttendance && (pathname === '/dashboard' || pathname === '/team'),
+  );
 
-  const [attendance, setAttendance] = useState<AttendanceRecord[]>(() => {
-    const saved = localStorage.getItem('wpp_crm_attendance');
-    return saved ? JSON.parse(saved) : INITIAL_ATTENDANCE;
-  });
+  useEffect(() => {
+    if (!currentUser || attendanceQuery.loading || attendanceQuery.error) return;
+    setAttendance(attendanceQuery.data.map(normalizeAttendance));
+  }, [attendanceQuery.data, attendanceQuery.error, attendanceQuery.loading, currentUser]);
 
-  const [tasks, setTasks] = useState<TeamTask[]>(() => {
-    const saved = localStorage.getItem('wpp_crm_tasks');
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (e) {
-        return INITIAL_TASKS;
-      }
-    }
-    return INITIAL_TASKS;
-  });
+  const canViewTasks = Boolean(currentUser?.permissions?.includes('TASK_VIEW'));
+  const canManageTasks = Boolean(
+    currentUser?.permissions?.includes('TASK_ASSIGN') || currentUser?.permissions?.includes('TASK_CREATE'),
+  );
+  const shouldLoadTasks = Boolean(currentUser) && canViewTasks && (
+    pathname === '/dashboard' || pathname === '/team' || pathname === '/workspaces'
+  );
+  const taskQueryInput = useMemo(() => ({
+    page: 1,
+    limit: 100,
+    ...(canManageTasks ? {} : { assigneeId: currentUser?.id }),
+  }), [canManageTasks, currentUser?.id]);
+  const taskQuery = useTasks(taskQueryInput, shouldLoadTasks);
+  const taskMutations = useTaskMutations(taskQuery.refresh);
 
-  const [leaves, setLeaves] = useState<LeaveRequest[]>(() => {
-    // Leave requests power the Team module's attendance, availability and
-    // schedule views; they persist alongside the rest of the CRM state.
-    try {
-      const saved = localStorage.getItem('wpp_crm_leaves');
-      const list = saved ? JSON.parse(saved) : [];
-      return Array.isArray(list) ? list : [];
-    } catch (e) {
-      return [];
-    }
-  });
+  const accessRoles = [];
+  const backendAccessRoles = useMemo(() => rbacQuery.roles.map((role) => ({
+    id: role.id,
+    name: role.name,
+    description: role.description || '',
+    type: role.type === 'SYSTEM' ? 'system' as const : 'custom' as const,
+    status: 'active' as const,
+    grants: Object.fromEntries(role.rolePermissions.map(({ permission }) => [permission.key, { enabled: true }])),
+    createdAt: role.createdAt.slice(0, 10),
+    updatedAt: role.updatedAt.slice(0, 10),
+  })), [rbacQuery.roles]);
+  // Role IDs used by employee creation must always come from the backend.
+  // Do not fall back to the retired browser-persisted role catalogue.
+  const effectiveAccessRoles = backendAccessRoles;
+  const backendPermissionModules = useMemo(() => {
+    const modules = new Map<string, { id: string; label: string; description: string; permissions: Array<{ key: string; label: string; description?: string; sensitive?: boolean }> }>();
+    rbacQuery.permissions.forEach((permission) => {
+      if (ROLE_UI_HIDDEN_KEYS.has(permission.key)) return;
+      const moduleId = ROLE_UI_MODULE_OVERRIDE[permission.key] ?? permission.module;
+      const meta = BACKEND_MODULE_META[moduleId];
+      const current = modules.get(moduleId) ?? {
+        id: moduleId,
+        label: meta?.label ?? moduleId,
+        description: meta?.description ?? 'Backend permission group',
+        permissions: [],
+      };
+      current.permissions.push({ key: permission.key, label: permission.label, description: permission.description ?? undefined, sensitive: permission.isSensitive });
+      modules.set(moduleId, current);
+    });
+    return [...modules.values()]
+      .filter((mod) => mod.permissions.length > 0)
+      .map((mod) => {
+        const rankList = mod.id === 'team' ? TEAM_PERMISSION_ORDER : mod.id === 'finance' ? FINANCE_PERMISSION_ORDER : null;
+        if (!rankList) return mod;
+        const rank = (key: string) => {
+          const i = rankList.indexOf(key);
+          return i === -1 ? 99 : i;
+        };
+        return { ...mod, permissions: [...mod.permissions].sort((a, b) => rank(a.key) - rank(b.key)) };
+      })
+      .sort((a, b) => {
+        const ai = BACKEND_MODULE_ORDER.indexOf(a.id);
+        const bi = BACKEND_MODULE_ORDER.indexOf(b.id);
+        return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
+      });
+  }, [rbacQuery.permissions]);
+
+
+  const [tasks, setTasks] = useState<TeamTask[]>([]);
+
+  useEffect(() => {
+    if (!currentUser || taskQuery.loading || taskQuery.error) return;
+    setTasks(taskQuery.data.map(normalizeTask));
+  }, [currentUser, taskQuery.data, taskQuery.error, taskQuery.loading]);
+
+  const [leaves, setLeaves] = useState<LeaveRequest[]>([]);
 
   // Freelancer Module Persistent States
-  const [freelancerCategories, setFreelancerCategories] = useState<FreelancerCategory[]>(() => {
-    const saved = localStorage.getItem('wpp_crm_freelancer_categories');
-    if (saved) {
-      try {
-        const parsed: FreelancerCategory[] = JSON.parse(saved);
-        return mergeFreelancerCategories(Array.isArray(parsed) ? parsed : INITIAL_FREELANCER_CATEGORIES);
-      } catch (e) {
-        return INITIAL_FREELANCER_CATEGORIES;
-      }
-    }
-    return mergeFreelancerCategories(INITIAL_FREELANCER_CATEGORIES);
-  });
+  const [freelancerCategories, setFreelancerCategories] = useState<FreelancerCategory[]>([]);
 
-  const [freelancers, setFreelancers] = useState<Freelancer[]>(() => {
-    try {
-      const saved = localStorage.getItem('wpp_crm_freelancers');
-      let list: Freelancer[] = saved ? JSON.parse(saved) : INITIAL_FREELANCERS;
-      if (!Array.isArray(list)) list = INITIAL_FREELANCERS;
-      return list.map((f) => {
-        if (!f) return f;
-        let main = f.mainCategory;
-        if (main === 'Cinematographer') main = 'Videographer';
-        if (main === 'Support & On-Location') main = 'Assistant';
-        return { ...f, mainCategory: main };
-      }).filter(Boolean);
-    } catch (e) {
-      return INITIAL_FREELANCERS;
-    }
-  });
+  const [freelancers, setFreelancers] = useState<Freelancer[]>([]);
 
-  const [freelancerAssignments, setFreelancerAssignments] = useState<FreelancerAssignment[]>(() => {
-    try {
-      const saved = localStorage.getItem('wpp_crm_freelancer_assignments');
-      const list = saved ? JSON.parse(saved) : INITIAL_FREELANCER_ASSIGNMENTS;
-      return Array.isArray(list) ? list : INITIAL_FREELANCER_ASSIGNMENTS;
-    } catch (e) {
-      return INITIAL_FREELANCER_ASSIGNMENTS;
-    }
-  });
+  const [freelancerAssignments, setFreelancerAssignments] = useState<FreelancerAssignment[]>([]);
 
-  const [freelancerPayments, setFreelancerPayments] = useState<FreelancerPayment[]>(() => {
-    try {
-      const saved = localStorage.getItem('wpp_crm_freelancer_payments');
-      const list = saved ? JSON.parse(saved) : INITIAL_FREELANCER_PAYMENTS;
-      return Array.isArray(list) ? list : INITIAL_FREELANCER_PAYMENTS;
-    } catch (e) {
-      return INITIAL_FREELANCER_PAYMENTS;
-    }
-  });
+  const [freelancerPayments, setFreelancerPayments] = useState<FreelancerPayment[]>([]);
 
-  const [freelancerAttendance, setFreelancerAttendance] = useState<FreelancerAttendance[]>(() => {
-    try {
-      const saved = localStorage.getItem('wpp_crm_freelancer_attendance');
-      const list = saved ? JSON.parse(saved) : INITIAL_FREELANCER_ATTENDANCE;
-      return Array.isArray(list) ? list : INITIAL_FREELANCER_ATTENDANCE;
-    } catch (e) {
-      return INITIAL_FREELANCER_ATTENDANCE;
-    }
-  });
+  const [freelancerAttendance, setFreelancerAttendance] = useState<FreelancerAttendance[]>([]);
 
-  const [freelancerDataReceived, setFreelancerDataReceived] = useState<FreelancerDataReceived[]>(() => {
-    try {
-      const saved = localStorage.getItem('wpp_crm_freelancer_data_received');
-      const list = saved ? JSON.parse(saved) : INITIAL_FREELANCER_DATA_RECEIVED;
-      return Array.isArray(list) ? list : INITIAL_FREELANCER_DATA_RECEIVED;
-    } catch (e) {
-      return INITIAL_FREELANCER_DATA_RECEIVED;
-    }
-  });
+  const [freelancerDataReceived, setFreelancerDataReceived] = useState<FreelancerDataReceived[]>([]);
 
-  const [freelancerActivityLogs, setFreelancerActivityLogs] = useState<FreelancerActivityLog[]>(() => {
-    try {
-      const saved = localStorage.getItem('wpp_crm_freelancer_logs');
-      const list = saved ? JSON.parse(saved) : INITIAL_FREELANCER_LOGS;
-      return Array.isArray(list) ? list : INITIAL_FREELANCER_LOGS;
-    } catch (e) {
-      return INITIAL_FREELANCER_LOGS;
-    }
-  });
-
-  // Sync state to localStorage on changes
-  useEffect(() => {
-    localStorage.setItem('wpp_crm_projects', JSON.stringify(projects));
-  }, [projects]);
-
-  useEffect(() => {
-    localStorage.setItem('wpp_crm_team', JSON.stringify(team));
-  }, [team]);
-
-  useEffect(() => {
-    localStorage.setItem('wpp_crm_attendance', JSON.stringify(attendance));
-  }, [attendance]);
-
-  useEffect(() => {
-    localStorage.setItem('wpp_crm_tasks', JSON.stringify(tasks));
-  }, [tasks]);
-
-  useEffect(() => {
-    localStorage.setItem('wpp_crm_leaves', JSON.stringify(leaves));
-  }, [leaves]);
-
-  useEffect(() => {
-    localStorage.setItem('wpp_crm_freelancer_categories', JSON.stringify(freelancerCategories));
-  }, [freelancerCategories]);
-
-  useEffect(() => {
-    localStorage.setItem('wpp_crm_freelancers', JSON.stringify(freelancers));
-  }, [freelancers]);
-
-  useEffect(() => {
-    localStorage.setItem('wpp_crm_freelancer_assignments', JSON.stringify(freelancerAssignments));
-  }, [freelancerAssignments]);
-
-  useEffect(() => {
-    localStorage.setItem('wpp_crm_freelancer_payments', JSON.stringify(freelancerPayments));
-  }, [freelancerPayments]);
-
-  useEffect(() => {
-    localStorage.setItem('wpp_crm_freelancer_attendance', JSON.stringify(freelancerAttendance));
-  }, [freelancerAttendance]);
-
-  useEffect(() => {
-    localStorage.setItem('wpp_crm_freelancer_data_received', JSON.stringify(freelancerDataReceived));
-  }, [freelancerDataReceived]);
-
-  useEffect(() => {
-    localStorage.setItem('wpp_crm_freelancer_logs', JSON.stringify(freelancerActivityLogs));
-  }, [freelancerActivityLogs]);
-
-  useEffect(() => {
-    localStorage.setItem(ACCESS_STORAGE_AUDIT, JSON.stringify(accessAudit));
-  }, [accessAudit]);
+  const [freelancerActivityLogs, setFreelancerActivityLogs] = useState<FreelancerActivityLog[]>([]);
 
   // Tab, Sidebar & Filter States
   const [activeTab, setActiveTabState] = useState<TabType>(() => ROUTE_TABS[pathname] || (pathname.startsWith('/projects/') ? 'projects' : 'dashboard'));
@@ -348,8 +302,12 @@ export default function App() {
       setActiveTab('owner_workspace');
       return;
     }
+    if (isStudioAdmin(currentUser) && activeTab === 'roles') {
+      setActiveTab('dashboard');
+      return;
+    }
     if (!canAccessTab(activeTab)) {
-      const fallback = (['roles', 'dashboard', 'leads', 'projects', 'shoots'] as TabType[]).find((tab) => canAccessTab(tab));
+      const fallback = (['dashboard', 'roles', 'leads', 'projects', 'shoots'] as TabType[]).find((tab) => canAccessTab(tab));
       if (fallback) setActiveTab(fallback);
     }
   }, [currentUser, activeTab, canAccessTab, setActiveTab]);
@@ -390,51 +348,127 @@ export default function App() {
   };
 
   // Authentication Handlers
-  const handleLogin = (user: TeamMember | typeof OWNER_USER) => {
-    login(user);
+  const handleLogin = async (input: LoginInput) => {
+    const user = await login(input);
     setShowLoginModal(false);
     
-    if (user.role === 'Owner') {
-      setActiveTab('dashboard');
-    } else {
-      setActiveTab('roles');
-    }
+    setActiveTab('dashboard');
   };
 
   const handleLogout = () => {
-    localStorage.removeItem('wpp_crm_logged_user');
-    logout();
+    void logout();
     setShowLoginModal(false);
   };
 
   // Handlers
-  const handleSaveProject = (savedProject: Project) => {
-    const exists = projects.some((p) => p.id === savedProject.id);
+  const canMutateShoots =
+    hasPermission(currentUser, accessRoles, 'shoots.create') ||
+    hasPermission(currentUser, accessRoles, 'shoots.edit') ||
+    hasPermission(currentUser, accessRoles, 'shoots.delete') ||
+    hasPermission(currentUser, accessRoles, 'shoots.manage_status') ||
+    hasPermission(currentUser, accessRoles, 'shoots.assign_photographer') ||
+    hasPermission(currentUser, accessRoles, 'shoots.assign_cinematographer') ||
+    hasPermission(currentUser, accessRoles, 'shoots.assign_freelancer');
+
+  const handleSaveProject = async (savedProject: Project) => {
+    const exists = projects.some((project) => project.id === savedProject.id);
     if (exists) {
-      setProjects(projects.map((p) => (p.id === savedProject.id ? savedProject : p)));
-    } else {
-      setProjects([savedProject, ...projects]);
+      if (!hasPermission(currentUser, accessRoles, 'weddings.edit') && !hasPermission(currentUser, accessRoles, 'clients.edit')) return;
+    } else if (!hasPermission(currentUser, accessRoles, 'weddings.create') && !hasPermission(currentUser, accessRoles, 'clients.create')) {
+      return;
     }
+    const persisted = await persistStudioProject(savedProject, team);
+    setProjects((prev) => {
+      const next = prev.filter((project) => project.id !== savedProject.id && project.id !== persisted.id);
+      return [persisted, ...next];
+    });
+  };
+
+  const handleSaveProjectFromWorkspace = (project: Project) => {
+    void handleSaveProject(project).catch((error: unknown) => {
+      window.alert(apiErrorMessage(error, 'Unable to save project.'));
+    });
   };
 
   const handleUpdateProject = (updatedProject: Project) => {
-    setProjects(projects.map((p) => (p.id === updatedProject.id ? updatedProject : p)));
+    const previous = projects.find((row) => row.id === updatedProject.id);
+    setProjects((prev) => prev.map((p) => (p.id === updatedProject.id ? updatedProject : p)));
+    if (!isPersistedProjectId(updatedProject.id)) return;
+    const canWriteProject = hasPermission(currentUser, accessRoles, 'weddings.edit');
+    if (!canWriteProject && !canMutateShoots) return;
+    void (async () => {
+      let next = updatedProject;
+      if (canWriteProject) next = await persistStudioProject(next, team);
+      if (canMutateShoots) next = await persistProjectShoots(next, previous, team);
+      setProjects((prev) => prev.map((p) => (p.id === next.id ? next : p)));
+    })().catch((error: unknown) => {
+      window.alert(apiErrorMessage(error, 'Unable to update shoot.'));
+    });
+  };
+
+  const dataHandoverTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+
+  const handleUpdateDataHandover = (updatedProject: Project) => {
+    setProjects((prev) => prev.map((p) => (p.id === updatedProject.id ? updatedProject : p)));
+    if (!isPersistedProjectId(updatedProject.id)) return;
+    if (!hasAnyPermission(currentUser, accessRoles, ['data.view', 'DATA_MANAGEMENT_VIEW'])) return;
+    clearTimeout(dataHandoverTimer.current);
+    dataHandoverTimer.current = setTimeout(() => {
+      void persistShootDataHandover(updatedProject)
+        .then((next) => setProjects((prev) => prev.map((p) => (p.id === next.id ? next : p))))
+        .catch((error: unknown) => {
+          window.alert(apiErrorMessage(error, 'Unable to save data handover.'));
+        });
+    }, 400);
   };
 
   const handleDeleteProject = (projectId: string) => {
-    setProjects(projects.filter((p) => p.id !== projectId));
+    if (!hasPermission(currentUser, accessRoles, 'weddings.delete')) return;
+    void projectMutations.remove(projectId)
+      .then(() => setProjects((prev) => prev.filter((p) => p.id !== projectId)))
+      .catch((error: unknown) => {
+        window.alert(apiErrorMessage(error, 'Unable to delete project.'));
+      });
   };
 
-  const handleAddTeamMember = (member: TeamMember) => {
-    setTeam([member, ...team]);
+  const handleAddTeamMember = async (member: TeamMember, password?: string) => {
+    if (!hasPermission(currentUser, accessRoles, 'employees.create')) throw new Error('You do not have permission to create employees.');
+    const roleId = member.accessRoleId;
+    if (!roleId || !password) throw new Error('Choose an access role and set a temporary password.');
+    try {
+      const phone = member.phone?.trim();
+      const employeeCode = member.employeeId?.trim();
+      await teamMutations.create({
+        fullName: member.name,
+        email: member.email?.trim() || '',
+        password,
+        phone: phone || undefined,
+        employeeCode: employeeCode || undefined,
+        roleIds: [roleId],
+      });
+    } catch (error) {
+      window.alert(apiErrorMessage(error, 'Unable to create employee.'));
+      throw error;
+    }
   };
 
-  const handleUpdateTeamMember = (updatedMember: TeamMember) => {
-    setTeam(team.map((m) => (m.id === updatedMember.id ? updatedMember : m)));
+  const handleUpdateTeamMember = async (updatedMember: TeamMember) => {
+    if (!hasPermission(currentUser, accessRoles, 'employees.edit')) throw new Error('You do not have permission to edit employees.');
+    try {
+      await teamMutations.update(updatedMember.id, {
+        fullName: updatedMember.name, phone: updatedMember.phone, employeeCode: updatedMember.employeeId,
+        status: updatedMember.status === 'active' ? 'ACTIVE' : updatedMember.status === 'suspended' ? 'SUSPENDED' : 'INACTIVE',
+      });
+      if (updatedMember.accessRoleId) await teamMutations.setRoles(updatedMember.id, [updatedMember.accessRoleId]);
+    } catch (error) {
+      window.alert(apiErrorMessage(error, 'Unable to update employee.'));
+      throw error;
+    }
   };
 
   const handleDeleteTeamMember = (memberId: string) => {
-    setTeam(team.filter((m) => m.id !== memberId));
+    if (!hasPermission(currentUser, accessRoles, 'employees.delete')) return;
+    void teamMutations.remove(memberId).catch((error: unknown) => window.alert(error instanceof ApiError ? error.message : 'Unable to remove employee.'));
   };
 
   const handleRecordAttendance = (record: AttendanceRecord) => {
@@ -446,15 +480,21 @@ export default function App() {
   };
 
   const handleAddTask = (task: TeamTask) => {
-    setTasks([task, ...tasks]);
+    void taskMutations.create(taskCreateInput(task)).catch((error: unknown) => {
+      window.alert(apiErrorMessage(error, 'Unable to assign task.'));
+    });
   };
 
   const handleUpdateTask = (updatedTask: TeamTask) => {
-    setTasks(tasks.map((t) => (t.id === updatedTask.id ? updatedTask : t)));
+    void taskMutations.updateStatus(updatedTask.id, taskStatusInput(updatedTask)).catch((error: unknown) => {
+      window.alert(apiErrorMessage(error, 'Unable to update task status.'));
+    });
   };
 
   const handleDeleteTask = (taskId: string) => {
-    setTasks(tasks.filter((t) => t.id !== taskId));
+    void taskMutations.remove(taskId).catch((error: unknown) => {
+      window.alert(apiErrorMessage(error, 'Unable to archive task.'));
+    });
   };
 
   /** Upsert a leave request — new applications and approve/reject reviews. */
@@ -468,6 +508,7 @@ export default function App() {
   // Freelancer Handlers
   const handleSaveFreelancer = (freelancer: Freelancer) => {
     const existing = freelancers.find((f) => f.id === freelancer.id);
+    if (existing ? !hasPermission(currentUser, accessRoles, 'freelancers.edit') : !hasPermission(currentUser, accessRoles, 'freelancers.create')) return;
     const merged: Freelancer = existing ? { ...existing, ...freelancer } : freelancer;
     if (existing) {
       setFreelancers(freelancers.map((f) => (f.id === freelancer.id ? merged : f)));
@@ -477,15 +518,18 @@ export default function App() {
   };
 
   const handleDeleteFreelancer = (freelancerId: string) => {
+    if (!hasPermission(currentUser, accessRoles, 'freelancers.delete')) return;
     setFreelancers(freelancers.filter((f) => f.id !== freelancerId));
     setFreelancerAssignments(freelancerAssignments.filter((a) => a.freelancerId !== freelancerId));
   };
 
   const handleDeleteAssignment = (assignmentId: string) => {
+    if (!hasAnyPermission(currentUser, accessRoles, ['freelancers.edit', 'freelancers.assign', 'shoots.assign_freelancer'])) return;
     setFreelancerAssignments(freelancerAssignments.filter((a) => a.id !== assignmentId));
   };
 
   const handleSaveFreelancerAssignments = (newAssignments: FreelancerAssignment[]) => {
+    if (!hasAnyPermission(currentUser, accessRoles, ['freelancers.edit', 'freelancers.assign', 'shoots.assign_freelancer'])) return;
     setFreelancerAssignments((prev) => {
       let updated = [...prev];
       newAssignments.forEach((item) => {
@@ -504,12 +548,14 @@ export default function App() {
     assignmentId: string,
     status: FreelancerAssignment['assignmentStatus']
   ) => {
+    if (!hasAnyPermission(currentUser, accessRoles, ['freelancers.edit', 'freelancers.assign', 'shoots.assign_freelancer'])) return;
     setFreelancerAssignments(
       freelancerAssignments.map((a) => (a.id === assignmentId ? { ...a, assignmentStatus: status } : a))
     );
   };
 
   const handleSaveFreelancerPayment = (payment: FreelancerPayment) => {
+    if (!hasPermission(currentUser, accessRoles, 'freelancers.manage_payments')) return;
     setFreelancerPayments([payment, ...freelancerPayments]);
 
     if (payment.assignmentId) {
@@ -577,6 +623,7 @@ export default function App() {
     freelancerId: string,
     status: Freelancer['availabilityStatus']
   ) => {
+    if (!hasPermission(currentUser, accessRoles, 'freelancers.edit')) return;
     setFreelancers(
       freelancers.map((f) => (f.id === freelancerId ? { ...f, availabilityStatus: status } : f))
     );
@@ -596,6 +643,7 @@ export default function App() {
   };
 
   const handleUpdateFreelancerDocument = (freelancerId: string, doc: FreelancerDocument) => {
+    if (!hasPermission(currentUser, accessRoles, 'freelancers.edit')) return;
     setFreelancers(
       freelancers.map((f) => {
         if (f.id === freelancerId) {
@@ -674,7 +722,6 @@ export default function App() {
   if (!currentUser) {
     return (
       <LoginScreen
-        team={team}
         onLogin={handleLogin}
         onAddTeamMember={handleAddTeamMember}
       />
@@ -765,11 +812,11 @@ export default function App() {
                 setSelectedProjectRole(undefined);
                 router.push('/projects');
               }}
-              onUpdateProject={hasPermission(currentUser, accessRoles, 'weddings.edit') ? handleUpdateProject : () => undefined}
+              onUpdateProject={hasPermission(currentUser, accessRoles, 'weddings.edit') || canMutateShoots ? handleUpdateProject : () => undefined}
               onGenerateInvoice={(project) => {
                 if (hasPermission(currentUser, accessRoles, 'finance.view_invoices')) setSelectedProjectForInvoice(project);
               }}
-              onDeleteProject={hasPermission(currentUser, accessRoles, 'weddings.delete') ? handleDeleteProject : () => undefined}
+              onDeleteProject={hasPermission(currentUser, accessRoles, 'weddings.delete') ? handleDeleteProject : undefined}
               team={team}
               currentUser={currentUser}
               userRole={selectedProjectRole || currentUser?.role}
@@ -782,32 +829,42 @@ export default function App() {
           
           {/* Tab 1: Main Dashboard */}
           {activeTab === 'dashboard' && (
-            <OwnerDashboard
-              projects={scopedWeddings}
-              onSelectProject={(project) => handleSelectProject(project)}
-              onOpenNewProjectModal={() => {
-                if (hasPermission(currentUser, accessRoles, 'weddings.create')) router.push('/projects/new');
-              }}
-              onUpdateProject={hasPermission(currentUser, accessRoles, 'weddings.edit') ? handleUpdateProject : () => undefined}
-              onOpenAllPaymentsModal={() => {
-                if (hasPermission(currentUser, accessRoles, 'finance.view_payments') || hasPermission(currentUser, accessRoles, 'finance.record_payment')) {
-                  router.push('/payments/new');
-                }
-              }}
-              setActiveTab={setActiveTab}
-              onProjectStatusNavigate={(status) => {
-                setStatusFilter(status);
-                setActiveTab('projects');
-              }}
-              team={team}
-              attendance={attendance}
-              tasks={tasks}
-              onUpdateTask={handleUpdateTask}
-              onDeleteTask={handleDeleteTask}
-              onAddTask={handleAddTask}
-              onOpenMemberModal={(member) => setSelectedMemberForModal(member)}
-              currentUser={currentUser}
-            />
+              <OwnerDashboard
+                projects={scopedWeddings}
+                onSelectProject={(project) => handleSelectProject(project)}
+                onOpenNewProjectModal={() => {
+                  if (hasPermission(currentUser, accessRoles, 'weddings.create')) router.push('/projects/new');
+                }}
+                onUpdateProject={hasPermission(currentUser, accessRoles, 'weddings.edit') || canMutateShoots ? handleUpdateProject : () => undefined}
+                onOpenAllPaymentsModal={() => {
+                  if (hasPermission(currentUser, accessRoles, 'finance.view_payments') || hasPermission(currentUser, accessRoles, 'finance.record_payment')) {
+                    router.push('/payments/new');
+                  }
+                }}
+                setActiveTab={setActiveTab}
+                onProjectStatusNavigate={(status) => {
+                  setStatusFilter(status);
+                  setActiveTab('projects');
+                }}
+                team={team}
+                attendance={attendance}
+                tasks={tasks}
+                onUpdateTask={handleUpdateTask}
+                onDeleteTask={handleDeleteTask}
+                onAddTask={handleAddTask}
+                onOpenMemberModal={(member) => setSelectedMemberForModal(member)}
+                currentUser={currentUser}
+                attendanceSlot={currentUser && isEmployeeAttendanceUser(currentUser) ? (
+                  <EmployeeDashboardTasks
+                    userId={currentUser.id}
+                    tasks={tasks}
+                    canUpdate={hasPermission(currentUser, accessRoles, 'tasks.change_status')}
+                    onUpdate={handleUpdateTask}
+                    showAttendance={hasPermission(currentUser, accessRoles, 'attendance.mark')}
+                    canViewAttendance={hasPermission(currentUser, accessRoles, 'attendance.view')}
+                  />
+                ) : undefined}
+              />
           )}
 
           {/* Exclusive Owner Workspace (Visible ONLY to Owner) */}
@@ -824,7 +881,11 @@ export default function App() {
 
           {/* Leads & Inquiries Management (Visible ONLY to Owner, Manager, and Sales) */}
           {activeTab === 'leads' && (
-            <LeadsManagement currentUser={currentUser} />
+            hasPermission(currentUser, accessRoles, 'leads.view') ? (
+              <LeadsManagement currentUser={currentUser} />
+            ) : (
+              <AccessDenied />
+            )
           )}
 
           {/* Tab 2: Role Workspaces & Distinct Dashboards */}
@@ -847,7 +908,7 @@ export default function App() {
                 setEditingProject(null);
                 setIsFormModalOpen(true);
               }}
-              onSaveProject={handleSaveProject}
+              onSaveProject={handleSaveProjectFromWorkspace}
               onOpenAllPaymentsModal={() => {
                 if (hasPermission(currentUser, accessRoles, 'finance.view_payments')) setIsAllPaymentsModalOpen(true);
               }}
@@ -858,86 +919,51 @@ export default function App() {
 
           {/* Tab 2: Projects / Client Project Management */}
           {activeTab === 'projects' && (
-            <ProjectsManager
-              projects={scopedWeddings}
-              statusFilter={statusFilter}
-              setStatusFilter={setStatusFilter}
-              onSelectProject={(project) => handleSelectProject(project, currentUser?.role)}
-              onUpdateProject={handleUpdateProject}
-              onEditProject={(project) => {
-                if (!hasPermission(currentUser, accessRoles, 'weddings.edit')) return;
-                setEditingProject(project);
-                setIsFormModalOpen(true);
-              }}
-              onDeleteProject={hasPermission(currentUser, accessRoles, 'weddings.delete') ? handleDeleteProject : () => undefined}
-              onOpenNewProjectModal={() => {
-                if (!hasPermission(currentUser, accessRoles, 'weddings.create')) return;
-                setEditingProject(null);
-                setIsFormModalOpen(true);
-              }}
-              onOpenAllPaymentsModal={() => {
-                if (hasPermission(currentUser, accessRoles, 'finance.view_payments')) setIsAllPaymentsModalOpen(true);
-              }}
-              onGenerateInvoice={(project) => {
-                if (hasPermission(currentUser, accessRoles, 'finance.view_invoices')) setSelectedProjectForInvoice(project);
-              }}
-              currentUser={currentUser}
-              userRole={currentUser?.role}
-            />
+            <ProjectsManager projects={scopedWeddings} statusFilter={statusFilter} setStatusFilter={setStatusFilter} onSelectProject={(project) => handleSelectProject(project, currentUser?.role)} onUpdateProject={handleUpdateProject} onEditProject={(project) => { if (!hasPermission(currentUser, accessRoles, 'weddings.edit')) return; setEditingProject(project); setIsFormModalOpen(true); }} onDeleteProject={hasPermission(currentUser, accessRoles, 'weddings.delete') ? handleDeleteProject : undefined} onOpenNewProjectModal={() => { if (!hasPermission(currentUser, accessRoles, 'weddings.create')) return; setEditingProject(null); setIsFormModalOpen(true); }} onOpenAllPaymentsModal={() => { if (hasPermission(currentUser, accessRoles, 'finance.view_payments')) setIsAllPaymentsModalOpen(true); }} onGenerateInvoice={(project) => { if (hasPermission(currentUser, accessRoles, 'finance.view_invoices')) setSelectedProjectForInvoice(project); }} currentUser={currentUser} userRole={currentUser?.role} />
           )}
 
           {/* Tab 3: Shoot Management */}
           {activeTab === 'shoots' && (
+            hasPermission(currentUser, accessRoles, 'shoots.view') ? (
             <ShootManagement
               projects={scopedShoots}
               onUpdateProject={handleUpdateProject}
               onSelectProject={(project) => handleSelectProject(project)}
               team={team}
             />
+            ) : (
+              <AccessDenied />
+            )
           )}
 
           {activeTab === 'expenses' && (
+            hasAnyPermission(currentUser, accessRoles, TAB_PERMISSIONS.expenses || 'EXPENSE_VIEW') ? (
             <ExpenseManagement
               projects={scopedWeddings}
               freelancers={freelancers.map((freelancer) => ({ id: freelancer.id, name: freelancer.name, role: freelancer.mainCategory }))}
               currentUser={currentUser}
             />
+            ) : (
+              <AccessDenied />
+            )
           )}
 
           {/* Tab 4: Data Management */}
           {activeTab === 'data' && (
-            hasPermission(currentUser, accessRoles, 'settings.view') ? (
+            hasAnyPermission(currentUser, accessRoles, ['data.view', 'DATA_MANAGEMENT_VIEW']) ? (
               <DataManagement
-                projects={scopedWeddings}
-                onUpdateProject={handleUpdateProject}
+                projects={projects}
+                onUpdateProject={handleUpdateDataHandover}
                 onSelectProject={(project) => handleSelectProject(project)}
               />
             ) : (
-              <div className="bg-white rounded-3xl p-8 sm:p-12 text-center max-w-xl mx-auto border border-slate-200 shadow-xl space-y-5 my-12">
-                <div className="w-16 h-16 bg-red-100 text-red-600 rounded-2xl flex items-center justify-center mx-auto shadow-inner">
-                  <Lock className="w-8 h-8" />
-                </div>
-                <div>
-                  <h3 className="text-2xl font-black text-slate-900">Data Management Restricted</h3>
-                  <p className="text-sm text-slate-500 mt-2 font-medium">
-                    Hard Drive vault backups, RAW offloading logs, and client data deletion are reserved for <strong>Owner</strong> & <strong>Studio Manager</strong>.
-                  </p>
-                </div>
-                <div className="flex justify-center gap-3">
-                  <button
-                    onClick={() => setActiveTab('roles')}
-                    className="px-5 py-2.5 rounded-xl bg-indigo-600 text-white text-xs font-bold uppercase tracking-wider"
-                  >
-                    Return to My Workspace
-                  </button>
-                </div>
-              </div>
+              <AccessDenied />
             )
           )}
 
           {/* Tab 5: Team & Attendance */}
           {activeTab === 'team' && (
-            hasPermission(currentUser, accessRoles, 'employees.view') ? (
+            hasAnyPermission(currentUser, accessRoles, TAB_PERMISSIONS.team || 'employees.view') ? (
               <TeamAttendance
                 team={team}
                 attendance={attendance}
@@ -960,28 +986,10 @@ export default function App() {
                 freelancerPayments={freelancerPayments}
                 currentUser={currentUser}
                 onNavigateToFreelancers={() => setActiveTab('freelancers')}
-                accessRoles={accessRoles}
+                accessRoles={effectiveAccessRoles}
               />
             ) : (
-              <div className="bg-white rounded-3xl p-8 sm:p-12 text-center max-w-xl mx-auto border border-slate-200 shadow-xl space-y-5 my-12">
-                <div className="w-16 h-16 bg-red-100 text-red-600 rounded-2xl flex items-center justify-center mx-auto shadow-inner">
-                  <Lock className="w-8 h-8" />
-                </div>
-                <div>
-                  <h3 className="text-2xl font-black text-slate-900">Payroll & Roster Restricted</h3>
-                  <p className="text-sm text-slate-500 mt-2 font-medium">
-                    Team member salaries, payroll slips, and studio roster configurations are accessible to <strong>Owner</strong> & <strong>Studio Manager</strong> only.
-                  </p>
-                </div>
-                <div className="flex justify-center gap-3">
-                  <button
-                    onClick={() => setActiveTab('roles')}
-                    className="px-5 py-2.5 rounded-xl bg-indigo-600 text-white text-xs font-bold uppercase tracking-wider"
-                  >
-                    Return to My Workspace
-                  </button>
-                </div>
-              </div>
+              <AccessDenied />
             )
           )}
 
@@ -1009,7 +1017,10 @@ export default function App() {
               focusProjectId={freelancerFocus?.projectId}
               focusShootId={freelancerFocus?.shootId}
               onSaveFreelancer={handleSaveFreelancer}
-              onSaveCategories={setFreelancerCategories}
+              onSaveCategories={(next) => {
+                if (!hasPermission(currentUser, accessRoles, 'freelancers.edit')) return;
+                setFreelancerCategories(next);
+              }}
               onSaveAssignments={handleSaveFreelancerAssignments}
               onUpdateAssignmentStatus={handleUpdateAssignmentStatus}
               onSavePayment={handleSaveFreelancerPayment}
@@ -1026,12 +1037,14 @@ export default function App() {
           {activeTab === 'access' && (
             hasPermission(currentUser, accessRoles, 'settings.manage_roles') ? (
               <RolesPermissionsManager
-                roles={accessRoles}
-                audit={accessAudit}
+                roles={effectiveAccessRoles}
+                audit={[]}
                 team={team}
                 currentUserName={currentUser?.name || 'Admin'}
-                onSaveRoles={setAccessRoles}
-                onSaveAudit={setAccessAudit}
+                permissions={backendPermissionModules}
+                onCreateRole={async (input) => { await rbacApi.createRole(input); await rbacQuery.refresh(); }}
+                onUpdateRole={async (input) => { await rbacApi.updateRole(input.id, { name: input.name, description: input.description }); await rbacApi.setRolePermissions(input.id, input.permissionKeys); await rbacQuery.refresh(); await refresh(true); }}
+                onDeleteRole={async (id) => { await rbacApi.removeRole(id); await rbacQuery.refresh(); }}
               />
             ) : (
               <div className="bg-white rounded-3xl p-8 sm:p-12 text-center max-w-xl mx-auto border border-slate-200 shadow-xl space-y-5 my-12">
@@ -1042,15 +1055,11 @@ export default function App() {
           )}
 
           {activeTab === 'clients' && (
-            <ClientsDirectoryView
-              projects={scopedClients}
-              onOpenClient={(project) => handleSelectProject(project, currentUser?.role)}
-              onAddClient={() => {
-                if (!hasPermission(currentUser, accessRoles, 'clients.create') && !hasPermission(currentUser, accessRoles, 'weddings.create')) return;
-                setEditingProject(null);
-                setIsFormModalOpen(true);
-              }}
-            />
+            hasPermission(currentUser, accessRoles, 'clients.view') ? (
+            <ClientsDirectoryView projects={scopedClients} onOpenClient={(project) => handleSelectProject(project, currentUser?.role)} onAddClient={() => { if (!hasPermission(currentUser, accessRoles, 'clients.create')) return; setEditingProject(null); setIsFormModalOpen(true); }} />
+            ) : (
+              <AccessDenied />
+            )
           )}
 
           </>
@@ -1080,7 +1089,6 @@ export default function App() {
       {/* Switch Account / Role Login Modal */}
       {showLoginModal && (
         <LoginScreen
-          team={team}
           onLogin={handleLogin}
           onAddTeamMember={handleAddTeamMember}
           onClose={() => setShowLoginModal(false)}

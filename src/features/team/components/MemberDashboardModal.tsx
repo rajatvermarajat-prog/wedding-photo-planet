@@ -86,9 +86,7 @@ export const MemberDashboardModal: React.FC<MemberDashboardModalProps> = ({
   const [newTaskDomainSelect, setNewTaskDomainSelect] = useState('weddingphotoplanet.com');
   const [customDomainInput, setCustomDomainInput] = useState('');
   const [newTaskProjectId, setNewTaskProjectId] = useState('');
-  const [newTaskCategory, setNewTaskCategory] = useState<TeamTask['category']>(() => {
-    return (member.role.toLowerCase().includes('sales') || member.name.toLowerCase().includes('sonam')) ? 'sales_target' : 'social_media';
-  });
+  const [newTaskCategory, setNewTaskCategory] = useState<TeamTask['category']>('management');
   const [newTaskDueDate, setNewTaskDueDate] = useState(new Date().toISOString().split('T')[0]);
   const [newTaskPriority, setNewTaskPriority] = useState<'high' | 'medium' | 'low'>('high');
   const [newTaskNotes, setNewTaskNotes] = useState('');
@@ -1002,7 +1000,16 @@ export const MemberDashboardModal: React.FC<MemberDashboardModalProps> = ({
                   </div>
 
                   <button
-                    onClick={() => setShowAddTaskForm(!showAddTaskForm)}
+                    onClick={() => {
+                      if (!showAddTaskForm) {
+                        setNewTaskTitle('');
+                        setNewTaskCategory('management');
+                        setNewBookingTarget('');
+                        setNewTargetRevenue('');
+                        setNewTargetLeadsCount('');
+                      }
+                      setShowAddTaskForm((open) => !open);
+                    }}
                     className="px-3.5 py-2 rounded-xl bg-[#8f3655] hover:bg-[#6d2f45] text-white font-bold text-xs uppercase tracking-wider flex items-center gap-1.5 shadow-xs transition"
                   >
                     <Plus className="w-4 h-4" /> Assign New Task
@@ -1064,8 +1071,6 @@ export const MemberDashboardModal: React.FC<MemberDashboardModalProps> = ({
                         <button
                           type="button"
                           onClick={() => {
-                            setNewTaskTitle('Monthly 5 Wedding Deals Target');
-                            setNewTaskCategory('sales_target');
                             setNewBookingTarget('5');
                             setNewTargetRevenue('500000');
                             setNewTargetLeadsCount('25');
@@ -1077,8 +1082,6 @@ export const MemberDashboardModal: React.FC<MemberDashboardModalProps> = ({
                         <button
                           type="button"
                           onClick={() => {
-                            setNewTaskTitle('20 Hot Client Leads Followup');
-                            setNewTaskCategory('sales_lead');
                             setNewTargetLeadsCount('20');
                           }}
                           className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-white hover:bg-rose-100 text-[#6d2f45] border border-rose-200 cursor-pointer shadow-2xs"

@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { TeamMember, Project, AttendanceRecord, TeamTask, TeamRole, EditingStatus, ProjectTask, OwnerLead } from '@/types';
 import { ConfirmDeleteModal } from '@/components/common/ConfirmDeleteModal';
+import { PersonalTodoPanel } from '@/features/tasks/PersonalTodoPanel';
+import { usePermission } from '@/features/access';
 import { SocialMediaCalendarWidget } from './SocialMediaCalendarWidget';
 import { 
   Users, 
@@ -362,248 +364,10 @@ const EditorAttendanceLogTable: React.FC<{
 };
 
 // Manager Personal Daily To-Do Task Notebook Component
-interface ManagerTodoItem {
-  id: string;
-  title: string;
-  priority: 'high' | 'medium' | 'low';
-  dueDate?: string;
-  completed: boolean;
-  createdAt: string;
-}
-
-const ManagerPersonalTodoWidget: React.FC<{ activeMember: TeamMember | null }> = ({ activeMember }) => {
-  const storageKey = `wpp_crm_manager_todos_${activeMember?.id || 'default'}`;
-  
-  const [todos, setTodos] = useState<ManagerTodoItem[]>(() => {
-    try {
-      const saved = localStorage.getItem(storageKey);
-      if (saved) return JSON.parse(saved);
-    } catch (e) {
-      console.error(e);
-    }
-    return [
-      { id: '1', title: "Review today's assigned schedules & deadlines", priority: 'high', completed: false, createdAt: new Date().toISOString() },
-      { id: '2', title: "Check pending project deliverables & client feedback", priority: 'medium', completed: false, createdAt: new Date().toISOString() },
-      { id: '3', title: "Update deliverable status upon task completion", priority: 'low', completed: true, createdAt: new Date().toISOString() }
-    ];
-  });
-
-  const [newTaskText, setNewTaskText] = useState('');
-  const [priority, setPriority] = useState<'high' | 'medium' | 'low'>('medium');
-  const [dueDate, setDueDate] = useState('');
-  const [filter, setFilter] = useState<'all' | 'pending' | 'completed'>('all');
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(storageKey, JSON.stringify(todos));
-    } catch (e) {
-      console.error(e);
-    }
-  }, [todos, storageKey]);
-
-  const handleAddTodo = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newTaskText.trim()) return;
-    const item: ManagerTodoItem = {
-      id: Date.now().toString(),
-      title: newTaskText.trim(),
-      priority,
-      dueDate: dueDate || undefined,
-      completed: false,
-      createdAt: new Date().toISOString()
-    };
-    setTodos([item, ...todos]);
-    setNewTaskText('');
-    setDueDate('');
-  };
-
-  const toggleTodo = (id: string) => {
-    setTodos(todos.map(t => t.id === id ? { ...t, completed: !t.completed } : t));
-  };
-
-  const deleteTodo = (id: string) => {
-    setTodos(todos.filter(t => t.id !== id));
-  };
-
-  const clearCompleted = () => {
-    setTodos(todos.filter(t => !t.completed));
-  };
-
-  const filteredTodos = todos.filter(t => {
-    if (filter === 'pending') return !t.completed;
-    if (filter === 'completed') return t.completed;
-    return true;
-  });
-
-  const pendingCount = todos.filter(t => !t.completed).length;
-  const completedCount = todos.filter(t => t.completed).length;
-
-  return (
-    <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm space-y-4">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
-        <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600">
-            <CheckSquare className="w-4 h-4" />
-          </div>
-          <div>
-            <h3 className="text-sm font-extrabold text-slate-900 uppercase tracking-tight flex items-center gap-2">
-              <span>{activeMember?.name ? `${activeMember.name} Private To-Do List & Tasks` : 'Private To-Do List & Tasks'}</span>
-              <span className="px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-800 text-[10px] font-black">
-                {pendingCount} Pending
-              </span>
-            </h3>
-            <p className="text-xs text-slate-500 font-medium">
-              Write down, track, and complete your daily workspace duties and tasks.
-            </p>
-          </div>
-        </div>
-
-        {/* Filter Pills */}
-        <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl text-xs font-bold self-start sm:self-auto">
-          <button
-            type="button"
-            onClick={() => setFilter('all')}
-            className={`px-3 py-1 rounded-lg transition cursor-pointer ${filter === 'all' ? 'bg-white text-slate-900 shadow-2xs font-black' : 'text-slate-600 hover:text-slate-900'}`}
-          >
-            All ({todos.length})
-          </button>
-          <button
-            type="button"
-            onClick={() => setFilter('pending')}
-            className={`px-3 py-1 rounded-lg transition cursor-pointer ${filter === 'pending' ? 'bg-white text-slate-900 shadow-2xs font-black' : 'text-slate-600 hover:text-slate-900'}`}
-          >
-            Pending ({pendingCount})
-          </button>
-          <button
-            type="button"
-            onClick={() => setFilter('completed')}
-            className={`px-3 py-1 rounded-lg transition cursor-pointer ${filter === 'completed' ? 'bg-white text-slate-900 shadow-2xs font-black' : 'text-slate-600 hover:text-slate-900'}`}
-          >
-            Completed ({completedCount})
-          </button>
-        </div>
-      </div>
-
-      {/* Add Task Form */}
-      <form onSubmit={handleAddTodo} className="flex flex-col md:flex-row gap-2 bg-slate-50 p-3 rounded-xl border border-slate-200">
-        <input
-          type="text"
-          value={newTaskText}
-          onChange={(e) => setNewTaskText(e.target.value)}
-          placeholder="Write your task here (e.g. Call client for raw data approval)..."
-          className="flex-1 bg-white border border-slate-200 rounded-lg px-3.5 py-2 text-xs text-slate-900 font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500"
-        />
-        <div className="flex flex-wrap items-center gap-2">
-          <select
-            value={priority}
-            onChange={(e) => setPriority(e.target.value as any)}
-            className="bg-white border border-slate-200 rounded-lg px-2.5 py-2 text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
-          >
-            <option value="high">🔴 High Priority</option>
-            <option value="medium">🟡 Medium Priority</option>
-            <option value="low">🔵 Low Priority</option>
-          </select>
-
-          <input
-            type="date"
-            value={dueDate}
-            onChange={(e) => setDueDate(e.target.value)}
-            className="bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-xs text-slate-700 font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
-          />
-
-          <button
-            type="submit"
-            className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 transition shadow-2xs cursor-pointer whitespace-nowrap"
-          >
-            <Plus className="w-3.5 h-3.5" />
-            <span>Add Task</span>
-          </button>
-        </div>
-      </form>
-
-      {/* Task List */}
-      {filteredTodos.length === 0 ? (
-        <div className="text-center py-6 border border-dashed border-slate-200 rounded-xl bg-slate-50/50">
-          <CheckSquare className="w-8 h-8 text-slate-300 mx-auto mb-1.5" />
-          <p className="text-xs font-bold text-slate-600">No tasks in this view</p>
-          <p className="text-[11px] text-slate-400">Write your first task above to start tracking!</p>
-        </div>
-      ) : (
-        <div className="space-y-2">
-          {filteredTodos.map((todo) => (
-            <div
-              key={todo.id}
-              className={`p-3.5 rounded-xl border transition flex items-center justify-between gap-3 ${
-                todo.completed 
-                  ? 'bg-slate-50/80 border-slate-200 opacity-75' 
-                  : 'bg-white border-slate-200 hover:border-indigo-200 shadow-2xs'
-              }`}
-            >
-              <div className="flex items-center gap-3 flex-1 min-w-0">
-                <button
-                  type="button"
-                  onClick={() => toggleTodo(todo.id)}
-                  className={`w-5 h-5 rounded-md border flex items-center justify-center transition cursor-pointer shrink-0 ${
-                    todo.completed
-                      ? 'bg-emerald-600 border-emerald-600 text-white'
-                      : 'border-slate-300 hover:border-indigo-500 bg-white'
-                  }`}
-                >
-                  {todo.completed && <Check className="w-3.5 h-3.5 stroke-[3]" />}
-                </button>
-
-                <div className="min-w-0 flex-1">
-                  <p className={`text-xs font-bold ${
-                    todo.completed ? 'line-through text-slate-400' : 'text-slate-900'
-                  }`}>
-                    {todo.title}
-                  </p>
-                  <div className="flex items-center gap-2 mt-0.5">
-                    <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full ${
-                      todo.priority === 'high' ? 'bg-red-100 text-red-800' :
-                      todo.priority === 'medium' ? 'bg-amber-100 text-amber-800' :
-                      'bg-blue-100 text-blue-800'
-                    }`}>
-                      {todo.priority} Priority
-                    </span>
-                    {todo.dueDate && (
-                      <span className="text-[10px] text-slate-500 font-medium flex items-center gap-1">
-                        <Calendar className="w-3 h-3 text-slate-400" />
-                        Due: {todo.dueDate}
-                      </span>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => deleteTodo(todo.id)}
-                className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition cursor-pointer shrink-0"
-                title="Delete Task"
-              >
-                <Trash2 className="w-4 h-4" />
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Footer / Clear Completed */}
-      {completedCount > 0 && (
-        <div className="flex justify-end pt-1">
-          <button
-            type="button"
-            onClick={clearCompleted}
-            className="text-[11px] font-bold text-slate-500 hover:text-red-600 transition cursor-pointer"
-          >
-            Clear {completedCount} Completed Task{completedCount > 1 ? 's' : ''}
-          </button>
-        </div>
-      )}
-    </div>
-  );
+const ManagerPersonalTodoWidget: React.FC<{ activeMember: TeamMember | null }> = () => {
+  const { can } = usePermission();
+  if (!can('dashboard.view_todos') || !can('personal.todo')) return null;
+  return <PersonalTodoPanel />;
 };
 
 // Role-wise Private Notepad & Scratchpad Component
@@ -1809,7 +1573,7 @@ export const RoleDashboards: React.FC<RoleDashboardsProps> = ({
   const [customDomainInput, setCustomDomainInput] = useState('');
   const [newTaskAssignedToId, setNewTaskAssignedToId] = useState(activeMemberId);
   const [newTaskProjectId, setNewTaskProjectId] = useState('');
-  const [newTaskCategory, setNewTaskCategory] = useState<TeamTask['category']>('sales_target');
+  const [newTaskCategory, setNewTaskCategory] = useState<TeamTask['category']>('management');
   const [newTaskDueDate, setNewTaskDueDate] = useState(new Date().toISOString().split('T')[0]);
   const [newTaskPriority, setNewTaskPriority] = useState<'high' | 'medium' | 'low'>('high');
   const [newTaskNotes, setNewTaskNotes] = useState('');
@@ -2872,6 +2636,11 @@ export const RoleDashboards: React.FC<RoleDashboardsProps> = ({
                 if (activeMember?.id) {
                   setNewTaskAssignedToId(activeMember.id);
                 }
+                setNewTaskTitle('');
+                setNewTaskCategory('management');
+                setNewBookingTarget('');
+                setNewTargetRevenue('');
+                setNewTargetLeadsCount('');
                 setShowAddTaskModal(true);
               }}
               className="px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs flex items-center gap-2 shadow-sm transition cursor-pointer"
@@ -3017,11 +2786,10 @@ export const RoleDashboards: React.FC<RoleDashboardsProps> = ({
         </div>
       )}
 
-      {/* ROLE-WISE PRIVATE NOTEPAD & SCRATCHPAD */}
-      <RoleNotepadWidget key={`notepad-${activeMember?.id || activeMember?.role || 'default'}`} activeMember={activeMember} />
-
-      {/* ROLE-WISE PRIVATE TO-DO TASK LIST */}
-      <ManagerPersonalTodoWidget key={`todo-${activeMember?.id || activeMember?.role || 'default'}`} activeMember={activeMember} />
+      <div className="grid gap-5 xl:grid-cols-[1.35fr_1fr]">
+        <RoleNotepadWidget key={`notepad-${activeMember?.id || activeMember?.role || 'default'}`} activeMember={activeMember} />
+        <ManagerPersonalTodoWidget key={`todo-${activeMember?.id || activeMember?.role || 'default'}`} activeMember={activeMember} />
+      </div>
 
       {/* ROLE DASHBOARD CONTENT (5 DISTINCT ROLE MODULES) */}
       
@@ -5908,8 +5676,6 @@ export const RoleDashboards: React.FC<RoleDashboardsProps> = ({
                   <button
                     type="button"
                     onClick={() => {
-                      setNewTaskTitle('Monthly 5 Wedding Deals Target');
-                      setNewTaskCategory('sales_target');
                       setNewBookingTarget('5');
                       setNewTargetRevenue('500000');
                       setNewTargetLeadsCount('25');
@@ -5921,8 +5687,6 @@ export const RoleDashboards: React.FC<RoleDashboardsProps> = ({
                   <button
                     type="button"
                     onClick={() => {
-                      setNewTaskTitle('20 Hot Client Leads Followup');
-                      setNewTaskCategory('sales_lead');
                       setNewTargetLeadsCount('20');
                     }}
                     className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-white hover:bg-indigo-100 text-indigo-800 border border-indigo-200 cursor-pointer shadow-2xs"

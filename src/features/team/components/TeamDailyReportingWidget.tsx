@@ -167,8 +167,7 @@ export const TeamDailyReportingWidget: React.FC<TeamDailyReportingWidgetProps> =
     setAssigningTaskMember(member);
     setEditingTaskItem(null);
     setTaskTitleInput('');
-    const isSalesMember = member.role.toLowerCase().includes('sales') || member.role.toLowerCase().includes('manager') || member.name.toLowerCase().includes('sonam');
-    setTaskCategoryInput(isSalesMember ? 'sales_target' : 'social_media');
+    setTaskCategoryInput('management');
     setTaskDomainInput('weddingphotoplanet.com');
     setTaskProjectIdInput('');
     setTaskPriorityInput('high');
@@ -734,8 +733,6 @@ export const TeamDailyReportingWidget: React.FC<TeamDailyReportingWidgetProps> =
                   <button
                     type="button"
                     onClick={() => {
-                      setTaskTitleInput('Monthly 5 Wedding Deals Target');
-                      setTaskCategoryInput('sales_target');
                       setTaskBookingTargetInput('5');
                       setTaskTargetRevenueInput('500000');
                       setTaskTargetLeadsCountInput('25');
@@ -747,8 +744,6 @@ export const TeamDailyReportingWidget: React.FC<TeamDailyReportingWidgetProps> =
                   <button
                     type="button"
                     onClick={() => {
-                      setTaskTitleInput('20 Hot Client Leads Followup');
-                      setTaskCategoryInput('sales_lead');
                       setTaskTargetLeadsCountInput('20');
                     }}
                     className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-white hover:bg-rose-100 text-[#6d2f45] border border-rose-200 cursor-pointer shadow-2xs transition"
@@ -758,8 +753,6 @@ export const TeamDailyReportingWidget: React.FC<TeamDailyReportingWidgetProps> =
                   <button
                     type="button"
                     onClick={() => {
-                      setTaskTitleInput('Monthly ₹10 Lakh Sales Revenue Goal');
-                      setTaskCategoryInput('sales_target');
                       setTaskBookingTargetInput('10');
                       setTaskTargetRevenueInput('1000000');
                       setTaskTargetLeadsCountInput('40');

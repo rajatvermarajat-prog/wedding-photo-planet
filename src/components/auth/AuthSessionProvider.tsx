@@ -1,63 +1,95 @@
 'use client';
 
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import { TeamMember } from '@/types';
+import { ApiError } from '@/lib/api/client';
+import { authApi, LoginInput, SessionUser } from '@/lib/api/auth';
+import { TeamMemberStatus } from '@/types';
 
-export type AuthenticatedUser = TeamMember | {
-  id: string;
+export type AuthenticatedUser = Omit<SessionUser, 'status'> & {
   name: string;
   role: string;
-  email: string;
+  status: TeamMemberStatus;
 };
+
+function toAuthenticatedUser(user: SessionUser): AuthenticatedUser {
+  const statusMap: Record<string, TeamMemberStatus> = {
+    ACTIVE: 'active', INACTIVE: 'inactive', SUSPENDED: 'suspended', ON_LEAVE: 'on_leave',
+  };
+  return { ...user, name: user.fullName, role: user.roles[0] ?? 'User', status: statusMap[user.status] ?? 'inactive' };
+}
 
 interface AuthSessionValue {
   currentUser: AuthenticatedUser | null;
   isHydrated: boolean;
-  login: (user: AuthenticatedUser) => void;
-  logout: () => void;
+  login: (input: LoginInput) => Promise<AuthenticatedUser>;
+  logout: () => Promise<void>;
+  refresh: (force?: boolean) => Promise<void>;
 }
 
 const AuthSessionContext = createContext<AuthSessionValue | null>(null);
-const AUTH_STORAGE_KEY = 'wpp_crm_logged_user';
+let lastMeAt = 0;
 
 export function AuthSessionProvider({ children }: { children: React.ReactNode }) {
   const [currentUser, setCurrentUser] = useState<AuthenticatedUser | null>(null);
   const [isHydrated, setIsHydrated] = useState(false);
 
   useEffect(() => {
+    authApi.me().then((user) => {
+      lastMeAt = Date.now();
+      setCurrentUser(toAuthenticatedUser(user));
+    }).catch((error: unknown) => {
+      if (error instanceof ApiError && (error.status === 401 || error.status === 429)) return;
+    }).finally(() => setIsHydrated(true));
+  }, []);
+
+  const login = useCallback(async (input: LoginInput) => {
+    const user = await authApi.login(input);
+    const authenticatedUser = toAuthenticatedUser(user);
+    setCurrentUser(authenticatedUser);
+    return authenticatedUser;
+  }, []);
+
+  const logout = useCallback(async () => {
     try {
-      const savedUser = window.localStorage.getItem(AUTH_STORAGE_KEY);
-      if (savedUser) {
-        const parsedUser = JSON.parse(savedUser) as AuthenticatedUser;
-        if (parsedUser?.id && parsedUser?.name && parsedUser?.role) {
-          setCurrentUser(parsedUser);
-        } else {
-          window.localStorage.removeItem(AUTH_STORAGE_KEY);
-        }
-      }
+      await authApi.logout();
     } catch {
-      window.localStorage.removeItem(AUTH_STORAGE_KEY);
+      // Local session still ends if the API is briefly unreachable.
     } finally {
-      setIsHydrated(true);
+      setCurrentUser(null);
     }
   }, []);
 
-  const login = useCallback((user: AuthenticatedUser) => {
-    window.localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(user));
-    setCurrentUser(user);
+  const refresh = useCallback(async (force?: boolean) => {
+    const now = Date.now();
+    if (!force && now - lastMeAt < 15_000) return;
+    lastMeAt = now;
+    try {
+      const user = await authApi.me();
+      setCurrentUser(toAuthenticatedUser(user));
+    } catch (error: unknown) {
+      if (error instanceof ApiError && (error.status === 401 || error.status === 429)) return;
+    }
   }, []);
 
-  const logout = useCallback(() => {
-    window.localStorage.removeItem(AUTH_STORAGE_KEY);
-    setCurrentUser(null);
-  }, []);
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') void refresh(true);
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('focus', onVisible);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('focus', onVisible);
+    };
+  }, [refresh]);
 
   const value = useMemo<AuthSessionValue>(() => ({
     currentUser,
     isHydrated,
     login,
     logout,
-  }), [currentUser, isHydrated, login, logout]);
+    refresh,
+  }), [currentUser, isHydrated, login, logout, refresh]);
 
   return <AuthSessionContext.Provider value={value}>{children}</AuthSessionContext.Provider>;
 }

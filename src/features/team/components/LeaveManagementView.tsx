@@ -45,6 +45,8 @@ interface Props {
   applyForMember: TeamMember | null;
   onCloseApplyForm: () => void;
   onOpenApplyForm: (member?: TeamMember) => void;
+  canRequest?: boolean;
+  canApprove?: boolean;
 }
 
 const ALL = 'all';
@@ -58,6 +60,8 @@ export const LeaveManagementView: React.FC<Props> = ({
   applyForMember,
   onCloseApplyForm,
   onOpenApplyForm,
+  canRequest = false,
+  canApprove = false,
 }) => {
   const { showToast } = useToast();
   const today = getTodayDateString();
@@ -123,9 +127,11 @@ export const LeaveManagementView: React.FC<Props> = ({
             </select>
           </div>
         </div>
+        {canRequest && (
         <button type="button" onClick={() => onOpenApplyForm()} className={BTN_PRIMARY}>
           <CalendarPlus className="w-4 h-4" /> Apply leave
         </button>
+        )}
       </div>
 
       <section className={`${CARD} p-5`}>
@@ -139,7 +145,7 @@ export const LeaveManagementView: React.FC<Props> = ({
                 : 'Apply leave on behalf of a team member — approved leave automatically updates attendance and availability.'
             }
             action={
-              !leaves.length ? (
+              !leaves.length && canRequest ? (
                 <button type="button" onClick={() => onOpenApplyForm()} className={BTN_PRIMARY}>
                   <CalendarPlus className="w-4 h-4" /> Apply leave
                 </button>
@@ -197,6 +203,7 @@ export const LeaveManagementView: React.FC<Props> = ({
                         {leave.reviewedBy ? `${leave.reviewedBy}${leave.reviewedOn ? ` · ${formatDayLabel(leave.reviewedOn)}` : ''}` : '—'}
                       </TD>
                       <TD className="text-right">
+                        {canApprove ? (
                         <div className="flex items-center justify-end gap-1.5">
                           {leave.status === 'pending' ? (
                             <>
@@ -226,6 +233,9 @@ export const LeaveManagementView: React.FC<Props> = ({
                             </button>
                           )}
                         </div>
+                        ) : (
+                          <span className="text-xs font-medium text-slate-400">—</span>
+                        )}
                       </TD>
                     </tr>
                   );
@@ -237,7 +247,7 @@ export const LeaveManagementView: React.FC<Props> = ({
       </section>
 
       <ApplyLeaveModal
-        isOpen={!!applyForMember}
+        isOpen={canRequest && !!applyForMember}
         member={applyForMember}
         team={team}
         projects={projects}

@@ -66,6 +66,8 @@ export interface ShootEvent {
   equipmentChecklist?: string[];
   status: 'scheduled' | 'completed' | 'cancelled';
   notes?: string;
+  dataReceivedAt?: string | null;
+  backupDoneAt?: string | null;
 }
 
 export interface DataBackup {
@@ -117,7 +119,8 @@ export interface ProjectTask {
   taskName: string; // e.g. "Cinematic Teaser", "Instagram Reels", "Wedding Full Film", "Album Design (12x36)"
   quantity: number; // e.g. 1, 5, 2, 100
   unit?: string; // e.g. "Video", "Reels", "Albums", "Photos"
-  assignedTo: string; // e.g. "Vikram Editor", "Pooja Retoucher"
+  assignedTo: string;
+  assignedToId?: string;
   status: EditingStatus; // 'not_started' | 'in_progress' | 'client_review' | 'revision' | 'completed'
   notes?: string;
 }

@@ -1,13 +1,19 @@
+'use client';
+
 import Link from 'next/link';
 import { Camera, CreditCard, FolderPlus, Receipt } from 'lucide-react';
+import { usePermission } from '@/features/access';
 
 export function QuickActionsPanel() {
+  const { can } = usePermission();
   const actions = [
-    { label: 'New Project', icon: FolderPlus, href: '/projects/new', accent: 'bg-rose-50 text-rose-700' },
-    { label: 'Schedule Shoot', icon: Camera, href: '/shoots', accent: 'text-rose-700 bg-rose-50' },
-    { label: 'Record Payment', icon: CreditCard, href: '/expenses', accent: 'text-emerald-700 bg-emerald-50' },
-    { label: 'Add Expense', icon: Receipt, href: '/expenses', accent: 'text-amber-700 bg-amber-50' },
-  ] as const;
+    { label: 'New Project', icon: FolderPlus, href: '/projects/new', accent: 'bg-rose-50 text-rose-700', show: can('weddings.create') },
+    { label: 'Schedule Shoot', icon: Camera, href: '/shoots', accent: 'text-rose-700 bg-rose-50', show: can('shoots.create') || can('shoots.view') },
+    { label: 'Record Payment', icon: CreditCard, href: '/expenses', accent: 'text-emerald-700 bg-emerald-50', show: can('finance.record_payment') },
+    { label: 'Add Expense', icon: Receipt, href: '/expenses', accent: 'text-amber-700 bg-amber-50', show: can('finance.manage_expenses') },
+  ].filter((action) => action.show);
+
+  if (!actions.length) return null;
 
   return (
     <section className="grid grid-cols-2 gap-3 sm:grid-cols-4">

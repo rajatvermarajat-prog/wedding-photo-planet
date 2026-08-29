@@ -6,6 +6,10 @@ import { getShootDateInfo, getShootTrackingStats, formatDateDDMMYYYY } from '@/u
 import { computeAutoProjectStatus } from '@/utils/projectStatusCalculator';
 import { ConfirmDeleteModal } from '@/components/common/ConfirmDeleteModal';
 import { useToast } from '@/components/common';
+import { usePermission } from '@/features/access';
+import { mergeAssignees, FREELANCER_ASSIGNEE, UNASSIGNED_ASSIGNEE, assigneeSelectValue } from '@/features/projects/assigneeOptions';
+import { useTeam } from '@/hooks/useTeam';
+import { normalizeTeamMember } from '@/features/team/teamViewModel';
 import { BTN_PRIMARY, FIELD, LABEL } from '@/features/team/components/TeamUiKit';
 import { RoleColumnCrewManager } from './RoleColumnCrewManager';
 import { 
@@ -76,33 +80,43 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
 }) => {
   if (!project) return null;
   const { showToast } = useToast();
+  const { can } = usePermission();
+  const canEditProject = can('weddings.edit');
+  const canChangeStatus = can('weddings.change_status');
+  const canDeleteProjectPerm = can('weddings.delete');
+  const canInvoice = can('finance.view_invoices');
+  const canViewPayments = can('finance.view_payments');
+  const canRecordPayment = can('finance.record_payment');
+  const canAddShoot = can('shoots.create');
+  const canEditShoot = can('shoots.edit');
+  const canDeleteShoot = can('shoots.delete');
+  const canAssignShoot =
+    can('shoots.assign_photographer') ||
+    can('shoots.assign_cinematographer') ||
+    can('shoots.assign_freelancer');
+  const canAddTask = can('weddings.edit') && can('tasks.create');
+  const canEditTask = can('weddings.edit') && (can('tasks.edit') || can('tasks.change_status'));
+  const canDeleteTask = can('weddings.edit') && can('tasks.delete');
+  const canViewDeliveries = can('media.view_photos') || can('media.view_videos');
+  const canMutateDeliveries = can('weddings.edit');
 
   const effectiveRole = currentUser?.role || userRole || '';
   const isOwner = effectiveRole === 'Owner';
-  const isFullAdmin = isOwner || effectiveRole === 'Studio Manager' || effectiveRole === 'Manager' || effectiveRole === 'Account Manager';
-  const isVideoEditor = !isFullAdmin;
+  const isFullAdmin = canEditProject || canViewPayments;
+  const isVideoEditor = !canEditProject && !canViewPayments;
 
-  const activeTeamMembers = team && team.length > 0
-    ? team
-    : [
-        { id: 't1', name: 'Rajat Verma', role: 'Owner / Lead' },
-        { id: 't2', name: 'Vikram Sharma', role: 'Video Editor' },
-        { id: 't3', name: 'Pooja Verma', role: 'Photo Editor' },
-        { id: 't4', name: 'Rahul Kapoor', role: 'Cinematographer' },
-        { id: 't5', name: 'Amit Kumar', role: 'Drone Operator' },
-        { id: 't6', name: 'Sunil Sharma', role: 'Assistant' },
-        { id: 't7', name: 'Deepak Saini', role: 'Assistant' },
-      ];
+  const teamQuery = useTeam({ page: 1, limit: 100 }, Boolean(project));
+  const activeTeamMembers = mergeAssignees(team, teamQuery.data.map(normalizeTeamMember));
 
   const [activeTab, setActiveTab] = useState<'overview' | 'vault' | 'tasks' | 'shoots' | 'data' | 'payments' | 'deliveries'>('overview');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showStatusMenu, setShowStatusMenu] = useState(false);
 
   useEffect(() => {
-    if (!isFullAdmin && (activeTab === 'vault' || activeTab === 'payments')) {
-      setActiveTab('overview');
-    }
-  }, [isFullAdmin, activeTab]);
+    if (activeTab === 'vault' && !canEditProject) setActiveTab('overview');
+    if (activeTab === 'payments' && !canViewPayments) setActiveTab('overview');
+    if (activeTab === 'deliveries' && !canViewDeliveries) setActiveTab('overview');
+  }, [activeTab, canEditProject, canViewPayments, canViewDeliveries]);
 
   // Client Folder Vault State
   const [vaultDocs, setVaultDocs] = useState<ClientVaultDocument[]>(() => {
@@ -605,6 +619,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
   );
 
   const handleAddTask = () => {
+    if (!canAddTask) return;
     const newTask: ProjectTask = {
       id: `task-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
       taskName: '',
@@ -625,6 +640,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
   };
 
   const handleRemoveTask = (index: number) => {
+    if (!canDeleteTask) return;
     const task = taskList[index];
     setGenericDeleteModal({
       isOpen: true,
@@ -646,6 +662,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
   };
 
   const handleTaskChange = (index: number, field: keyof ProjectTask, value: any) => {
+    if (!canEditTask) return;
     const updated = [...taskList];
     updated[index] = { ...updated[index], [field]: value };
     setTaskList(updated);
@@ -659,6 +676,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
   };
 
   const handleSaveTasks = () => {
+    if (!canEditTask && !canAddTask) return;
     const updatedProject: Project = {
       ...project,
       tasks: taskList,
@@ -781,7 +799,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
 
   // Role Column Quantity Add/Remove handlers for existing shoots
   const handleAddRoleQuantityToShoot = (shootId: string, role: string, quantity: number) => {
-    if (quantity <= 0) return;
+    if (!canAssignShoot || quantity <= 0) return;
     const newItems: CrewMemberAssignment[] = Array.from({ length: quantity }).map((_, i) => ({
       id: `c-${Date.now()}-${Math.random().toString(36).substr(2, 5)}-${i}`,
       name: '',
@@ -800,6 +818,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
   };
 
   const handleRemoveRoleFromShoot = (shootId: string, role: string) => {
+    if (!canAssignShoot) return;
     const updatedShoots = project.shoots.map((s) => {
       if (s.id !== shootId) return s;
       return {
@@ -827,6 +846,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
   };
 
   const handleRemoveCrewFromExistingShoot = (shootId: string, crewId: string) => {
+    if (!canAssignShoot) return;
     const updatedShoots = project.shoots.map((s) => {
       if (s.id !== shootId) return s;
       return {
@@ -838,6 +858,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
   };
 
   const handleUpdateCrewInExistingShoot = (shootId: string, crewId: string, field: string, value: any) => {
+    if (!canAssignShoot) return;
     const updatedShoots = project.shoots.map((s) => {
       if (s.id !== shootId) return s;
       const updatedCrew = (s.crewAssignments || []).map((c) => {
@@ -897,6 +918,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
   };
 
   const handleDeleteShootEvent = (shootId: string) => {
+    if (!canDeleteShoot) return;
     const shoot = project.shoots.find((s) => s.id === shootId);
     setGenericDeleteModal({
       isOpen: true,
@@ -911,7 +933,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
   };
 
   const handleSaveEditedEvent = () => {
-    if (!editingEventData) return;
+    if (!canEditShoot || !editingEventData) return;
     const updatedShoots = project.shoots.map((s) => {
       if (s.id !== editingEventData.shootId) return s;
       return {
@@ -998,6 +1020,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
 
   // Save changes
   const handleSavePipeline = () => {
+    if (!canEditProject) return;
     const updatedAdvance = payments.reduce((acc, p) => acc + p.amount, 0);
     const updatedBalance = Math.max(0, project.totalBudget - updatedAdvance);
 
@@ -1023,6 +1046,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
 
   const handleAddPayment = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!canRecordPayment) return;
     if (newPayAmount <= 0) return;
 
     const newPay: PaymentRecord = {
@@ -1067,7 +1091,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
 
   const handleAddShoot = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!shootTitle || !shootDate) return;
+    if (!canAddShoot || !shootTitle || !shootDate) return;
 
     const displayTime = shootStartTime && shootEndTime
       ? `${shootStartTime} - ${shootEndTime}`
@@ -1141,12 +1165,18 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
             <div className="flex flex-wrap items-center gap-2">
               <span className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-black uppercase tracking-wider text-rose-800">{project.primaryServiceType}</span>
               <div className="relative">
-                <button type="button" onClick={() => setShowStatusMenu((open) => !open)} aria-expanded={showStatusMenu} className={`flex min-w-44 items-center justify-between gap-3 rounded-xl border px-3 py-2 text-sm font-black ${displayStatus === 'ready_to_deliver' ? 'border-emerald-300 bg-emerald-50 text-emerald-800' : displayStatus === 'completed' ? 'border-purple-300 bg-purple-50 text-purple-800' : 'border-rose-300 bg-rose-50 text-rose-800'}`}><span className="flex items-center gap-2">{displayStatus === 'ready_to_deliver' ? <Truck className="size-4"/> : displayStatus === 'completed' ? <CheckCircle2 className="size-4"/> : <Clock className="size-4"/>}{displayStatus === 'ready_to_deliver' ? 'Delivered' : displayStatus === 'completed' ? 'Completed' : 'Running'}</span><ChevronDown className={`size-4 transition ${showStatusMenu ? 'rotate-180' : ''}`}/></button>
-                {showStatusMenu && <div className="absolute left-0 top-full z-40 mt-2 w-56 overflow-hidden rounded-2xl border border-[#ded5cf] bg-white p-1.5 shadow-2xl">{[
-                  { value: 'running', label: 'Running', note: 'Work is in progress', icon: Clock, tone: 'text-rose-700' },
-                  { value: 'completed', label: 'Completed', note: 'All project work finished', icon: CheckCircle2, tone: 'text-purple-700' },
-                  { value: 'ready_to_deliver', label: 'Delivered', note: 'Sent or handed to client', icon: Truck, tone: 'text-emerald-700' },
-                ].map(({value,label,note,icon:Icon,tone}) => <button type="button" key={value} onClick={() => { onUpdateProject({...project,status:value as ProjectStatus}); setShowStatusMenu(false); }} className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left hover:bg-rose-50"><Icon className={`size-5 ${tone}`}/><span><strong className="block text-sm text-slate-800">{label}</strong><small className="text-xs text-slate-500">{note}</small></span>{((displayStatus === 'ready_to_deliver' ? 'ready_to_deliver' : displayStatus === 'completed' ? 'completed' : 'running') === value) && <CheckCircle2 className="ml-auto size-4 text-emerald-600"/>}</button>)}</div>}
+                {canChangeStatus ? (
+                  <>
+                    <button type="button" onClick={() => setShowStatusMenu((open) => !open)} aria-expanded={showStatusMenu} className={`flex min-w-44 items-center justify-between gap-3 rounded-xl border px-3 py-2 text-sm font-black ${displayStatus === 'ready_to_deliver' ? 'border-emerald-300 bg-emerald-50 text-emerald-800' : displayStatus === 'completed' ? 'border-purple-300 bg-purple-50 text-purple-800' : 'border-rose-300 bg-rose-50 text-rose-800'}`}><span className="flex items-center gap-2">{displayStatus === 'ready_to_deliver' ? <Truck className="size-4"/> : displayStatus === 'completed' ? <CheckCircle2 className="size-4"/> : <Clock className="size-4"/>}{displayStatus === 'ready_to_deliver' ? 'Delivered' : displayStatus === 'completed' ? 'Completed' : 'Running'}</span><ChevronDown className={`size-4 transition ${showStatusMenu ? 'rotate-180' : ''}`}/></button>
+                    {showStatusMenu && <div className="absolute left-0 top-full z-40 mt-2 w-56 overflow-hidden rounded-2xl border border-[#ded5cf] bg-white p-1.5 shadow-2xl">{[
+                      { value: 'running', label: 'Running', note: 'Work is in progress', icon: Clock, tone: 'text-rose-700' },
+                      { value: 'completed', label: 'Completed', note: 'All project work finished', icon: CheckCircle2, tone: 'text-purple-700' },
+                      { value: 'ready_to_deliver', label: 'Delivered', note: 'Sent or handed to client', icon: Truck, tone: 'text-emerald-700' },
+                    ].map(({value,label,note,icon:Icon,tone}) => <button type="button" key={value} onClick={() => { onUpdateProject({...project,status:value as ProjectStatus}); setShowStatusMenu(false); }} className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left hover:bg-rose-50"><Icon className={`size-5 ${tone}`}/><span><strong className="block text-sm text-slate-800">{label}</strong><small className="text-xs text-slate-500">{note}</small></span>{((displayStatus === 'ready_to_deliver' ? 'ready_to_deliver' : displayStatus === 'completed' ? 'completed' : 'running') === value) && <CheckCircle2 className="ml-auto size-4 text-emerald-600"/>}</button>)}</div>}
+                  </>
+                ) : (
+                  <span className={`flex min-w-44 items-center gap-2 rounded-xl border px-3 py-2 text-sm font-black ${displayStatus === 'ready_to_deliver' ? 'border-emerald-300 bg-emerald-50 text-emerald-800' : displayStatus === 'completed' ? 'border-purple-300 bg-purple-50 text-purple-800' : 'border-rose-300 bg-rose-50 text-rose-800'}`}>{displayStatus === 'ready_to_deliver' ? <Truck className="size-4"/> : displayStatus === 'completed' ? <CheckCircle2 className="size-4"/> : <Clock className="size-4"/>}{displayStatus === 'ready_to_deliver' ? 'Delivered' : displayStatus === 'completed' ? 'Completed' : 'Running'}</span>
+                )}
               </div>
             </div>
             <h2 className="mt-3 truncate text-2xl font-black tracking-tight text-slate-900 sm:text-3xl">{project.clientWeddingTitle}</h2>
@@ -1154,7 +1184,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            {!isVideoEditor && (
+            {canInvoice && (
               <button
                 onClick={() => onGenerateInvoice(project)}
                 className="flex items-center gap-2 rounded-xl border border-rose-200 bg-white px-4 py-2.5 text-sm font-extrabold text-[#6d2f45] shadow-sm transition hover:bg-rose-50"
@@ -1164,7 +1194,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
               </button>
             )}
 
-            {!isVideoEditor && onDeleteProject && (
+            {canDeleteProjectPerm && onDeleteProject && (
               <button
                 onClick={() => setShowDeleteConfirm(true)}
                 className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2.5 text-sm font-bold text-red-600 transition hover:bg-red-100"
@@ -1187,7 +1217,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
           >
             Overview
           </button>
-          {!isVideoEditor && (
+          {canEditProject && (
             <button
               onClick={() => setActiveTab('vault')}
               className={`px-3 py-2 font-bold border-b-2 uppercase tracking-wider text-[11px] transition whitespace-nowrap shrink-0 flex items-center gap-1.5 rounded-t-md ${
@@ -1225,7 +1255,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
             <HardDrive className="w-3.5 h-3.5" />
             RAW Data
           </button>
-          {!isVideoEditor && (
+          {canViewPayments && (
             <button
               onClick={() => setActiveTab('payments')}
               className={`px-3 py-2 font-bold border-b-2 uppercase tracking-wider text-[11px] transition whitespace-nowrap shrink-0 flex items-center gap-1.5 rounded-t-md ${
@@ -1236,6 +1266,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
               Payments ({project.balanceDue > 0 ? `Due: ₹${project.balanceDue.toLocaleString('en-IN')}` : 'Paid'})
             </button>
           )}
+          {canViewDeliveries && (
           <button
             onClick={() => setActiveTab('deliveries')}
             className={`px-3 py-2 font-bold border-b-2 uppercase tracking-wider text-[11px] transition whitespace-nowrap shrink-0 flex items-center gap-1.5 rounded-t-md ${
@@ -1245,6 +1276,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
             <Truck className="w-3.5 h-3.5" />
             Deliveries
           </button>
+          )}
         </div>
 
         {/* Tab Body */}
@@ -2082,6 +2114,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
                   <p className="text-xs text-slate-500">Track task breakdown, quantity created, assigned editors/team member, and status</p>
                 </div>
                 <div className="flex items-center gap-2">
+                  {canAddTask && (
                   <button
                     type="button"
                     onClick={handleAddTask}
@@ -2090,6 +2123,8 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
                     <Plus className="w-3.5 h-3.5" />
                     <span>Add Task</span>
                   </button>
+                  )}
+                  {(canEditTask || canAddTask) && (
                   <button
                     type="button"
                     onClick={handleSaveTasks}
@@ -2098,18 +2133,21 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
                     <Save className="w-3.5 h-3.5" />
                     <span>Save Tasks</span>
                   </button>
+                  )}
                 </div>
               </div>
 
               {taskList.length === 0 ? (
                 <div className="p-8 text-center bg-slate-50 rounded-xl border border-dashed border-slate-300">
                   <p className="text-xs text-slate-500 mb-2">No tasks added to this project yet.</p>
+                  {canAddTask && (
                   <button
                     onClick={handleAddTask}
                     className="px-3 py-1.5 bg-indigo-600 text-white font-bold text-xs rounded hover:bg-indigo-700 transition"
                   >
                     + Add First Task
                   </button>
+                  )}
                 </div>
               ) : (
                 <div className="space-y-3">
@@ -2120,6 +2158,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
                           <CheckSquare className="w-3.5 h-3.5 text-indigo-600" />
                           Task #{index + 1}: {task.taskName || 'Untitled Task'}
                         </span>
+                        {canDeleteTask && (
                         <button
                           type="button"
                           onClick={() => handleRemoveTask(index)}
@@ -2129,6 +2168,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
                           <Trash2 className="w-3.5 h-3.5 text-red-500" />
                           <span>- Remove</span>
                         </button>
+                        )}
                       </div>
 
                       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-2.5 pt-1">
@@ -2140,6 +2180,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
                             placeholder="e.g. Teaser / Reels / Album Design"
                             value={task.taskName}
                             onChange={(e) => handleTaskChange(index, 'taskName', e.target.value)}
+                            disabled={!canEditTask}
                             className="w-full bg-slate-50 border border-slate-200 rounded px-2.5 py-1.5 text-xs text-slate-800 font-medium"
                           />
                         </div>
@@ -2153,6 +2194,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
                               min="1"
                               value={task.quantity}
                               onChange={(e) => handleTaskChange(index, 'quantity', Number(e.target.value))}
+                              disabled={!canEditTask}
                               className="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1.5 text-xs text-slate-800 font-bold"
                             />
                             <input
@@ -2160,6 +2202,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
                               placeholder="Unit"
                               value={task.unit || ''}
                               onChange={(e) => handleTaskChange(index, 'unit', e.target.value)}
+                              disabled={!canEditTask}
                               className="w-16 bg-slate-50 border border-slate-200 rounded px-1.5 py-1.5 text-[10px] text-slate-600"
                             />
                           </div>
@@ -2172,36 +2215,43 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
                             Assigned To
                           </label>
                           {(() => {
-                            const isKnownMember = activeTeamMembers.some((m) => m.name === task.assignedTo) || task.assignedTo === 'Unassigned' || !task.assignedTo;
+                            const selectValue = assigneeSelectValue(task.assignedTo, activeTeamMembers);
+                            const isFreelancer = selectValue === FREELANCER_ASSIGNEE;
                             return (
                               <>
                                 <select
-                                  value={isKnownMember ? (task.assignedTo || 'Unassigned') : 'other'}
+                                  value={selectValue}
+                                  disabled={!canEditTask}
                                   onChange={(e) => {
                                     const val = e.target.value;
-                                    if (val === 'other') {
-                                      handleTaskChange(index, 'assignedTo', isKnownMember ? '' : task.assignedTo);
-                                    } else {
-                                      handleTaskChange(index, 'assignedTo', val);
-                                    }
+                                    const member = activeTeamMembers.find((row) => row.name === val);
+                                    if (!canEditTask) return;
+                                    setTaskList((current) =>
+                                      current.map((row, i) =>
+                                        i === index
+                                          ? { ...row, assignedTo: val, assignedToId: member?.id || '' }
+                                          : row,
+                                      ),
+                                    );
                                   }}
                                   className="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs text-slate-800 font-bold mb-1"
                                 >
+                                  <option value={UNASSIGNED_ASSIGNEE}>Unassigned</option>
                                   {activeTeamMembers.map((m) => (
                                     <option key={m.id || m.name} value={m.name}>
-                                      {m.name} ({m.role})
+                                      {m.name}{m.role ? ` (${m.role})` : ''}
                                     </option>
                                   ))}
-                                  <option value="Unassigned">Unassigned</option>
-                                  <option value="other">Other (Custom Name)</option>
+                                  <option value={FREELANCER_ASSIGNEE}>Freelancer</option>
                                 </select>
 
-                                {!isKnownMember && (
+                                {isFreelancer && (
                                   <input
                                     type="text"
-                                    placeholder="Type custom name..."
-                                    value={task.assignedTo}
-                                    onChange={(e) => handleTaskChange(index, 'assignedTo', e.target.value)}
+                                    placeholder="Freelancer name (optional)"
+                                    value={task.assignedTo === FREELANCER_ASSIGNEE ? '' : task.assignedTo}
+                                    onChange={(e) => handleTaskChange(index, 'assignedTo', e.target.value.trim() || FREELANCER_ASSIGNEE)}
+                                    disabled={!canEditTask}
                                     className="w-full bg-amber-50 border border-amber-300 rounded px-2 py-1 text-xs text-slate-800 font-medium placeholder-slate-400"
                                   />
                                 )}
@@ -2215,6 +2265,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
                           <label className="block text-[9px] font-bold text-slate-500 uppercase mb-0.5">Status</label>
                           <select
                             value={task.status}
+                            disabled={!canEditTask}
                             onChange={(e) => handleTaskChange(index, 'status', e.target.value as EditingStatus)}
                             className="w-full bg-slate-50 border border-slate-200 rounded px-2.5 py-1.5 text-xs text-slate-800 font-bold"
                           >
@@ -2244,6 +2295,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
                   </h4>
                   <p className="text-xs text-slate-500">Scheduled functions & team allocations (e.g. Ring Ceremony: 3 Photographers, 3 Videographers, 3 Assistants)</p>
                 </div>
+                {canAddShoot && (
                 <button
                   type="button"
                   onClick={() => setShowAddShoot(!showAddShoot)}
@@ -2252,10 +2304,11 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
                   <Plus className="w-3.5 h-3.5 stroke-[3]" />
                   <span>Add Shoot Event</span>
                 </button>
+                )}
               </div>
 
               {/* Add New Shoot Form with Crew Management */}
-              {showAddShoot && (
+              {showAddShoot && canAddShoot && (
                 <form onSubmit={handleAddShoot} className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-3 text-xs shadow-xs">
                   <div className="flex items-center justify-between border-b border-slate-200 pb-2">
                     <span className="font-bold text-indigo-700 uppercase tracking-wider text-xs flex items-center gap-1.5">
@@ -2348,7 +2401,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
               <div className="space-y-3">
                 {project.shoots.length === 0 ? (
                   <p className="text-xs text-slate-500 py-6 text-center bg-slate-50 rounded-lg border border-slate-200 border-dashed">
-                    No shoot events scheduled yet. Click "+ Add Shoot Event" above to create functions and assign team members.
+                    No shoot events scheduled yet.{canAddShoot ? " Click '+ Add Shoot Event' above to create functions and assign team members." : ''}
                   </p>
                 ) : (
                   (() => {
@@ -2454,6 +2507,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
                                 </div>
 
                             <div className="flex items-center gap-1">
+                              {canEditShoot && (
                               <button
                                 type="button"
                                 onClick={() => setEditingEventData({
@@ -2469,6 +2523,8 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
                               >
                                 <Pencil className="w-4 h-4 text-indigo-600" />
                               </button>
+                              )}
+                              {canDeleteShoot && (
                               <button
                                 type="button"
                                 onClick={() => handleDeleteShootEvent(s.id)}
@@ -2477,6 +2533,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
                               >
                                 <Trash2 className="w-4 h-4 text-red-500" />
                               </button>
+                              )}
                             </div>
                           </div>
 
@@ -2571,6 +2628,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
                           </div>
 
                           {/* Role Column Crew Manager Component */}
+                          {canAssignShoot && (
                           <RoleColumnCrewManager
                             crewAssignments={s.crewAssignments || []}
                             activeTeamMembers={activeTeamMembers}
@@ -2579,6 +2637,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
                             onUpdateMember={(crewId, field, value) => handleUpdateCrewInExistingShoot(s.id, crewId, field, value)}
                             onRemoveMember={(crewId) => handleRemoveCrewFromExistingShoot(s.id, crewId)}
                           />
+                          )}
 
                         </div>
                       );
@@ -2599,6 +2658,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
                   <h4 className="text-sm font-bold text-slate-900 uppercase tracking-tight">RAW Data Backup Management</h4>
                   <p className="text-xs text-slate-500">Memory cards offload status, Hard Drive 1, Hard Drive 2, Cloud NAS backup & Shoot Team Data Offloading</p>
                 </div>
+                {canEditProject && (
                 <button
                   onClick={handleSavePipeline}
                   className={`px-3.5 py-1.5 rounded-lg font-black text-xs uppercase tracking-wider flex items-center gap-1.5 shadow-sm cursor-pointer transition-all duration-300 ${
@@ -2619,9 +2679,8 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
                     </>
                   )}
                 </button>
+                )}
               </div>
-
-              {/* Main Storage Vault Controls - Data Copy In HD, Data Backup In HD, Total Size & Tracking */}
               {(() => {
                 const allShoots = project.shoots || [];
                 const totalEventsCount = allShoots.length;
@@ -3347,6 +3406,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
               </div>
 
               {/* Add Payment Form */}
+              {canRecordPayment && (
               <form onSubmit={handleAddPayment} className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3 text-xs items-end">
                 <div>
                   <label className="block text-slate-600 mb-1 font-extrabold text-[10px] uppercase tracking-wider">Amount (₹)</label>
@@ -3433,8 +3493,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
                   <span>Record Payment</span>
                 </button>
               </form>
-
-              {/* Payment History List */}
+              )}
               <div className="space-y-2 pt-1">
                 <h5 className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">Payment History</h5>
                 {payments.length === 0 ? (
@@ -3531,6 +3590,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
                   <span className="font-medium text-slate-800">RAW Data Hard Drive Handover</span>
                   <input
                     type="checkbox"
+                    disabled={!canMutateDeliveries}
                     checked={project.deliveryStatus.rawHandoverDone}
                     onChange={(e) => {
                       const updated = {
@@ -3546,6 +3606,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
                   <span className="font-medium text-slate-800">Teaser Video Link Sent</span>
                   <input
                     type="checkbox"
+                    disabled={!canMutateDeliveries}
                     checked={project.deliveryStatus.teaserLinkSent}
                     onChange={(e) => {
                       const updated = {
@@ -3562,6 +3623,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
                   <span className="font-medium text-slate-800">Full Wedding Film & Long Videos Handed Over</span>
                   <input
                     type="checkbox"
+                    disabled={!canMutateDeliveries}
                     checked={project.deliveryStatus.fullFilmSent}
                     onChange={(e) => {
                       const updated = {
@@ -3578,6 +3640,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
                   <span className="font-medium text-slate-800">Instagram Reels & Shorts Folder</span>
                   <input
                     type="checkbox"
+                    disabled={!canMutateDeliveries}
                     checked={project.deliveryStatus.reelsSent}
                     onChange={(e) => {
                       const updated = {
@@ -3594,6 +3657,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
                   <span className="font-medium text-slate-800">High-Res Photo Gallery Delivered</span>
                   <input
                     type="checkbox"
+                    disabled={!canMutateDeliveries}
                     checked={project.deliveryStatus.highResPhotosSent}
                     onChange={(e) => {
                       const updated = {
@@ -3610,6 +3674,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
                   <span className="font-medium text-slate-800">Printed Wedding Albums Handed Over</span>
                   <input
                     type="checkbox"
+                    disabled={!canMutateDeliveries}
                     checked={project.deliveryStatus.albumPrintedAndDelivered}
                     onChange={(e) => {
                       const updated = {
@@ -3953,10 +4018,10 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
 
       {/* Delete Project Confirmation Modal */}
       <ConfirmDeleteModal
-        isOpen={showDeleteConfirm}
+        isOpen={showDeleteConfirm && canDeleteProjectPerm}
         projectTitle={project.clientWeddingTitle}
         onConfirm={() => {
-          if (onDeleteProject) {
+          if (canDeleteProjectPerm && onDeleteProject) {
             onDeleteProject(project.id);
             setShowDeleteConfirm(false);
             onClose();

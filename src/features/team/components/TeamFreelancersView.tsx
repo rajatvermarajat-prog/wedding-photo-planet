@@ -57,7 +57,7 @@ interface Props {
   freelancerAssignments: FreelancerAssignment[];
   freelancerPayments: FreelancerPayment[];
   onOpenProfile: (member: TeamMember) => void;
-  onAddFreelancer: () => void;
+  onAddFreelancer?: () => void;
   onGoToFreelancerModule?: () => void;
 }
 
@@ -191,9 +191,11 @@ export const TeamFreelancersView: React.FC<Props> = ({
               <ExternalLink className="w-3.5 h-3.5" /> Freelancer module
             </button>
           )}
+          {onAddFreelancer && (
           <button type="button" onClick={onAddFreelancer} className={BTN_PRIMARY}>
             <UserCheck className="w-4 h-4" /> Add freelancer
           </button>
+          )}
         </div>
       </div>
 
@@ -208,7 +210,7 @@ export const TeamFreelancersView: React.FC<Props> = ({
                 : 'Add an external crew member here, or mark a roster member as employment type "Freelancer" — their shoots and payments will roll up into this view.'
             }
             action={
-              !rows.length ? (
+              !rows.length && onAddFreelancer ? (
                 <button type="button" onClick={onAddFreelancer} className={BTN_PRIMARY}>
                   <UserCheck className="w-4 h-4" /> Add freelancer
                 </button>

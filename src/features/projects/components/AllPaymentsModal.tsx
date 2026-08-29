@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Project, PaymentRecord } from '@/types';
 import { useToast } from '@/components/common';
+import { usePermission } from '@/features/access';
 import { 
   X, 
   Search, 
@@ -42,8 +43,9 @@ export const AllPaymentsModal: React.FC<AllPaymentsModalProps> = ({
   onUpdateProject,
   onSelectProject,
 }) => {
-  if (!isOpen) return null;
   const { showToast } = useToast();
+  const { can } = usePermission();
+  const canRecordPayment = can('finance.record_payment');
 
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'due' | 'paid'>('all');
@@ -98,6 +100,7 @@ export const AllPaymentsModal: React.FC<AllPaymentsModalProps> = ({
   // Add new payment to project
   const handleAddPayment = (project: Project, e: React.FormEvent) => {
     e.preventDefault();
+    if (!canRecordPayment) return;
     if (!newPayAmount || Number(newPayAmount) <= 0) return;
 
     const amountNum = Number(newPayAmount);
@@ -171,6 +174,8 @@ export const AllPaymentsModal: React.FC<AllPaymentsModalProps> = ({
     }
     return 0;
   });
+
+  if (!isOpen) return null;
 
   return (
     <div
@@ -449,6 +454,7 @@ export const AllPaymentsModal: React.FC<AllPaymentsModalProps> = ({
                             Recorded Payment Installments ({project.payments?.length || 0})
                           </h5>
 
+                          {canRecordPayment && (
                           <button
                             onClick={() => setAddPayForProjectId(isAddingPay ? null : project.id)}
                             className="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold rounded-lg uppercase tracking-wider text-[10px] transition shadow-2xs flex items-center gap-1"
@@ -456,6 +462,7 @@ export const AllPaymentsModal: React.FC<AllPaymentsModalProps> = ({
                             <Plus className="w-3.5 h-3.5 stroke-[3]" />
                             <span>{isAddingPay ? 'Cancel Form' : '+ Record New Payment'}</span>
                           </button>
+                          )}
                         </div>
 
                         {/* Inline Form to Add Payment */}
