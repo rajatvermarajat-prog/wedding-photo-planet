@@ -3,7 +3,6 @@ import type { TabType } from '@/components/layout/Header';
 /** Sidebar item → one or more view permissions (any match grants the tab). */
 export const TAB_PERMISSIONS: Partial<Record<TabType, string | string[]>> = {
   dashboard: 'dashboard.view',
-  owner_workspace: 'dashboard.view_financial',
   equipment: 'settings.view',
   leads: 'leads.view',
   projects: 'weddings.view',

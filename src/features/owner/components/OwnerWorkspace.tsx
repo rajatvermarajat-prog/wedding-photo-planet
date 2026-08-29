@@ -1,47 +1,14 @@
 import React, { useState } from 'react';
-import { OwnerNote, OwnerNotepad } from './OwnerNotepad';
+import { OwnerNotepad } from './OwnerNotepad';
 import { OwnerTodoList } from './OwnerTodoList';
-import {
-  Crown,
-  ShieldCheck,
-  LayoutGrid,
-  ListTodo,
-  NotebookPen,
-} from 'lucide-react';
+import { Crown, LayoutGrid, ListTodo, NotebookPen, UsersRound } from 'lucide-react';
 import { TeamMember, Project } from '@/types';
-
-// ==================== TYPES ==================== //
+import { KpiCard } from '@/features/team/components/TeamUiKit';
 
 interface OwnerWorkspaceProps {
   projects?: Project[];
   activeTeamMembers?: TeamMember[];
 }
-
-// ==================== INITIAL MOCK DATA ==================== //
-
-const INITIAL_NOTES: OwnerNote[] = [
-  {
-    id: 'note-1',
-    title: 'Studio Vendor & Album Printers Contacts',
-    content: `• Subhash Album Printing Lab (Delhi): +91 9811223344 (Contact: Mr. Ramesh)
-• Drone Permission Liaison Officer: Captain Sharma (+91 9876543210)
-• Local Camera Gear Rental: CamRentals Gurgaon (+91 9810012345)
-• RAW Storage HDD Wholesale Supplier: Western Digital Nehru Place - TechSupplies`,
-    updatedAt: new Date().toISOString(),
-    pinned: true,
-  },
-  {
-    id: 'note-2',
-    title: 'Upcoming Festival Season Special Offer Strategy 2026',
-    content: `1. Offer complimentary Drone coverage on 3-day full wedding packages booked before Sept 1st.
-2. Include 1 Mini Parent Velvet Album free with Signature Flush Mount Album package.
-3. Launch Instagram Reel Teaser promo targeting Delhi NCR & Jaipur couples.`,
-    updatedAt: new Date().toISOString(),
-    pinned: false,
-  },
-];
-
-// ==================== MAIN COMPONENT ==================== //
 
 export const OwnerWorkspace: React.FC<OwnerWorkspaceProps> = ({
   projects = [],
@@ -53,88 +20,65 @@ export const OwnerWorkspace: React.FC<OwnerWorkspaceProps> = ({
 
   return (
     <div className="space-y-6 pb-12">
-      {/* HEADER BANNER - EXCLUSIVE OWNER WORKSPACE */}
-      <div className="owner-hero bg-gradient-to-r from-slate-900 via-rose-950 to-slate-900 rounded-3xl p-6 text-white border border-rose-900/60 shadow-xl relative overflow-hidden">
-        <div className="absolute right-0 top-0 bottom-0 w-1/3 bg-radial from-rose-600/10 via-transparent to-transparent pointer-events-none" />
-        
-        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="space-y-1.5">
-            <div className="flex items-center gap-2">
-              <span className="bg-amber-400 text-slate-950 px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider flex items-center gap-1.5 shadow-sm">
-                <Crown className="size-4" /> OWNER EXCLUSIVE WORKSPACE
+      <section className="relative overflow-hidden rounded-3xl border border-[#ddc89c]/35 bg-[radial-gradient(circle_at_88%_20%,rgba(221,200,156,.24),transparent_25%),radial-gradient(circle_at_8%_130%,rgba(179,124,142,.34),transparent_38%),linear-gradient(125deg,#704758,#55333f_48%,#38262d)] p-5 text-white shadow-[0_18px_42px_rgba(54,37,44,.17)] sm:p-7 lg:p-8">
+        <div className="pointer-events-none absolute -right-16 -top-24 size-72 rounded-full border border-white/10 shadow-[0_0_0_56px_rgba(255,255,255,.025),0_0_0_112px_rgba(255,255,255,.018)]" />
+        <div className="relative flex flex-col justify-between gap-5 xl:flex-row xl:items-center">
+          <div className="max-w-3xl">
+            <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[.16em] text-[#e8c9d3]">
+              <span className="grid size-7 place-items-center rounded-full border border-white/15 bg-white/10">
+                <Crown className="size-3.5" />
               </span>
-              <span className="bg-slate-800/80 text-rose-300 border border-slate-700 px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1.5">
-                <ShieldCheck className="size-4 text-rose-400" /> Private & Confidential
-              </span>
+              Owner Workspace • Wedding Photo Planet CRM
             </div>
-            <h2 className="text-2xl font-black tracking-tight text-white flex items-center gap-2 sm:text-3xl">
-              <span>Owner Strategic Command Desk</span>
-            </h2>
-            <p className="max-w-xl text-sm font-medium leading-relaxed text-rose-100/90 sm:text-base">
-              Private executive control center for project oversight, personal tasks, and studio memos.
+            <h1 className="mt-3 flex items-center gap-3 text-2xl font-black tracking-tight sm:text-3xl lg:text-4xl">
+              <span className="grid size-11 place-items-center rounded-2xl bg-white/10">
+                <NotebookPen className="size-6 text-[#f1c8d5]" />
+              </span>
+              To-Do List & Private Notepad
+            </h1>
+            <p className="mt-2 text-sm font-medium leading-relaxed text-[#eadfe2] sm:text-base">
+              Your private tasks and notes. Every employee gets this desk by default — only you can see your list.
             </p>
           </div>
-
-          {/* Quick Metrics Bar */}
-          <div className="owner-metrics grid grid-cols-1 sm:grid-cols-3 gap-2 bg-slate-900/80 p-3 rounded-2xl border border-rose-900/50 backdrop-blur-xs">
-            <div className="p-2 text-center border-r border-slate-800">
-              <span className="block text-xs font-bold uppercase text-slate-300 sm:text-sm">Pending Tasks</span>
-              <span className="text-xl font-black text-amber-400">{pendingTodosCount}</span>
-            </div>
-            <div className="p-2 text-center border-r border-slate-800">
-              <span className="block text-xs font-bold uppercase text-slate-300 sm:text-sm">Active Projects</span>
-              <span className="text-xl font-black text-rose-300">{activeProjectsCount}</span>
-            </div>
-            <div className="p-2 text-center">
-              <span className="block text-xs font-bold uppercase text-slate-300 sm:text-sm">Studio Team</span>
-              <span className="text-xl font-black text-emerald-300">{activeTeamMembers.length}</span>
-            </div>
-          </div>
         </div>
+      </section>
 
-        {/* SECTION FILTER BUTTONS */}
-        <div className="flex items-center gap-2 mt-6 pt-4 border-t border-slate-800 overflow-x-auto scrollbar-none">
-          <button
-            onClick={() => setActiveSection('all')}
-            className={`px-4 py-2.5 rounded-xl text-sm font-bold transition flex items-center gap-2 shrink-0 ${
-              activeSection === 'all'
-                ? 'bg-rose-700 text-white shadow-md font-extrabold'
-                : 'bg-slate-800/80 text-slate-300 hover:bg-slate-800 hover:text-white border border-slate-700/60'
-            }`}
-          >
-            <LayoutGrid className="size-4" />
-            <span>All Columns</span>
-          </button>
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
+        <KpiCard label="Pending Tasks" value={pendingTodosCount} hint="Open items on your list" icon={ListTodo} tone="amber" onClick={() => setActiveSection('todo')} active={activeSection === 'todo'} />
+        <KpiCard label="Active Projects" value={activeProjectsCount} hint="Work still in progress" icon={LayoutGrid} tone="rose" onClick={() => setActiveSection('all')} active={activeSection === 'all'} />
+        <KpiCard label="Studio Team" value={activeTeamMembers.length} hint="People on the roster" icon={UsersRound} tone="emerald" />
+      </div>
 
-          <button
-            onClick={() => setActiveSection('todo')}
-            className={`px-4 py-2.5 rounded-xl text-sm font-bold transition flex items-center gap-2 shrink-0 ${
-              activeSection === 'todo'
-                ? 'bg-amber-500 text-slate-950 shadow-md font-extrabold'
-                : 'bg-slate-800/80 text-slate-300 hover:bg-slate-800 hover:text-white border border-slate-700/60'
-            }`}
-          >
-            <ListTodo className="size-4" />
-            <span>To-Do List Column ({pendingTodosCount})</span>
-          </button>
-
-          <button
-            onClick={() => setActiveSection('notepad')}
-            className={`px-4 py-2.5 rounded-xl text-sm font-bold transition flex items-center gap-2 shrink-0 ${
-              activeSection === 'notepad'
-                ? 'bg-rose-700 text-white shadow-md font-extrabold'
-                : 'bg-slate-800/80 text-slate-300 hover:bg-slate-800 hover:text-white border border-slate-700/60'
-            }`}
-          >
-            <NotebookPen className="size-4" />
-            <span>Notepad / Memos</span>
-          </button>
-        </div>
+      <div className="flex gap-2 overflow-x-auto pb-1">
+        {(
+          [
+            { id: 'all' as const, label: 'All Columns', icon: LayoutGrid },
+            { id: 'todo' as const, label: `To-Do List & Tasks (${pendingTodosCount})`, icon: ListTodo },
+            { id: 'notepad' as const, label: 'Owner Private Notepad', icon: NotebookPen },
+          ]
+        ).map((chip) => {
+          const Icon = chip.icon;
+          const active = activeSection === chip.id;
+          return (
+            <button
+              key={chip.id}
+              type="button"
+              onClick={() => setActiveSection(chip.id)}
+              className={`flex min-w-40 shrink-0 items-center gap-3 rounded-2xl border p-3 text-left ${
+                active ? 'border-[#8d5265] bg-[#6d2f45] text-white shadow-md' : 'border-slate-200 bg-[#fbfaf8] text-slate-700 hover:border-rose-300'
+              }`}
+            >
+              <span className={`grid size-9 place-items-center rounded-xl ${active ? 'bg-white/15' : 'bg-white shadow-sm'}`}>
+                <Icon className="size-4" />
+              </span>
+              <strong className="block text-xs">{chip.label}</strong>
+            </button>
+          );
+        })}
       </div>
 
       {(activeSection === 'all' || activeSection === 'todo') && <OwnerTodoList onPendingCountChange={setPendingTodosCount} />}
-
-      {(activeSection === 'all' || activeSection === 'notepad') && <OwnerNotepad initialNotes={INITIAL_NOTES} />}
+      {(activeSection === 'all' || activeSection === 'notepad') && <OwnerNotepad />}
     </div>
   );
 };
