@@ -1,4 +1,4 @@
-import { apiRequest } from './client';
+import { apiRequest, setAccessToken } from './client';
 
 export interface SessionUser {
   id: string;
@@ -21,10 +21,11 @@ export interface LoginInput {
 
 export const authApi = {
   async login(input: LoginInput): Promise<SessionUser> {
-    const { data } = await apiRequest<{ user: SessionUser }>('/auth/login', {
-      method: 'POST',
-      body: JSON.stringify(input),
-    });
+    const { data } = await apiRequest<{ user: SessionUser; tokens?: { accessToken?: string } }>(
+      '/auth/login',
+      { method: 'POST', body: JSON.stringify(input) },
+    );
+    setAccessToken(data.tokens?.accessToken ?? null);
     return data.user;
   },
   async me(): Promise<SessionUser> {
@@ -36,6 +37,8 @@ export const authApi = {
       await apiRequest<void>('/auth/logout', { method: 'POST' });
     } catch {
       return;
+    } finally {
+      setAccessToken(null);
     }
   },
 };

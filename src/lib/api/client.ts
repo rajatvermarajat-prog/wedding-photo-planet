@@ -36,6 +36,22 @@ export class ApiError extends Error {
 
 const baseUrl = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:5050/api/v1').replace(/\/$/, '');
 const REQUEST_TIMEOUT_MS = 15_000;
+const TOKEN_KEY = 'wpp.accessToken';
+
+/**
+ * The API is on a different `.vercel.app` host, so its auth cookie is
+ * third-party and browsers may drop it. The bearer token keeps sessions working.
+ */
+export function setAccessToken(token: string | null): void {
+  if (typeof window === 'undefined') return;
+  if (token) window.localStorage.setItem(TOKEN_KEY, token);
+  else window.localStorage.removeItem(TOKEN_KEY);
+}
+
+function getAccessToken(): string | null {
+  if (typeof window === 'undefined') return null;
+  return window.localStorage.getItem(TOKEN_KEY);
+}
 
 export async function apiRequest<T>(
   path: string,
@@ -46,6 +62,8 @@ export async function apiRequest<T>(
   const headers = new Headers(init.headers);
   if (init.body && !headers.has('Content-Type')) headers.set('Content-Type', 'application/json');
   headers.set('Accept', 'application/json');
+  const token = getAccessToken();
+  if (token && !headers.has('Authorization')) headers.set('Authorization', `Bearer ${token}`);
 
   try {
     const response = await fetch(`${baseUrl}${path.startsWith('/') ? path : `/${path}`}`, {
