@@ -1,4 +1,5 @@
 import { AttendanceRecord, Project, ProjectStatus, TeamMember, TeamTask } from '@/types';
+import type { DashboardSummary } from '@/lib/api/dashboard';
 import type { ReactNode } from 'react';
 
 export interface SalaryInstallment {
@@ -39,4 +40,8 @@ export interface OwnerDashboardProps {
   onOpenMemberModal?: (member: TeamMember) => void;
   currentUser?: TeamMember | { id?: string; name?: string; role?: string; email?: string } | null;
   attendanceSlot?: ReactNode;
+  summary?: DashboardSummary | null;
+  /** Secondary datasets load after the summary-driven view is on screen. */
+  projectsPending?: boolean;
+  teamPending?: boolean;
 }

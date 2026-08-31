@@ -8,6 +8,7 @@ import { DashboardKpiGrid } from './DashboardKpiGrid';
 import { DashboardSecurityAlerts } from './DashboardSecurityAlerts';
 import { TeamActivity } from './TeamActivity';
 import { PersonalTodoPanel } from '@/features/tasks/PersonalTodoPanel';
+import { PanelSkeleton } from './PanelSkeleton';
 
 import { ClientProjectsDeadlines } from './ClientProjectsDeadlines';
 import { UpcomingShoots } from './UpcomingShoots';
@@ -40,6 +41,9 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
   onOpenMemberModal,
   currentUser,
   attendanceSlot,
+  summary,
+  projectsPending = false,
+  teamPending = false,
 }) => {
   const router = useRouter();
   const pathname = usePathname();
@@ -414,22 +418,60 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
     return filteredOfficeExpenses.reduce((acc, exp) => acc + exp.amount, 0);
   }, [filteredOfficeExpenses]);
 
-  // Calculations
-  const totalRevenue = projects.reduce((acc, p) => acc + (p.totalBudget || 0), 0);
-  const totalAdvanceReceived = projects.reduce((acc, p) => acc + (p.advanceReceived || 0), 0);
-  const totalBalanceDue = projects.reduce((acc, p) => acc + (p.balanceDue || 0), 0);
+  // KPI figures come from the aggregated summary, which arrives before the
+  // project list and counts every project rather than the first page of 100.
+  const byStatus = summary?.projectsByStatus;
+  const statusCount = (...statuses: string[]) =>
+    statuses.reduce((acc, status) => acc + (byStatus?.[status] ?? 0), 0);
 
-  const allProjectsCount = projects.length;
-  const readyToDeliverCount = projects.filter(p => p.status === 'ready_to_deliver').length;
-  const deliveredProjectsCount = projects.filter(p => p.status === 'completed').length;
-  const pendingProjectsCount = projects.filter(p => p.status === 'pending').length;
+  const totalRevenue = summary?.finance
+    ? summary.finance.quoted
+    : projects.reduce((acc, p) => acc + (p.totalBudget || 0), 0);
+  const totalAdvanceReceived = summary?.finance
+    ? summary.finance.received
+    : projects.reduce((acc, p) => acc + (p.advanceReceived || 0), 0);
+  const totalBalanceDue = summary?.finance
+    ? summary.finance.outstanding
+    : projects.reduce((acc, p) => acc + (p.balanceDue || 0), 0);
+
+  const allProjectsCount = summary ? summary.stats.projects : projects.length;
+  const readyToDeliverCount = byStatus
+    ? statusCount('DELIVERY')
+    : projects.filter(p => p.status === 'ready_to_deliver').length;
+  const deliveredProjectsCount = byStatus
+    ? statusCount('COMPLETED')
+    : projects.filter(p => p.status === 'completed').length;
+  const pendingProjectsCount = byStatus
+    ? statusCount('CANCELLED')
+    : projects.filter(p => p.status === 'pending').length;
+  const runningProjectsCount = byStatus
+    ? statusCount('CONFIRMED', 'PLANNING', 'SHOOTING', 'EDITING')
+    : projects.filter(p => p.status === 'running').length;
   const urgentProjectsCount = projects.filter(p => p.status === 'urgent').length;
-  const runningProjectsCount = projects.filter(p => p.status === 'running').length;
 
-  const upcomingShoots = projects.flatMap(p => p.shoots.map(s => ({ ...s, clientTitle: p.clientWeddingTitle, projectId: p.id })))
-    .filter(s => s.status === 'scheduled')
-    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
-    .slice(0, 4);
+  // The summary already returns the next scheduled shoots with their crew, so
+  // the dashboard no longer pages in every project's shoots to find four rows.
+  const upcomingShoots = React.useMemo(() => {
+    if (!summary) return [];
+    const crewName = (crew: { role: string; name: string | null }[], role: string) =>
+      crew.find((member) => member.role === role)?.name ?? '';
+    return summary.upcomingShoots.slice(0, 4).map((shoot) => ({
+      id: shoot.id,
+      title: shoot.eventName || shoot.title,
+      date: shoot.shootDate,
+      time: shoot.startTime
+        ? new Date(shoot.startTime).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })
+        : '',
+      venue: shoot.location || '',
+      location: shoot.location || '',
+      status: 'scheduled' as const,
+      clientTitle: shoot.clientName,
+      projectId: shoot.id,
+      leadPhotographer: crewName(shoot.crew, 'LEAD_PHOTOGRAPHER'),
+      cinematographer: crewName(shoot.crew, 'CINEMATOGRAPHER'),
+      droneOperator: crewName(shoot.crew, 'DRONE_OPERATOR'),
+    }));
+  }, [summary]);
 
   const isEditor = currentUser?.role === 'Video Editor' || 
                    currentUser?.role === 'Photo Editor' || 
@@ -458,7 +500,11 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
         <div className="grid grid-cols-1 gap-5 xl:grid-cols-3">
           {can('dashboard.view_projects') && (
             <div className={can('dashboard.view_upcoming') && can('shoots.view') ? 'xl:col-span-2' : 'xl:col-span-3'}>
-              <ClientProjectsDeadlines projects={projects} urgentProjects={urgentProjectsList} isEditor={isEditor} onSelect={onSelectProject} onViewAll={() => setActiveTab('projects')} />
+              {projectsPending ? (
+                <PanelSkeleton title="Project deadlines" rows={4} />
+              ) : (
+                <ClientProjectsDeadlines projects={projects} urgentProjects={urgentProjectsList} isEditor={isEditor} onSelect={onSelectProject} onViewAll={() => setActiveTab('projects')} />
+              )}
             </div>
           )}
           {can('dashboard.view_upcoming') && can('shoots.view') && <UpcomingShoots shoots={upcomingShoots} onOpen={() => setActiveTab('shoots')} />}
@@ -480,7 +526,9 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
         </>
       )}
 
-      {can('dashboard.view_team') && (
+      {can('dashboard.view_team') && (teamPending ? (
+        <PanelSkeleton title="Team activity" rows={5} />
+      ) : (
         <TeamActivity
           team={team}
           attendance={attendance}
@@ -491,7 +539,7 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
           onAddTask={onAddTask}
           onOpenMemberModal={onOpenMemberModal}
         />
-      )}
+      ))}
 
       <SalaryPaymentModal member={editingSalaryMember} close={() => setEditingSalaryMember(null)} editPaidAmount={editPaidAmount} setEditPaidAmount={setEditPaidAmount} selectedSalaryMonth={selectedSalaryMonth} setSelectedSalaryMonth={setSelectedSalaryMonth} attendanceLogs={memberAttendanceLogs} presentDays={presentDays} halfDays={halfDays} absentDays={absentDays} attendanceEarnedPay={attendanceEarnedPay} estimatedDailyRate={estimatedDailyRate} pendingAttendanceBalance={pendingAttendanceBalance} pendingBaseBalance={pendingBaseBalance} installments={editInstallments} setInstallments={setEditInstallments} addInstallment={handleAddInstallment} removeInstallment={handleRemoveInstallment} changeInstallment={handleInstallmentChange} save={handleSaveMemberSalary} />
 

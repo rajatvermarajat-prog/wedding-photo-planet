@@ -34,7 +34,10 @@ export function useNotifications(enabled: boolean) {
   useEffect(() => {
     if (!enabled) return;
     void refresh();
-    const timer = window.setInterval(() => void refresh(), 30_000);
+    // A hidden tab has nobody watching the bell, so it should not keep polling.
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === 'visible') void refresh();
+    }, 60_000);
     return () => window.clearInterval(timer);
   }, [enabled, refresh]);
 

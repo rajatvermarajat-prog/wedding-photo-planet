@@ -27,6 +27,8 @@ import { useProjectMutation, useProjects } from '@/hooks/useProjects';
 import { useTeam, useTeamMutation } from '@/hooks/useTeam';
 import { useAttendance } from '@/hooks/useAttendance';
 import { useTaskMutations, useTasks } from '@/hooks/useTasks';
+import { useDashboardSummary } from '@/hooks/useDashboardSummary';
+import { useDeferredLoad } from '@/hooks/useDeferredLoad';
 import { useRbac } from '@/hooks/useRbac';
 import { normalizeTeamMember } from '@/features/team/teamViewModel';
 import { normalizeAttendance } from '@/features/attendance/attendanceViewModel';
@@ -121,20 +123,31 @@ export default function App() {
 
   // CRM entities are intentionally not restored from browser storage. They will
   // be supplied by feature API queries during the next integration phase.
+  const isDashboard = pathname === '/dashboard';
+  // One aggregated read for the dashboard's counts, today's attendance and the
+  // next shoots, instead of deriving them from full paginated datasets.
+  const summaryQuery = useDashboardSummary(Boolean(currentUser) && isDashboard);
+  // On the dashboard, record-level datasets only feed panels below the fold, so
+  // they wait until the summary-driven view is on screen and the browser idles.
+  const secondaryReady = useDeferredLoad(Boolean(currentUser)) || !isDashboard;
+
   const [projects, setProjects] = useState<Project[]>([]);
   const projectQuery = useProjects(
     { page: 1, limit: 100 },
-    Boolean(currentUser),
+    Boolean(currentUser) && secondaryReady,
   );
 
   useEffect(() => {
     if (!currentUser || projectQuery.loading || projectQuery.error) return;
     const mapped = projectQuery.data.map(normalizeProject);
     setProjects(mapped);
+    // The dashboard reads its upcoming shoots from the summary, so the full
+    // shoot list is only fetched by the views that render shoot records.
+    if (isDashboard) return;
     void shootsApi.list({ page: 1, limit: 100 })
       .then((result) => setProjects((current) => attachShoots(current, result.items)))
       .catch(() => undefined);
-  }, [currentUser, projectQuery.data, projectQuery.error, projectQuery.loading]);
+  }, [currentUser, isDashboard, projectQuery.data, projectQuery.error, projectQuery.loading]);
   const projectMutations = useProjectMutation(projectQuery.retry);
   const [team, setTeam] = useState<TeamMember[]>([]);
   const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
@@ -143,7 +156,7 @@ export default function App() {
     currentUser?.permissions?.includes('ATTENDANCE_VIEW') ||
     currentUser?.permissions?.includes('ATTENDANCE_MANAGE')
   );
-  const shouldLoadTeam = Boolean(currentUser);
+  const shouldLoadTeam = Boolean(currentUser) && secondaryReady;
   const teamQuery = useTeam(
     { page: 1, limit: 100 },
     shouldLoadTeam,
@@ -158,9 +171,14 @@ export default function App() {
     setTeam(teamQuery.data.map(normalizeTeamMember));
   }, [currentUser, teamQuery.data, teamQuery.error, teamQuery.loading]);
 
+  // Dashboard: only TeamActivity and the salary modal read these records, both
+  // below the fold. Today's own status comes from the summary instead.
   const attendanceQuery = useAttendance(
     { page: 1, limit: 100 },
-    Boolean(currentUser) && canManageTeamAttendance && (pathname === '/dashboard' || pathname === '/team'),
+    Boolean(currentUser) &&
+      canManageTeamAttendance &&
+      secondaryReady &&
+      (pathname === '/dashboard' || pathname === '/team'),
   );
 
   useEffect(() => {
@@ -172,9 +190,13 @@ export default function App() {
   const canManageTasks = Boolean(
     currentUser?.permissions?.includes('TASK_ASSIGN') || currentUser?.permissions?.includes('TASK_CREATE'),
   );
-  const shouldLoadTasks = Boolean(currentUser) && canViewTasks && (
-    pathname === '/dashboard' || pathname === '/team' || pathname === '/workspaces'
-  );
+  // Employees see their task workspace above the fold, so their tasks are
+  // critical. For owners/admins tasks only feed TeamActivity further down.
+  const tasksAreCritical = isEmployeeAttendanceUser(currentUser);
+  const shouldLoadTasks = Boolean(currentUser) && canViewTasks &&
+    (tasksAreCritical || secondaryReady) && (
+      pathname === '/dashboard' || pathname === '/team' || pathname === '/workspaces'
+    );
   const taskQueryInput = useMemo(() => ({
     page: 1,
     limit: 100,
@@ -855,6 +877,9 @@ export default function App() {
                 onAddTask={handleAddTask}
                 onOpenMemberModal={(member) => setSelectedMemberForModal(member)}
                 currentUser={currentUser}
+                summary={summaryQuery.data}
+                projectsPending={!secondaryReady || projectQuery.loading}
+                teamPending={!secondaryReady || teamQuery.loading}
                 attendanceSlot={currentUser && isEmployeeAttendanceUser(currentUser) ? (
                   <EmployeeDashboardTasks
                     userId={currentUser.id}
