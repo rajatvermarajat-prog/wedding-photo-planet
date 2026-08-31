@@ -122,9 +122,22 @@ const inFlight = new Map<string, Promise<Result>>();
 const recent = new Map<string, { at: number; result: Result }>();
 const DEDUPE_WINDOW_MS = 3_000;
 
+/**
+ * Reads that are the same for the whole session. The permission catalogue is
+ * seeded server-side and never changes while the app is open, so refetching it
+ * after every write only added latency to the roles screen.
+ */
+const SESSION_STABLE_PATHS = ['/permissions'];
+const SESSION_TTL_MS = 10 * 60_000;
+
+const isSessionStable = (path: string) => SESSION_STABLE_PATHS.includes(path);
+const ttlFor = (path: string) => (isSessionStable(path) ? SESSION_TTL_MS : DEDUPE_WINDOW_MS);
+
 export function invalidateReadCache(pathPrefix?: string): void {
   if (!pathPrefix) {
-    recent.clear();
+    for (const key of [...recent.keys()]) {
+      if (!isSessionStable(key)) recent.delete(key);
+    }
     return;
   }
   for (const key of [...recent.keys()]) {
@@ -149,7 +162,7 @@ export async function apiRequest<T>(
     inFlight.delete(path);
   } else {
     const hit = recent.get(path);
-    if (hit && Date.now() - hit.at < DEDUPE_WINDOW_MS) {
+    if (hit && Date.now() - hit.at < ttlFor(path)) {
       return hit.result as { data: T; meta: ApiMeta };
     }
     const pending = inFlight.get(path);

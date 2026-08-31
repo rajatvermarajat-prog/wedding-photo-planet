@@ -12,24 +12,73 @@ import {
   ShieldCheck,
   Sparkles,
   Trash2,
+  UserCog,
 } from 'lucide-react';
+import type { RoleMember } from '@/lib/api/rbac';
 import { TeamMember } from '@/types';
 import { ConfirmDeleteModal } from '@/components/common/ConfirmDeleteModal';
 import { useToast } from '@/components/common';
 import { Badge, BTN_CREAM, BTN_GHOST, BTN_PRIMARY, CARD, EmptyState, FIELD, KpiCard, LABEL, Modal, ModalHero } from '@/features/team/components/TeamUiKit';
-import { AccessAuditEntry, AccessRole, PermissionGrant, PermissionModule, PermissionScope } from '../accessTypes';
+import { AccessAuditEntry, AccessRole, AccessRoleStatus, AccessRoleType, PermissionGrant, PermissionModule, PermissionScope } from '../accessTypes';
 import { enabledCount, SCOPE_LABELS } from '../accessDomain';
+import { enabledPermissionKeys, filterRoles } from '../roleSelection';
 
 interface Props {
   roles: AccessRole[];
-  audit: AccessAuditEntry[];
   team: TeamMember[];
   currentUserName: string;
   permissions: PermissionModule[];
-  onCreateRole: (input: { name: string; description: string; permissionKeys: string[] }) => Promise<void>;
-  onUpdateRole: (input: { id: string; name: string; description: string; permissionKeys: string[] }) => Promise<void>;
+  onCreateRole: (input: {
+    name: string;
+    description: string;
+    status: AccessRoleStatus;
+    permissionKeys: string[];
+  }) => Promise<void>;
+  onUpdateRole: (input: {
+    id: string;
+    name: string;
+    description: string;
+    status: AccessRoleStatus;
+    permissionKeys: string[];
+  }) => Promise<void>;
   onDeleteRole: (id: string) => Promise<void>;
+  /** Loads the role slice of the audit trail; omitted when the actor lacks AUDIT_VIEW. */
+  onLoadAudit?: () => Promise<AccessAuditEntry[]>;
+  /** Employees holding a role, loaded when the role row is expanded. */
+  onLoadRoleUsers: (roleId: string) => Promise<RoleMember[]>;
+  /** Moves one employee onto a different existing role. */
+  onAssignUserRole: (userId: string, roleId: string) => Promise<void>;
+  /**
+   * Clones a role's permissions into a new personal role and moves the
+   * employee onto it, so one person can differ from their colleagues without
+   * abandoning the role model. Returns the new role id.
+   */
+  onCreatePersonalRole: (input: {
+    source: AccessRole;
+    userId: string;
+    userName: string;
+  }) => Promise<string>;
+  /**
+   * Mirrors the backend permissions so the page hides what the API would
+   * reject. The API remains the authority — this is presentation only.
+   */
+  capabilities: {
+    create: boolean;
+    update: boolean;
+    assignPermissions: boolean;
+    remove: boolean;
+  };
 }
+
+type TypeFilter = 'all' | AccessRoleType;
+type StatusFilter = 'all' | AccessRoleStatus;
+
+const FILTER_BTN = (active: boolean) =>
+  `rounded-full border px-3 py-1.5 text-xs font-extrabold transition ${
+    active
+      ? 'border-[#8f3655] bg-[#8f3655] text-white'
+      : 'border-[#ded5cf] bg-white text-slate-600 hover:border-[#8f3655]/40'
+  }`;
 
 const Switch = ({ on, disabled, onClick }: { on: boolean; disabled?: boolean; onClick: () => void }) => (
   <button
@@ -48,31 +97,105 @@ const Switch = ({ on, disabled, onClick }: { on: boolean; disabled?: boolean; on
 
 export const RolesPermissionsManager: React.FC<Props> = ({
   roles,
-  audit,
   team,
   currentUserName,
   permissions,
   onCreateRole,
   onUpdateRole,
   onDeleteRole,
+  onLoadAudit,
+  onLoadRoleUsers,
+  onAssignUserRole,
+  onCreatePersonalRole,
+  capabilities,
 }) => {
   const { showToast } = useToast();
   const [query, setQuery] = useState('');
+  const [typeFilter, setTypeFilter] = useState<TypeFilter>('all');
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [editorRoleId, setEditorRoleId] = useState<string | null>(null);
   const [readOnly, setReadOnly] = useState(false);
-  const [showCreate, setShowCreate] = useState(false);
-  const [createName, setCreateName] = useState('');
-  const [createDesc, setCreateDesc] = useState('');
+  const [creating, setCreating] = useState(false);
   const [deleting, setDeleting] = useState<AccessRole | null>(null);
   const [showAudit, setShowAudit] = useState(false);
+  const [audit, setAudit] = useState<AccessAuditEntry[]>([]);
+  const [auditState, setAuditState] = useState<'idle' | 'loading' | 'error'>('idle');
 
-  const usersFor = (role: AccessRole) =>
-    team.filter((m) => m.accessRoleId === role.id || (!m.accessRoleId && role.id === fallbackRoleId(m.role))).length;
+  const canEdit = capabilities.update || capabilities.assignPermissions;
+  const [expandedRoleId, setExpandedRoleId] = useState<string | null>(null);
+  const [members, setMembers] = useState<Record<string, RoleMember[]>>({});
+  const [memberState, setMemberState] = useState<'idle' | 'loading' | 'error'>('idle');
+  const [busyUserId, setBusyUserId] = useState<string | null>(null);
 
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    return roles.filter((r) => !q || `${r.name} ${r.description}`.toLowerCase().includes(q));
-  }, [roles, query]);
+  const loadMembers = async (roleId: string) => {
+    setMemberState('loading');
+    try {
+      const list = await onLoadRoleUsers(roleId);
+      setMembers((prev) => ({ ...prev, [roleId]: list }));
+      setMemberState('idle');
+    } catch {
+      setMemberState('error');
+    }
+  };
+
+  const toggleMembers = (role: AccessRole) => {
+    if (expandedRoleId === role.id) {
+      setExpandedRoleId(null);
+      return;
+    }
+    setExpandedRoleId(role.id);
+    if (!members[role.id]) void loadMembers(role.id);
+  };
+
+  const moveUser = async (roleId: string, userId: string, nextRoleId: string) => {
+    setBusyUserId(userId);
+    try {
+      await onAssignUserRole(userId, nextRoleId);
+      await loadMembers(roleId);
+      showToast('Access role updated.');
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Unable to change the role.', { variant: 'error' });
+    } finally {
+      setBusyUserId(null);
+    }
+  };
+
+  const givePersonalRole = async (source: AccessRole, member: RoleMember) => {
+    setBusyUserId(member.id);
+    try {
+      const newRoleId = await onCreatePersonalRole({
+        source,
+        userId: member.id,
+        userName: member.fullName,
+      });
+      await loadMembers(source.id);
+      showToast(`${member.fullName} now has their own permission set.`);
+      setExpandedRoleId(null);
+      setReadOnly(false);
+      setEditorRoleId(newRoleId);
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Unable to create a personal role.', { variant: 'error' });
+    } finally {
+      setBusyUserId(null);
+    }
+  };
+
+  const openAudit = async () => {
+    setShowAudit(true);
+    if (!onLoadAudit || auditState === 'loading') return;
+    setAuditState('loading');
+    try {
+      setAudit(await onLoadAudit());
+      setAuditState('idle');
+    } catch {
+      setAuditState('error');
+    }
+  };
+
+  const filtered = useMemo(
+    () => filterRoles(roles, { query, type: typeFilter, status: statusFilter }),
+    [roles, query, typeFilter, statusFilter],
+  );
 
   const editing = roles.find((r) => r.id === editorRoleId) || null;
 
@@ -82,20 +205,6 @@ export const RolesPermissionsManager: React.FC<Props> = ({
   };
 
   const [pending, setPending] = useState(false);
-  const handleCreate = async () => {
-    const name = createName.trim();
-    if (!name) {
-      showToast('Enter a role name.', { variant: 'error' });
-      return;
-    }
-    setPending(true);
-    try {
-      await onCreateRole({ name, description: createDesc.trim(), permissionKeys: ['NOTIFICATION_VIEW'] });
-      setShowCreate(false); setCreateName(''); setCreateDesc('');
-      showToast(`Role “${name}” created.`);
-    } catch (error) { showToast(error instanceof Error ? error.message : 'Unable to create role.', { variant: 'error' }); }
-    finally { setPending(false); }
-  };
 
   const handleDelete = async () => {
     if (!deleting) return;
@@ -105,18 +214,67 @@ export const RolesPermissionsManager: React.FC<Props> = ({
     finally { setPending(false); }
   };
 
+  const enabledKeys = enabledPermissionKeys;
+
   const handleSaveEditor = async (next: AccessRole) => {
     try {
-      await onUpdateRole({ id: next.id, name: next.name, description: next.description, permissionKeys: Object.entries(next.grants).filter(([, grant]) => grant.enabled).map(([key]) => key) });
+      await onUpdateRole({
+        id: next.id,
+        name: next.name,
+        description: next.description,
+        status: next.status,
+        permissionKeys: enabledKeys(next),
+      });
     } catch (error) { showToast(error instanceof Error ? error.message : 'Unable to update role.', { variant: 'error' }); return; }
     showToast('Permissions updated');
     setEditorRoleId(null);
   };
 
+  const handleCreateRole = async (draft: AccessRole) => {
+    const name = draft.name.trim();
+    if (!name) {
+      showToast('Enter a role name.', { variant: 'error' });
+      throw new Error('Role name is required');
+    }
+    await onCreateRole({
+      name,
+      description: draft.description.trim(),
+      status: draft.status,
+      permissionKeys: enabledKeys(draft),
+    });
+    showToast(`Role “${name}” created.`);
+    setCreating(false);
+  };
+
+  if (creating) {
+    return (
+      <PermissionEditor
+        role={{
+          id: '',
+          name: '',
+          description: '',
+          type: 'custom',
+          status: 'active',
+          grants: {},
+          createdAt: '',
+          updatedAt: '',
+          userCount: 0,
+          assignable: true,
+        }}
+        mode="create"
+        readOnly={false}
+        onBack={() => setCreating(false)}
+        onSave={handleCreateRole}
+        permissions={permissions}
+      />
+    );
+  }
+
   if (editing) {
     return (
       <PermissionEditor
         role={editing}
+        mode="edit"
         readOnly={readOnly}
         onBack={() => setEditorRoleId(null)}
         onSave={handleSaveEditor}
@@ -145,13 +303,15 @@ export const RolesPermissionsManager: React.FC<Props> = ({
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
-            <button type="button" onClick={() => setShowAudit(true)} className={`${BTN_GHOST} !border-white/20 !bg-white/10 !text-white hover:!bg-white/15`}>
+            <button type="button" onClick={() => void openAudit()} className={`${BTN_GHOST} !border-white/20 !bg-white/10 !text-white hover:!bg-white/15`}>
               Audit Log
             </button>
-            <button type="button" onClick={() => setShowCreate(true)} className={BTN_CREAM}>
-              <Plus className="size-4" />
-              Create Role
-            </button>
+            {capabilities.create && (
+              <button type="button" onClick={() => setCreating(true)} className={BTN_CREAM}>
+                <Plus className="size-4" />
+                Create Role
+              </button>
+            )}
           </div>
         </div>
       </section>
@@ -163,10 +323,25 @@ export const RolesPermissionsManager: React.FC<Props> = ({
         <KpiCard label="People Mapped" value={team.length} hint="From team roster" icon={Eye} tone="stone" />
       </div>
 
-      <div className={`${CARD} p-4`}>
+      <div className={`${CARD} space-y-3 p-4`}>
         <div className="relative">
           <Search className="pointer-events-none absolute left-3 top-3 size-4 text-slate-400" />
           <input className={`${FIELD} pl-10`} value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search roles" />
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400">Type</span>
+          {(['all', 'system', 'custom'] as TypeFilter[]).map((value) => (
+            <button key={value} type="button" className={FILTER_BTN(typeFilter === value)} onClick={() => setTypeFilter(value)}>
+              {value === 'all' ? 'All' : value === 'system' ? 'System' : 'Custom'}
+            </button>
+          ))}
+          <span className="ml-2 text-[10px] font-extrabold uppercase tracking-wider text-slate-400">Status</span>
+          {(['all', 'active', 'inactive'] as StatusFilter[]).map((value) => (
+            <button key={value} type="button" className={FILTER_BTN(statusFilter === value)} onClick={() => setStatusFilter(value)}>
+              {value === 'all' ? 'All' : value === 'active' ? 'Active' : 'Inactive'}
+            </button>
+          ))}
+          <span className="ml-auto text-xs font-bold text-slate-500">{filtered.length} of {roles.length} roles</span>
         </div>
       </div>
 
@@ -190,16 +365,38 @@ export const RolesPermissionsManager: React.FC<Props> = ({
               </thead>
               <tbody>
                 {filtered.map((role) => (
-                  <tr key={role.id} className="border-t border-[#eee7e2]">
+                  <React.Fragment key={role.id}>
+                  <tr className="border-t border-[#eee7e2]">
                     <td className="px-4 py-3">
                       <p className="font-extrabold text-slate-900">{role.name}</p>
                       <p className="text-xs font-medium text-slate-500">{role.description}</p>
-                      <Badge className="mt-1 border-[#ded5cf] bg-[#f6f1ee] text-slate-600">{role.type}</Badge>
+                      <div className="mt-1 flex flex-wrap gap-1">
+                        <Badge className={role.type === 'system' ? 'border-[#c9b7ad] bg-[#efe7e2] text-slate-700' : 'border-[#ddc89c] bg-[#f9f3e8] text-[#7a5a2e]'}>
+                          {role.type === 'system' ? 'SYSTEM' : 'CUSTOM'}
+                        </Badge>
+                        {!role.assignable && (
+                          <Badge className="border-slate-200 bg-slate-50 text-slate-500" title="You cannot assign this role to an employee">
+                            Not assignable by you
+                          </Badge>
+                        )}
+                      </div>
                     </td>
-                    <td className="px-4 py-3 text-right font-extrabold">{usersFor(role)}</td>
-                    <td className="px-4 py-3 text-right font-extrabold text-[#8f3655]">
-                      {role.id === 'super_admin' ? 'Full Access' : enabledCount(role)}
+                    <td className="px-4 py-3 text-right">
+                      <button
+                        type="button"
+                        onClick={() => toggleMembers(role)}
+                        disabled={role.userCount === 0}
+                        aria-expanded={expandedRoleId === role.id}
+                        className="inline-flex items-center gap-1 font-extrabold text-[#8f3655] disabled:text-slate-400"
+                        title={role.userCount === 0 ? 'Nobody holds this role' : 'Show the people on this role'}
+                      >
+                        {role.userCount}
+                        {role.userCount > 0 && (
+                          <ChevronDown className={`size-3.5 transition ${expandedRoleId === role.id ? 'rotate-180' : ''}`} />
+                        )}
+                      </button>
                     </td>
+                    <td className="px-4 py-3 text-right font-extrabold text-[#8f3655]">{enabledCount(role)}</td>
                     <td className="px-4 py-3">
                       <Badge className={role.status === 'active' ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-slate-200 bg-slate-50 text-slate-500'}>
                         {role.status}
@@ -209,13 +406,32 @@ export const RolesPermissionsManager: React.FC<Props> = ({
                     <td className="px-4 py-3">
                       <div className="flex justify-end gap-1">
                         <button type="button" className={BTN_GHOST} onClick={() => openEditor(role, true)}><Eye className="size-3.5" /> View</button>
-                        <button type="button" className={BTN_PRIMARY} onClick={() => openEditor(role)}><Pencil className="size-3.5" /> Edit</button>
-                        {role.type === 'custom' && (
+                        {canEdit && (
+                          <button type="button" className={BTN_PRIMARY} onClick={() => openEditor(role)}><Pencil className="size-3.5" /> Edit</button>
+                        )}
+                        {role.type === 'custom' && capabilities.remove && (
                           <button type="button" className={BTN_GHOST} onClick={() => setDeleting(role)}><Trash2 className="size-3.5 text-red-600" /></button>
                         )}
                       </div>
                     </td>
                   </tr>
+                  {expandedRoleId === role.id && (
+                    <tr className="border-t border-[#eee7e2] bg-[#fbfaf8]">
+                      <td colSpan={6} className="px-4 py-4">
+                        <RoleMemberList
+                          role={role}
+                          members={members[role.id]}
+                          state={memberState}
+                          busyUserId={busyUserId}
+                          roles={roles}
+                          canManage={capabilities.create && canEdit}
+                          onMove={(userId, nextRoleId) => void moveUser(role.id, userId, nextRoleId)}
+                          onGivePersonalRole={(member) => void givePersonalRole(role, member)}
+                        />
+                      </td>
+                    </tr>
+                  )}
+                  </React.Fragment>
                 ))}
               </tbody>
             </table>
@@ -230,9 +446,11 @@ export const RolesPermissionsManager: React.FC<Props> = ({
                   </div>
                   <Badge>{role.status}</Badge>
                 </div>
-                <p className="mt-2 text-xs font-bold text-slate-600">{usersFor(role)} users · {enabledCount(role)} permissions</p>
+                <p className="mt-2 text-xs font-bold text-slate-600">{role.userCount} users · {enabledCount(role)} permissions · {role.type === 'system' ? 'SYSTEM' : 'CUSTOM'}</p>
                 <div className="mt-3 flex flex-wrap gap-2">
-                  <button type="button" className={BTN_PRIMARY} onClick={() => openEditor(role)}>Edit</button>
+                  {canEdit && (
+                    <button type="button" className={BTN_PRIMARY} onClick={() => openEditor(role)}>Edit</button>
+                  )}
                   <button type="button" className={BTN_GHOST} onClick={() => openEditor(role, true)}>View</button>
                 </div>
               </article>
@@ -241,28 +459,16 @@ export const RolesPermissionsManager: React.FC<Props> = ({
         </div>
       )}
 
-      <Modal isOpen={showCreate} onClose={() => setShowCreate(false)} labelledBy="create-role-title">
-        <ModalHero icon={ShieldCheck} eyebrow="Access Desk" title="Create Role" description="Custom roles can be fully configured after save." onClose={() => setShowCreate(false)} labelledBy="create-role-title" />
-        <div className="space-y-4 p-5 sm:p-6">
-          <label>
-            <span className={LABEL}>Role name</span>
-            <input className={FIELD} value={createName} onChange={(e) => setCreateName(e.target.value)} placeholder="Wedding Manager" />
-          </label>
-          <label>
-            <span className={LABEL}>Description</span>
-            <textarea className={`${FIELD} resize-none`} rows={3} value={createDesc} onChange={(e) => setCreateDesc(e.target.value)} placeholder="Can manage weddings, events, shoots and assigned team members." />
-          </label>
-          <p className="text-xs font-medium text-slate-500">New roles are saved as Custom Role. System roles stay protected.</p>
-          <button type="button" disabled={pending} onClick={() => void handleCreate()} className={`${BTN_PRIMARY} w-full py-3`}>
-            <Plus className="size-4" /> Create Role
-          </button>
-        </div>
-      </Modal>
-
       <Modal isOpen={showAudit} onClose={() => setShowAudit(false)} labelledBy="audit-title" widthClass="max-w-2xl">
         <ModalHero icon={ShieldCheck} eyebrow="Activity" title="Permission Audit Log" onClose={() => setShowAudit(false)} labelledBy="audit-title" />
         <div className="max-h-[60vh] space-y-3 overflow-y-auto p-5">
-          {audit.length === 0 ? (
+          {auditState === 'loading' ? (
+            <p className="text-sm text-slate-500">Loading role activity…</p>
+          ) : auditState === 'error' || !onLoadAudit ? (
+            <p className="text-sm text-slate-500">
+              Role activity is only visible to accounts with audit access.
+            </p>
+          ) : audit.length === 0 ? (
             <p className="text-sm text-slate-500">No permission changes recorded yet.</p>
           ) : (
             audit.map((entry) => (
@@ -289,32 +495,125 @@ export const RolesPermissionsManager: React.FC<Props> = ({
   );
 };
 
-function fallbackRoleId(title?: string) {
-  const t = (title || '').toLowerCase();
-  if (t.includes('owner') || t.includes('super')) return 'super_admin';
-  if (t.includes('manager') || t.includes('admin')) return t === 'admin' ? 'admin' : 'manager';
-  if (t.includes('sales')) return 'sales_executive';
-  if (t.includes('photo editor')) return 'photo_editor';
-  if (t.includes('video editor') || t === 'editor') return 'video_editor';
-  if (t.includes('cinema')) return 'cinematographer';
-  if (t.includes('photo')) return 'photographer';
-  if (t.includes('freelance')) return 'freelancer';
-  return 'employee';
+/**
+ * The people on one role. Two managers who need different access are handled by
+ * giving one of them their own derived role, which keeps permissions attached to
+ * roles instead of introducing a parallel per-user grant system.
+ */
+function RoleMemberList({
+  role,
+  members,
+  state,
+  busyUserId,
+  roles,
+  canManage,
+  onMove,
+  onGivePersonalRole,
+}: {
+  role: AccessRole;
+  members?: RoleMember[];
+  state: 'idle' | 'loading' | 'error';
+  busyUserId: string | null;
+  roles: AccessRole[];
+  canManage: boolean;
+  onMove: (userId: string, nextRoleId: string) => void;
+  onGivePersonalRole: (member: RoleMember) => void;
+}) {
+  if (state === 'loading' && !members) {
+    return <p className="text-xs font-semibold text-slate-500">Loading people on this role…</p>;
+  }
+  if (state === 'error' && !members) {
+    return <p className="text-xs font-semibold text-slate-500">Could not load the people on this role.</p>;
+  }
+  if (!members || members.length === 0) {
+    return <p className="text-xs font-semibold text-slate-500">Nobody holds this role yet.</p>;
+  }
+
+  const targets = roles.filter((option) => option.assignable && option.status === 'active');
+
+  return (
+    <div className="space-y-2">
+      <p className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500">
+        People on {role.name}
+      </p>
+      {canManage && (
+        <p className="text-[11px] font-medium text-slate-500">
+          Everyone here shares {role.name}’s permissions. To give one person different access, create
+          their own role from this one and edit it — their colleagues stay untouched.
+        </p>
+      )}
+      {members.map((member) => (
+        <div
+          key={member.id}
+          className="flex flex-col gap-2 rounded-2xl border border-[#eee7e2] bg-white p-3 sm:flex-row sm:items-center sm:justify-between"
+        >
+          <div className="min-w-0">
+            <p className="truncate text-sm font-extrabold text-slate-900">{member.fullName}</p>
+            <p className="truncate text-[11px] font-medium text-slate-500">
+              {member.email}
+              {member.employeeCode ? ` · ${member.employeeCode}` : ''}
+              {member.status !== 'ACTIVE' ? ` · ${member.status}` : ''}
+            </p>
+            {member.roles.length > 1 && (
+              <p className="mt-1 text-[11px] font-semibold text-slate-500">
+                Also holds: {member.roles.filter((r) => r.id !== role.id).map((r) => r.name).join(', ')}
+              </p>
+            )}
+          </div>
+          {canManage && (
+            <div className="flex flex-wrap items-center gap-2">
+              <select
+                className={`${FIELD} !w-auto !py-1.5 text-xs`}
+                value={role.id}
+                disabled={busyUserId === member.id}
+                onChange={(e) => {
+                  if (e.target.value !== role.id) onMove(member.id, e.target.value);
+                }}
+                aria-label={`Move ${member.fullName} to another role`}
+              >
+                <option value={role.id}>Move to another role…</option>
+                {targets
+                  .filter((option) => option.id !== role.id)
+                  .map((option) => (
+                    <option key={option.id} value={option.id}>{option.name}</option>
+                  ))}
+              </select>
+              <button
+                type="button"
+                className={BTN_PRIMARY}
+                disabled={busyUserId === member.id}
+                onClick={() => onGivePersonalRole(member)}
+              >
+                <UserCog className="size-3.5" />
+                {busyUserId === member.id ? 'Working…' : 'Give own permissions'}
+              </button>
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  );
 }
 
 function PermissionEditor({
   role,
+  mode,
   readOnly,
   onBack,
   onSave,
   permissions,
 }: {
   role: AccessRole;
+  mode: 'create' | 'edit';
   readOnly: boolean;
   onBack: () => void;
   onSave: (role: AccessRole) => Promise<void>;
   permissions: PermissionModule[];
 }) {
+  const isCreate = mode === 'create';
+  const [name, setName] = useState(role.name);
+  const [description, setDescription] = useState(role.description);
+  const [status, setStatus] = useState<AccessRoleStatus>(role.status);
   const [draft, setDraft] = useState<Record<string, PermissionGrant>>(() => {
     const next = { ...role.grants };
     permissions
@@ -338,7 +637,12 @@ function PermissionEditor({
     isAlwaysOn(modId, key) ||
     (isSystemAdmin && modId !== 'dashboard') ||
     (isSystemAdmin && key === 'DASHBOARD_VIEW');
-  const dirty = JSON.stringify(draft) !== JSON.stringify(role.grants);
+  const isSystem = role.type === 'system';
+  const identityChanged =
+    name !== role.name || description !== role.description || status !== role.status;
+  const dirty = isCreate
+    ? name.trim().length > 0
+    : JSON.stringify(draft) !== JSON.stringify(role.grants) || identityChanged;
   const enabled = Object.values(draft).filter((grant) => grant.enabled).length;
   const q = search.trim().toLowerCase();
   const sensitiveKeys = useMemo(
@@ -401,8 +705,13 @@ function PermissionEditor({
 
   const save = async () => {
     setSaving(true);
-    try { await onSave({ ...role, grants: draft }); }
-    finally { setSaving(false); }
+    try {
+      await onSave({ ...role, name: name.trim(), description, status, grants: draft });
+    } catch {
+      // The caller surfaces the message; keep the draft so nothing is lost.
+    } finally {
+      setSaving(false);
+    }
   };
 
   const summary = permissions.map((mod) => ({ id: mod.id, label: mod.label, total: mod.permissions.length, on: mod.permissions.filter((permission) => draft[permission.key]?.enabled).length }));
@@ -413,8 +722,27 @@ function PermissionEditor({
         <div className="relative flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <button type="button" onClick={onBack} className="text-xs font-bold text-[#ddc89c]">← All roles</button>
-            <h1 className="mt-2 text-2xl font-black">{role.name}</h1>
-            <p className="mt-1 text-sm text-[#eadfe2]">{role.description}</p>
+            <h1 className="mt-2 text-2xl font-black">
+              {isCreate ? 'Create Role' : role.name}
+            </h1>
+            {!isCreate && <p className="mt-1 text-sm text-[#eadfe2]">{role.description}</p>}
+            {!isCreate && (
+              <div className="mt-2 flex flex-wrap gap-2">
+                <Badge className={isSystem ? 'border-[#c9b7ad] bg-[#efe7e2] text-slate-700' : 'border-[#ddc89c] bg-[#f9f3e8] text-[#7a5a2e]'}>
+                  {isSystem ? 'SYSTEM ROLE' : 'CUSTOM ROLE'}
+                </Badge>
+                <Badge className={status === 'active' ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-slate-200 bg-slate-100 text-slate-600'}>
+                  {status.toUpperCase()}
+                </Badge>
+                <Badge className="border-white/25 bg-white/10 text-white">{role.userCount} user(s)</Badge>
+                {role.createdAt && (
+                  <Badge className="border-white/25 bg-white/10 text-white">Created {role.createdAt}</Badge>
+                )}
+                {role.updatedAt && (
+                  <Badge className="border-white/25 bg-white/10 text-white">Updated {role.updatedAt}</Badge>
+                )}
+              </div>
+            )}
             {isSystemAdmin && (
               <p className="mt-2 text-xs font-semibold text-[#ddc89c]">
                 Dashboard widgets can be shown or hidden for Admin. All other Admin permissions stay granted.
@@ -428,12 +756,58 @@ function PermissionEditor({
             {!readOnly && (
               <button type="button" disabled={!dirty || saving} onClick={save} className={BTN_CREAM}>
                 <Save className="size-4" />
-                {saving ? 'Saving…' : 'Save Changes'}
+                {saving ? 'Saving…' : isCreate ? 'Create Role' : 'Save Changes'}
               </button>
             )}
           </div>
         </div>
       </section>
+
+      {!readOnly && (
+        <div className={`${CARD} grid gap-4 p-4 lg:grid-cols-3`}>
+          <label>
+            <span className={LABEL}>Role name {isCreate && '*'}</span>
+            <input
+              className={FIELD}
+              value={name}
+              disabled={isSystem}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Sales Manager"
+            />
+            {isSystem && (
+              <span className="mt-1 block text-[11px] font-semibold text-slate-500">
+                System role names are fixed.
+              </span>
+            )}
+          </label>
+          <label className="lg:col-span-1">
+            <span className={LABEL}>Description</span>
+            <input
+              className={FIELD}
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="Responsible for leads, clients and sales operations."
+            />
+          </label>
+          <label>
+            <span className={LABEL}>Status</span>
+            <select
+              className={FIELD}
+              value={status}
+              disabled={isSystem}
+              onChange={(e) => setStatus(e.target.value as AccessRoleStatus)}
+            >
+              <option value="active">Active — grants permissions and can be assigned</option>
+              <option value="inactive">Inactive — grants nothing until reactivated</option>
+            </select>
+            {isSystem && (
+              <span className="mt-1 block text-[11px] font-semibold text-slate-500">
+                System roles cannot be deactivated.
+              </span>
+            )}
+          </label>
+        </div>
+      )}
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
         {summary.map((row) => (

@@ -32,6 +32,10 @@ export interface AccessRole {
   grants: Record<string, PermissionGrant>;
   createdAt: string;
   updatedAt: string;
+  /** Number of employees holding this role, counted by the API. */
+  userCount: number;
+  /** Whether the signed-in actor is allowed to assign this role. */
+  assignable: boolean;
 }
 
 export interface AccessAuditEntry {

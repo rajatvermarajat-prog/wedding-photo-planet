@@ -140,6 +140,7 @@ interface TeamAttendanceProps {
   currentUser?: { id: string; name: string; role: string } | null;
   onNavigateToFreelancers?: () => void;
   accessRoles?: import('@/features/access').AccessRole[];
+  accessPermissions?: import('@/features/access/accessTypes').PermissionModule[];
 }
 
 export const TeamAttendance: React.FC<TeamAttendanceProps> = ({
@@ -165,6 +166,7 @@ export const TeamAttendance: React.FC<TeamAttendanceProps> = ({
   currentUser,
   onNavigateToFreelancers,
   accessRoles = [],
+  accessPermissions = [],
 }) => {
   const { can } = usePermission();
   const canViewTeam = can('employees.view');
@@ -708,6 +710,7 @@ export const TeamAttendance: React.FC<TeamAttendanceProps> = ({
         softwareOptions={SOFTWARE_OPTIONS}
         defaultEmploymentType={formDefaultType}
         accessRoles={accessRoles}
+        accessPermissions={accessPermissions}
         onSave={handleSaveMember}
         onClose={() => {
           setIsFormOpen(false);

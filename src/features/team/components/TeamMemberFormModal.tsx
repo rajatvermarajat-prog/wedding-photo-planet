@@ -25,6 +25,8 @@ import {
 } from 'lucide-react';
 import { EmploymentType, TeamMember, TeamMemberStatus } from '@/types';
 import type { AccessRole } from '@/features/access';
+import type { PermissionModule } from '@/features/access/accessTypes';
+import { assignableRoles, filterRoles, rolePermissionPreview } from '@/features/access/roleSelection';
 import { useToast } from '@/components/common';
 import {
   Avatar,
@@ -55,6 +57,8 @@ interface Props {
   /** Pre-selects Freelancer employment type when opened from the freelancer tab. */
   defaultEmploymentType?: EmploymentType;
   accessRoles?: AccessRole[];
+  /** Backend permission catalogue, used to preview what a role grants. */
+  accessPermissions?: PermissionModule[];
 }
 
 interface FormState {
@@ -184,10 +188,20 @@ export const TeamMemberFormModal: React.FC<Props> = ({
   onClose,
   defaultEmploymentType,
   accessRoles = [],
+  accessPermissions = [],
 }) => {
   const { showToast } = useToast();
   const isEdit = !!member;
   const roleOptions = useMemo(() => getRoleOptions(team), [team]);
+  const [roleSearch, setRoleSearch] = useState('');
+
+  // The server decides assignability; anything it flags is hidden here so the
+  // admin is never offered a role the API would refuse.
+  const assignable = useMemo(() => assignableRoles(accessRoles), [accessRoles]);
+  const matchingRoles = useMemo(
+    () => filterRoles(assignable, { query: roleSearch }),
+    [assignable, roleSearch],
+  );
   const [form, setForm] = useState<FormState>(() => emptyForm(defaultEmploymentType));
   const [softwareInput, setSoftwareInput] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -212,6 +226,9 @@ export const TeamMemberFormModal: React.FC<Props> = ({
     setForm((prev) => ({ ...prev, [key]: value }));
 
   const effectiveRole = form.role === CUSTOM_ROLE ? form.customRole.trim() : form.role;
+
+  const selectedAccessRole = accessRoles.find((role) => role.id === form.accessRoleId) || null;
+  const rolePreview = rolePermissionPreview(selectedAccessRole, accessPermissions);
 
   const handlePhotoUpload = (file?: File | null) => {
     if (!file) return;
@@ -491,19 +508,68 @@ export const TeamMemberFormModal: React.FC<Props> = ({
               <p className="text-[11px] font-medium text-slate-500">This backend role controls the employee’s permissions. Direct user permission overrides are not supported by the API.</p>
               <label>
                 <span className={LABEL}>Primary access role</span>
-                <select
+                <input
                   className={FIELD}
+                  value={roleSearch}
+                  onChange={(e) => setRoleSearch(e.target.value)}
+                  placeholder="Search roles, e.g. sales"
+                  aria-label="Search access roles"
+                />
+                <select
+                  className={`${FIELD} mt-2`}
                   value={form.accessRoleId}
                   required={!isEdit}
-                  disabled={!isEdit && accessRoles.length === 0}
+                  disabled={!isEdit && assignable.length === 0}
                   onChange={(e) => set('accessRoleId', e.target.value)}
                 >
-                  <option value="">{accessRoles.length === 0 ? 'Loading backend roles…' : 'Select an access role'}</option>
-                  {accessRoles.map((role) => (
-                    <option key={role.id} value={role.id}>{role.name}</option>
-                  ))}
+                  <option value="">
+                    {accessRoles.length === 0
+                      ? 'Loading backend roles…'
+                      : assignable.length === 0
+                        ? 'No roles you are allowed to assign'
+                        : 'Select an access role'}
+                  </option>
+                  {(['system', 'custom'] as const).map((group) => {
+                    const options = matchingRoles.filter((role) => role.type === group);
+                    if (options.length === 0) return null;
+                    return (
+                      <optgroup key={group} label={group === 'system' ? 'System roles' : 'Custom roles'}>
+                        {options.map((role) => (
+                          <option key={role.id} value={role.id}>
+                            {role.name}
+                            {role.description ? ` — ${role.description}` : ''}
+                          </option>
+                        ))}
+                      </optgroup>
+                    );
+                  })}
                 </select>
               </label>
+
+              {selectedAccessRole && (
+                <div className="rounded-xl border border-[#ded5cf] bg-white p-3">
+                  <p className="text-xs font-extrabold text-slate-800">
+                    {selectedAccessRole.name} provides
+                  </p>
+                  {selectedAccessRole.description && (
+                    <p className="text-[11px] font-medium text-slate-500">{selectedAccessRole.description}</p>
+                  )}
+                  {rolePreview.length === 0 ? (
+                    <p className="mt-2 text-[11px] font-medium text-slate-500">No module access yet.</p>
+                  ) : (
+                    <ul className="mt-2 flex flex-wrap gap-1.5">
+                      {rolePreview.map((entry) => (
+                        <li
+                          key={entry.module}
+                          className="rounded-full border border-[#ded5cf] bg-[#f6f1ee] px-2 py-0.5 text-[11px] font-bold text-slate-700"
+                        >
+                          ✓ {entry.module} ({entry.count})
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              )}
             </div>
 
             <div>
