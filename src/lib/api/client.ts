@@ -53,7 +53,64 @@ function getAccessToken(): string | null {
   return window.localStorage.getItem(TOKEN_KEY);
 }
 
+type Result = { data: unknown; meta: ApiMeta };
+
+/**
+ * GET de-duplication. Several panels legitimately need the same list, and
+ * StrictMode mounts every effect twice, so identical reads used to become
+ * identical concurrent requests. Callers that need certainty after a write
+ * pass `fresh: true`, which also drops the entry for that path.
+ */
+const inFlight = new Map<string, Promise<Result>>();
+const recent = new Map<string, { at: number; result: Result }>();
+const DEDUPE_WINDOW_MS = 3_000;
+
+export function invalidateReadCache(pathPrefix?: string): void {
+  if (!pathPrefix) {
+    recent.clear();
+    return;
+  }
+  for (const key of [...recent.keys()]) {
+    if (key.startsWith(pathPrefix)) recent.delete(key);
+  }
+}
+
 export async function apiRequest<T>(
+  path: string,
+  init: RequestInit & { timeoutMs?: number; fresh?: boolean } = {},
+): Promise<{ data: T; meta: ApiMeta }> {
+  const method = (init.method ?? 'GET').toUpperCase();
+  if (method !== 'GET') {
+    // Any write can change any list; the next read must hit the network.
+    const result = await performRequest<T>(path, init);
+    invalidateReadCache();
+    return result;
+  }
+
+  if (init.fresh) {
+    recent.delete(path);
+    inFlight.delete(path);
+  } else {
+    const hit = recent.get(path);
+    if (hit && Date.now() - hit.at < DEDUPE_WINDOW_MS) {
+      return hit.result as { data: T; meta: ApiMeta };
+    }
+    const pending = inFlight.get(path);
+    if (pending) return pending as Promise<{ data: T; meta: ApiMeta }>;
+  }
+
+  const request = performRequest<T>(path, init)
+    .then((result) => {
+      recent.set(path, { at: Date.now(), result });
+      return result;
+    })
+    .finally(() => inFlight.delete(path));
+
+  inFlight.set(path, request as Promise<Result>);
+  return request;
+}
+
+async function performRequest<T>(
   path: string,
   init: RequestInit & { timeoutMs?: number } = {},
 ): Promise<{ data: T; meta: ApiMeta }> {

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { ApiError } from '@/lib/api/client';
 import { authApi, LoginInput, SessionUser } from '@/lib/api/auth';
 import { TeamMemberStatus } from '@/types';
@@ -33,7 +33,12 @@ export function AuthSessionProvider({ children }: { children: React.ReactNode })
   const [currentUser, setCurrentUser] = useState<AuthenticatedUser | null>(null);
   const [isHydrated, setIsHydrated] = useState(false);
 
+  const hydrated = useRef(false);
+
   useEffect(() => {
+    // StrictMode runs mount effects twice; hydrating once avoids a second /me.
+    if (hydrated.current) return;
+    hydrated.current = true;
     authApi.me().then((user) => {
       lastMeAt = Date.now();
       setCurrentUser(toAuthenticatedUser(user));
@@ -45,6 +50,8 @@ export function AuthSessionProvider({ children }: { children: React.ReactNode })
   const login = useCallback(async (input: LoginInput) => {
     const user = await authApi.login(input);
     const authenticatedUser = toAuthenticatedUser(user);
+    // The login response already carries the session user, so no /me is needed.
+    lastMeAt = Date.now();
     setCurrentUser(authenticatedUser);
     return authenticatedUser;
   }, []);
@@ -72,8 +79,10 @@ export function AuthSessionProvider({ children }: { children: React.ReactNode })
   }, []);
 
   useEffect(() => {
+    // Not forced: returning to the tab should not re-fetch the session when it
+    // was just fetched, and `focus` + `visibilitychange` both fire on return.
     const onVisible = () => {
-      if (document.visibilityState === 'visible') void refresh(true);
+      if (document.visibilityState === 'visible') void refresh();
     };
     document.addEventListener('visibilitychange', onVisible);
     window.addEventListener('focus', onVisible);
