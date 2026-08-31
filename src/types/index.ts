@@ -134,6 +134,8 @@ export interface Project {
   clientContactMobile: string; // 02 Client Contact / Mobile
   venueLocation: string; // 03 Venue / Location
   primaryServiceType: ServiceType; // Primary Service Type
+  customServiceType?: string; // Service name when Primary Service Type is Other
+  otherClientDetails?: string; // Additional details for an Other service
   weddingFunctionDates: string; // Wedding Function Date(s)
   finalDeliveryDeadline: string; // Final Delivery Deadline
   totalBudget: number; // Total Budget (₹)

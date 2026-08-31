@@ -56,8 +56,9 @@ export const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
     isStandardService ? initialService : 'Other'
   );
   const [customServiceType, setCustomServiceType] = useState<string>(
-    isStandardService ? '' : (initialService === 'Other' ? '' : initialService)
+    existingProject?.customServiceType || (isStandardService ? '' : (initialService === 'Other' ? '' : initialService))
   );
+  const [otherClientDetails, setOtherClientDetails] = useState(existingProject?.otherClientDetails || '');
 
   const [weddingFunctionDates, setWeddingFunctionDates] = useState(existingProject?.weddingFunctionDates || '');
   const [finalDeliveryDeadline, setFinalDeliveryDeadline] = useState(existingProject?.finalDeliveryDeadline || '');
@@ -445,9 +446,7 @@ export const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
       return;
     }
 
-    const resolvedServiceType = selectedService === 'Other'
-      ? (customServiceType.trim() || 'Other')
-      : selectedService;
+    const resolvedServiceType = selectedService === 'Other' ? 'Other' : selectedService;
 
     const computedWeddingDates = shoots.map(s => s.date).filter(Boolean).join(', ') || weddingFunctionDates || '';
 
@@ -457,6 +456,8 @@ export const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
       clientContactMobile,
       venueLocation,
       primaryServiceType: resolvedServiceType as ServiceType,
+      customServiceType: selectedService === 'Other' ? customServiceType.trim() : undefined,
+      otherClientDetails: selectedService === 'Other' ? otherClientDetails.trim() || undefined : undefined,
       weddingFunctionDates: computedWeddingDates,
       finalDeliveryDeadline,
       totalBudget: Number(totalBudget),
@@ -528,7 +529,7 @@ export const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
           <div className="absolute -bottom-14 -right-8 size-44 rounded-full border-[24px] border-white/5" />
           <div className="relative flex items-center gap-4">
             <span className="grid size-14 shrink-0 place-items-center rounded-2xl border border-white/30 bg-white/15 shadow-inner"><Folder className="size-7 text-[#f6d9ca]" /></span>
-            <div><p className="flex items-center gap-1.5 text-xs font-extrabold uppercase tracking-[.18em] text-[#ecc8d3]"><Sparkles className="size-3.5"/>Project Journey Intake</p><h3 className="mt-1 text-xl font-black sm:text-2xl">{existingProject ? 'Edit Client Wedding Project' : 'Add New Client Project'}</h3><p className="mt-1 text-sm text-[#eadfe2]">Follow the sections below: client → shoots → money → documents → tasks.</p></div>
+            <div><p className="flex items-center gap-1.5 text-xs font-extrabold uppercase tracking-[.18em] text-[#ecc8d3]"><Sparkles className="size-3.5"/>Project Journey Intake</p><h3 className="mt-1 text-xl font-black sm:text-2xl">{existingProject ? 'Edit Client Wedding Project' : 'Add New Client Project'}</h3><p className="mt-1 text-sm text-[#eadfe2]">Follow the sections below: client → budget → documents → shoots → tasks.</p></div>
           </div>
           <button type="button" onClick={onClose} className="relative flex shrink-0 items-center gap-2 rounded-xl border border-white/20 bg-black/15 px-3 py-2.5 text-sm font-bold text-white/90 transition hover:bg-white/15 hover:text-white">
             {variant === 'page' ? <><ArrowLeft className="size-5"/><span className="hidden sm:inline">Back to Projects</span></> : <X className="size-5"/>}
@@ -539,9 +540,9 @@ export const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
         <form onSubmit={handleSubmit} className="project-guided-form flex min-h-0 flex-1 flex-col overflow-hidden p-5 pb-0 text-xs sm:p-7 sm:pb-0">
           <div ref={stepContentRef} className="min-h-0 flex-1 space-y-6 overflow-y-auto px-1 pb-8 pr-2">
           <div className="grid gap-2 rounded-2xl border border-rose-100 bg-rose-50/60 p-3 sm:grid-cols-5">
-            {['Client info','Shoot plan','Budget','Documents','Tasks'].map((step, index) => <button type="button" key={step} onClick={() => setActiveStep(index + 1)} className={`flex items-center justify-center gap-2 rounded-xl px-3 py-3 text-xs font-black uppercase tracking-wide transition ${activeStep === index + 1 ? 'bg-[#6d2f45] text-white shadow-md' : index + 1 < activeStep ? 'bg-emerald-50 text-emerald-700 shadow-sm' : 'bg-white text-[#6d2f45] shadow-sm hover:bg-rose-50'}`}><span className={`grid size-6 place-items-center rounded-full text-[10px] ${activeStep === index + 1 ? 'bg-white/15' : 'bg-current/10'}`}>{index + 1}</span><span className="hidden lg:inline">{step}</span></button>)}
+            {['Client info','Budget','Documents','Shoot plan','Tasks'].map((step, index) => <button type="button" key={step} onClick={() => setActiveStep(index + 1)} className={`flex items-center justify-center gap-2 rounded-xl px-3 py-3 text-xs font-black uppercase tracking-wide transition ${activeStep === index + 1 ? 'bg-[#6d2f45] text-white shadow-md' : index + 1 < activeStep ? 'bg-emerald-50 text-emerald-700 shadow-sm' : 'bg-white text-[#6d2f45] shadow-sm hover:bg-rose-50'}`}><span className={`grid size-6 place-items-center rounded-full text-[10px] ${activeStep === index + 1 ? 'bg-white/15' : 'bg-current/10'}`}>{index + 1}</span><span className="hidden lg:inline">{step}</span></button>)}
           </div>
-          <div className="flex items-center justify-between rounded-2xl border border-[#eadfd9] bg-[#fbfaf8] px-4 py-3"><div><p className="text-[10px] font-black uppercase tracking-[.16em] text-[#9b4865]">Step {activeStep} of 5</p><h4 className="mt-1 !text-base !normal-case !tracking-normal">{['Client & project basics','Shoot schedule & crew','Budget & payment plan','Client files & preferences','Tasks & deliverables'][activeStep - 1]}</h4></div><span className="text-xs font-bold text-slate-500">{Math.round(activeStep / 5 * 100)}% setup</span></div>
+          <div className="flex items-center justify-between rounded-2xl border border-[#eadfd9] bg-[#fbfaf8] px-4 py-3"><div><p className="text-[10px] font-black uppercase tracking-[.16em] text-[#9b4865]">Step {activeStep} of 5</p><h4 className="mt-1 !text-base !normal-case !tracking-normal">{['Client & project basics','Budget & payment plan','Client files & preferences','Shoot schedule & crew','Tasks & deliverables'][activeStep - 1]}</h4></div><span className="text-xs font-bold text-slate-500">{Math.round(activeStep / 5 * 100)}% setup</span></div>
           
           {/* Section 1: Core Client Project Information (Required fields 01, 02, 03) */}
           <div className="space-y-3">
@@ -603,15 +604,27 @@ export const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
 
               {/* Primary Service Type */}
               <div>
-                <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">
-                  Primary Service Type
-                </label>
+                <div className="mb-1 flex items-center justify-between gap-2">
+                  <label className="block text-[10px] font-bold text-slate-500 uppercase">
+                    Primary Service Type
+                  </label>
+                  {selectedService !== 'Other' && (
+                    <button
+                      type="button"
+                      onClick={() => setSelectedService('Other')}
+                      className="text-[10px] font-bold uppercase tracking-wide text-amber-700 hover:text-amber-800"
+                    >
+                      + Other service
+                    </button>
+                  )}
+                </div>
                 <select
                   value={selectedService}
                   onChange={(e) => {
                     setSelectedService(e.target.value);
                     if (e.target.value !== 'Other') {
                       setCustomServiceType('');
+                      setOtherClientDetails('');
                     }
                   }}
                   className="w-full bg-white border border-slate-200 rounded px-3 py-1.5 text-slate-800 focus:outline-none focus:ring-1 focus:ring-indigo-500 transition font-medium"
@@ -628,7 +641,7 @@ export const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
                 </select>
 
                 {selectedService === 'Other' && (
-                  <div className="mt-1.5">
+                  <div className="mt-1.5 space-y-2">
                     <input
                       type="text"
                       required
@@ -637,6 +650,16 @@ export const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
                       onChange={(e) => setCustomServiceType(e.target.value)}
                       className="w-full bg-amber-50 border border-amber-300 rounded px-3 py-1.5 text-slate-800 focus:outline-none focus:ring-1 focus:ring-amber-500 transition text-xs font-bold placeholder-slate-400"
                     />
+                    <div>
+                      <label className="mb-1 block text-[10px] font-bold uppercase tracking-wide text-amber-800">Other service details (optional)</label>
+                      <textarea
+                        rows={3}
+                        placeholder="Special requirements or service details..."
+                        value={otherClientDetails}
+                        onChange={(e) => setOtherClientDetails(e.target.value)}
+                        className="w-full resize-y bg-amber-50 border border-amber-300 rounded px-3 py-2 text-slate-800 focus:outline-none focus:ring-1 focus:ring-amber-500 transition text-xs placeholder-slate-400"
+                      />
+                    </div>
                   </div>
                 )}
               </div>
@@ -646,7 +669,7 @@ export const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
             <div className="space-y-3">
               
               {/* Dynamic Shoot Details Section (Before Final Delivery Deadline) */}
-              <div className={`${activeStep === 2 ? 'block' : 'hidden'} p-4 bg-slate-50 border border-slate-200 rounded-lg space-y-4`}>
+              <div className={`${activeStep === 4 ? 'block' : 'hidden'} p-4 bg-slate-50 border border-slate-200 rounded-lg space-y-4`}>
                 <div className="flex items-center justify-between">
                   <label className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
                     <Camera className="w-3.5 h-3.5 text-indigo-600" />
@@ -755,7 +778,7 @@ export const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
               </div>
 
               {/* Final Delivery Deadline */}
-              <div className={activeStep === 2 ? 'block' : 'hidden'}>
+              <div className={activeStep === 4 ? 'block' : 'hidden'}>
                 <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1 flex items-center gap-1">
                   <Calendar className="w-3 h-3 text-indigo-600" />
                   Final Delivery Deadline
@@ -773,12 +796,12 @@ export const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
 
           {/* Section 2: Financials & Budget (Total Budget, Advance Received, Balance Due) */}
           <div className="space-y-3 pt-3 border-t border-slate-200">
-            <h4 className={`${activeStep === 3 ? 'flex' : 'hidden'} text-xs font-bold text-indigo-600 uppercase tracking-wider items-center gap-1.5`}>
+            <h4 className={`${activeStep === 2 ? 'flex' : 'hidden'} text-xs font-bold text-indigo-600 uppercase tracking-wider items-center gap-1.5`}>
               <IndianRupee className="w-3.5 h-3.5 text-indigo-600" />
               03 · Budget & Payments
             </h4>
 
-            <div className={`${activeStep === 3 ? 'grid' : 'hidden'} grid-cols-1 sm:grid-cols-3 gap-4`}>
+            <div className={`${activeStep === 2 ? 'grid' : 'hidden'} grid-cols-1 sm:grid-cols-3 gap-4`}>
               
               {/* Total Budget */}
               <div>
@@ -825,7 +848,7 @@ export const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
             </div>
 
             {/* Client Folder / Documents & Payment Slips Vault */}
-            <div className={`${activeStep === 4 ? 'block' : 'hidden'} p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-4`}>
+            <div className={`${activeStep === 3 ? 'block' : 'hidden'} p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-4`}>
               <div className="flex items-center justify-between">
                 <label className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
                   <Folder className="w-4 h-4 text-indigo-600" />
@@ -916,7 +939,7 @@ export const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
             </div>
 
             {/* Special Client Notes / Music Preferences */}
-            <div className={activeStep === 4 ? 'block' : 'hidden'}>
+            <div className={activeStep === 3 ? 'block' : 'hidden'}>
               <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1 flex items-center gap-1">
                 <Music className="w-3 h-3 text-indigo-600" />
                 Special Client Notes / Music Preferences
@@ -1095,7 +1118,7 @@ export const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
               event.stopPropagation();
               if (activeStep === 1 && !clientWeddingTitle.trim()) { showToast('Please enter the Client / Wedding Title before continuing.', { variant: 'error' }); return; }
               setActiveStep((step) => Math.min(5, step + 1));
-            }} className="flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#8f3655] to-[#6d2f45] px-6 py-2.5 text-sm font-extrabold text-white shadow-[0_8px_20px_rgba(109,47,69,.25)] transition hover:-translate-y-0.5 hover:shadow-lg"><span>{`Save & Next: ${['Shoot Plan','Budget','Documents','Tasks'][activeStep - 1]}`}</span><ArrowRight className="size-4"/></button> :
+            }} className="flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#8f3655] to-[#6d2f45] px-6 py-2.5 text-sm font-extrabold text-white shadow-[0_8px_20px_rgba(109,47,69,.25)] transition hover:-translate-y-0.5 hover:shadow-lg"><span>{`Save & Next: ${['Budget','Documents','Shoot Plan','Tasks'][activeStep - 1]}`}</span><ArrowRight className="size-4"/></button> :
             <button
               key="wizard-submit"
               type="button"
