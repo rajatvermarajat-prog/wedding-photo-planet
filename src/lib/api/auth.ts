@@ -1,4 +1,4 @@
-import { apiRequest, setAccessToken } from './client';
+import { apiRequest, hasStoredSession, setAuthTokens } from './client';
 
 export interface SessionUser {
   id: string;
@@ -21,12 +21,16 @@ export interface LoginInput {
 
 export const authApi = {
   async login(input: LoginInput): Promise<SessionUser> {
-    const { data } = await apiRequest<{ user: SessionUser; tokens?: { accessToken?: string } }>(
-      '/auth/login',
-      { method: 'POST', body: JSON.stringify(input) },
-    );
-    setAccessToken(data.tokens?.accessToken ?? null);
+    const { data } = await apiRequest<{
+      user: SessionUser;
+      tokens?: { accessToken?: string; refreshToken?: string };
+    }>('/auth/login', { method: 'POST', body: JSON.stringify(input) });
+    setAuthTokens(data.tokens ?? null);
     return data.user;
+  },
+  /** False when this browser holds no credentials, so `/me` would 401 anyway. */
+  hasSession(): boolean {
+    return hasStoredSession();
   },
   async me(): Promise<SessionUser> {
     const { data } = await apiRequest<SessionUser>('/auth/me');
@@ -38,7 +42,7 @@ export const authApi = {
     } catch {
       return;
     } finally {
-      setAccessToken(null);
+      setAuthTokens(null);
     }
   },
 };

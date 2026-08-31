@@ -39,6 +39,13 @@ export function AuthSessionProvider({ children }: { children: React.ReactNode })
     // StrictMode runs mount effects twice; hydrating once avoids a second /me.
     if (hydrated.current) return;
     hydrated.current = true;
+    // With the API on another host its cookies are third-party and often
+    // dropped, so a browser holding no token has nothing to restore: asking
+    // `/me` would only return 401.
+    if (!authApi.hasSession()) {
+      setIsHydrated(true);
+      return;
+    }
     authApi.me().then((user) => {
       lastMeAt = Date.now();
       setCurrentUser(toAuthenticatedUser(user));
@@ -74,6 +81,11 @@ export function AuthSessionProvider({ children }: { children: React.ReactNode })
       const user = await authApi.me();
       setCurrentUser(toAuthenticatedUser(user));
     } catch (error: unknown) {
+      if (error instanceof ApiError && error.status === 401 && !authApi.hasSession()) {
+        // Refresh already failed and the credentials were dropped.
+        setCurrentUser(null);
+        return;
+      }
       if (error instanceof ApiError && (error.status === 401 || error.status === 429)) return;
     }
   }, []);

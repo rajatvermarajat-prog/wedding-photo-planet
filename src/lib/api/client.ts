@@ -37,20 +37,77 @@ export class ApiError extends Error {
 const baseUrl = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:5050/api/v1').replace(/\/$/, '');
 const REQUEST_TIMEOUT_MS = 15_000;
 const TOKEN_KEY = 'wpp.accessToken';
+const REFRESH_KEY = 'wpp.refreshToken';
 
-/**
- * The API is on a different `.vercel.app` host, so its auth cookie is
- * third-party and browsers may drop it. The bearer token keeps sessions working.
- */
-export function setAccessToken(token: string | null): void {
-  if (typeof window === 'undefined') return;
-  if (token) window.localStorage.setItem(TOKEN_KEY, token);
-  else window.localStorage.removeItem(TOKEN_KEY);
+export interface AuthTokens {
+  accessToken?: string;
+  refreshToken?: string;
 }
 
-function getAccessToken(): string | null {
+/**
+ * The API is on a different `.vercel.app` host, so its auth cookies are
+ * third-party and browsers may drop them. Holding the pair here keeps sessions
+ * working, and keeping the refresh token is what lets a session outlive the
+ * short-lived access token instead of dropping the user back on the login page.
+ */
+export function setAuthTokens(tokens: AuthTokens | null): void {
+  if (typeof window === 'undefined') return;
+  if (!tokens) {
+    window.localStorage.removeItem(TOKEN_KEY);
+    window.localStorage.removeItem(REFRESH_KEY);
+    return;
+  }
+  if (tokens.accessToken) window.localStorage.setItem(TOKEN_KEY, tokens.accessToken);
+  if (tokens.refreshToken) window.localStorage.setItem(REFRESH_KEY, tokens.refreshToken);
+}
+
+export function getAccessToken(): string | null {
   if (typeof window === 'undefined') return null;
   return window.localStorage.getItem(TOKEN_KEY);
+}
+
+function getRefreshToken(): string | null {
+  if (typeof window === 'undefined') return null;
+  return window.localStorage.getItem(REFRESH_KEY);
+}
+
+/** True when this browser has something to authenticate with. */
+export function hasStoredSession(): boolean {
+  return Boolean(getAccessToken() ?? getRefreshToken());
+}
+
+let refreshInFlight: Promise<boolean> | null = null;
+
+/**
+ * Exchanges the stored refresh token for a new pair. Single-flight, so a burst
+ * of 401s from concurrent dashboard reads produces one refresh, not one each.
+ */
+function refreshSession(): Promise<boolean> {
+  refreshInFlight ??= (async () => {
+    const refreshToken = getRefreshToken();
+    try {
+      const response = await fetch(`${baseUrl}/auth/refresh`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(refreshToken ? { refreshToken } : {}),
+      });
+      const payload = await response.json().catch(() => null) as
+        | { success?: boolean; data?: { tokens?: AuthTokens } }
+        | null;
+      if (!response.ok || !payload?.success || !payload.data?.tokens?.accessToken) {
+        setAuthTokens(null);
+        return false;
+      }
+      setAuthTokens(payload.data.tokens);
+      return true;
+    } catch {
+      return false;
+    } finally {
+      refreshInFlight = null;
+    }
+  })();
+  return refreshInFlight;
 }
 
 type Result = { data: unknown; meta: ApiMeta };
@@ -110,9 +167,12 @@ export async function apiRequest<T>(
   return request;
 }
 
+const NO_REFRESH_PATHS = ['/auth/login', '/auth/refresh', '/auth/logout'];
+
 async function performRequest<T>(
   path: string,
   init: RequestInit & { timeoutMs?: number } = {},
+  isRetry = false,
 ): Promise<{ data: T; meta: ApiMeta }> {
   const controller = new AbortController();
   const timeout = window.setTimeout(() => controller.abort(), init.timeoutMs ?? REQUEST_TIMEOUT_MS);
@@ -130,6 +190,22 @@ async function performRequest<T>(
       signal: controller.signal,
     });
     if (response.status === 204) return { data: undefined as T, meta: {} };
+
+    if (
+      response.status === 401 &&
+      !isRetry &&
+      !NO_REFRESH_PATHS.includes(path) &&
+      hasStoredSession()
+    ) {
+      // The access token lives ~15 minutes; renew it once and replay the call
+      // so an expired token never surfaces as a lost session.
+      const renewed = await refreshSession();
+      if (renewed) {
+        const retryHeaders = new Headers(init.headers);
+        retryHeaders.delete('Authorization');
+        return performRequest<T>(path, { ...init, headers: retryHeaders }, true);
+      }
+    }
 
     const payload = await response.json().catch(() => null) as ApiEnvelope<T> | ApiErrorEnvelope | null;
     if (!response.ok || !payload || !payload.success) {
