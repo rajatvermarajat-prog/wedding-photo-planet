@@ -26,7 +26,7 @@ import {
 import { EmploymentType, TeamMember, TeamMemberStatus } from '@/types';
 import type { AccessRole } from '@/features/access';
 import type { PermissionModule } from '@/features/access/accessTypes';
-import { assignableRoles, filterRoles, rolePermissionPreview } from '@/features/access/roleSelection';
+import { assignableRoles, rolePermissionPreview } from '@/features/access/roleSelection';
 import { useToast } from '@/components/common';
 import {
   Avatar,
@@ -43,7 +43,6 @@ import {
   WEEK_DAYS,
   getDepartmentForRole,
   getEmployeeCode,
-  getRoleOptions,
 } from '../teamDomain';
 
 interface Props {
@@ -71,8 +70,8 @@ interface FormState {
   address: string;
   emergencyContact: string;
   employeeId: string;
+  /** Job title, mirrored from the selected role. */
   role: string;
-  customRole: string;
   department: string;
   employmentType: EmploymentType;
   joiningDate: string;
@@ -93,8 +92,6 @@ interface FormState {
   accessRoleId: string;
   password: string;
 }
-
-const CUSTOM_ROLE = '__custom__';
 
 function isValidPassword(password: string): boolean {
   return password.length >= 10 && /[a-z]/.test(password) && /[A-Z]/.test(password) && /\d/.test(password);
@@ -119,8 +116,7 @@ function emptyForm(defaultEmploymentType?: EmploymentType): FormState {
     address: '',
     emergencyContact: '',
     employeeId: '',
-    role: 'Photographer',
-    customRole: '',
+    role: '',
     department: '',
     employmentType: defaultEmploymentType || 'Full Time',
     joiningDate: new Date().toISOString().slice(0, 10),
@@ -143,8 +139,7 @@ function emptyForm(defaultEmploymentType?: EmploymentType): FormState {
   };
 }
 
-function formFromMember(member: TeamMember, roleOptions: string[]): FormState {
-  const isKnownRole = roleOptions.includes(String(member.role));
+function formFromMember(member: TeamMember): FormState {
   return {
     name: member.name || '',
     profilePhoto: member.profilePhoto || '',
@@ -155,8 +150,7 @@ function formFromMember(member: TeamMember, roleOptions: string[]): FormState {
     address: member.address || '',
     emergencyContact: member.emergencyContact || '',
     employeeId: member.employeeId || '',
-    role: isKnownRole ? String(member.role) : CUSTOM_ROLE,
-    customRole: isKnownRole ? '' : String(member.role || ''),
+    role: String(member.role || ''),
     department: member.department || '',
     employmentType: member.employmentType || 'Full Time',
     joiningDate: member.joiningDate || '',
@@ -192,16 +186,15 @@ export const TeamMemberFormModal: React.FC<Props> = ({
 }) => {
   const { showToast } = useToast();
   const isEdit = !!member;
-  const roleOptions = useMemo(() => getRoleOptions(team), [team]);
-  const [roleSearch, setRoleSearch] = useState('');
-
   // The server decides assignability; anything it flags is hidden here so the
   // admin is never offered a role the API would refuse.
-  const assignable = useMemo(() => assignableRoles(accessRoles), [accessRoles]);
-  const matchingRoles = useMemo(
-    () => filterRoles(assignable, { query: roleSearch }),
-    [assignable, roleSearch],
+  const assignable = useMemo(
+    // `member.id` is the backend user id, so an employee still sees the personal
+    // role that belongs to them.
+    () => assignableRoles(accessRoles, member?.id),
+    [accessRoles, member?.id],
   );
+  const matchingRoles = assignable;
   const [form, setForm] = useState<FormState>(() => emptyForm(defaultEmploymentType));
   const [softwareInput, setSoftwareInput] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -211,7 +204,7 @@ export const TeamMemberFormModal: React.FC<Props> = ({
 
   useEffect(() => {
     if (!isOpen) return;
-    setForm(member ? formFromMember(member, roleOptions) : emptyForm(defaultEmploymentType));
+    setForm(member ? formFromMember(member) : emptyForm(defaultEmploymentType));
     setSoftwareInput('');
     setPasswordError('');
     setIsPasswordVisible(false);
@@ -225,9 +218,11 @@ export const TeamMemberFormModal: React.FC<Props> = ({
   const set = <K extends keyof FormState>(key: K, value: FormState[K]) =>
     setForm((prev) => ({ ...prev, [key]: value }));
 
-  const effectiveRole = form.role === CUSTOM_ROLE ? form.customRole.trim() : form.role;
-
   const selectedAccessRole = accessRoles.find((role) => role.id === form.accessRoleId) || null;
+  // One role field only: the access role is both the roster job title and the
+  // permission set, so the two can never drift apart. An existing member keeps
+  // their stored title until a role is picked.
+  const effectiveRole = selectedAccessRole?.name || form.role;
   const rolePreview = rolePermissionPreview(selectedAccessRole, accessPermissions);
 
   const handlePhotoUpload = (file?: File | null) => {
@@ -256,7 +251,7 @@ export const TeamMemberFormModal: React.FC<Props> = ({
       return;
     }
     if (!effectiveRole) {
-      showToast('Pick a role, or type the custom role name.', { variant: 'error' });
+      showToast('Pick the employee\u2019s role.', { variant: 'error' });
       return;
     }
     if (!isEdit && !form.email.trim()) {
@@ -268,7 +263,7 @@ export const TeamMemberFormModal: React.FC<Props> = ({
       return;
     }
     if (!isEdit && !form.accessRoleId) {
-      showToast('Select the employee access role before creating their login.', { variant: 'error' });
+      showToast('Select the employee\u2019s role before creating their login.', { variant: 'error' });
       return;
     }
 
@@ -488,66 +483,38 @@ export const TeamMemberFormModal: React.FC<Props> = ({
 
             <div>
               <label className={LABEL} htmlFor="tm-role">Role *</label>
-              <select id="tm-role" className={FIELD} value={form.role} onChange={(e) => set('role', e.target.value)}>
-                {roleOptions.map((r) => (
-                  <option key={r} value={r}>{r}</option>
-                ))}
-                <option value={CUSTOM_ROLE}>+ Custom role…</option>
+              <select
+                id="tm-role"
+                className={FIELD}
+                value={form.accessRoleId}
+                required={!isEdit}
+                disabled={!isEdit && assignable.length === 0}
+                onChange={(e) => set('accessRoleId', e.target.value)}
+              >
+                <option value="">
+                  {accessRoles.length === 0
+                    ? 'Loading roles…'
+                    : assignable.length === 0
+                      ? 'No roles you are allowed to assign'
+                      : 'Select a role'}
+                </option>
+                {(['system', 'custom'] as const).map((group) => {
+                  const options = matchingRoles.filter((role) => role.type === group);
+                  if (options.length === 0) return null;
+                  return (
+                    <optgroup key={group} label={group === 'system' ? 'System roles' : 'Custom roles'}>
+                      {options.map((role) => (
+                        <option key={role.id} value={role.id}>
+                          {role.name}
+                        </option>
+                      ))}
+                    </optgroup>
+                  );
+                })}
               </select>
-            </div>
-
-            {form.role === CUSTOM_ROLE && (
-              <div>
-                <label className={LABEL} htmlFor="tm-customrole">Custom role name *</label>
-                <input id="tm-customrole" className={FIELD} value={form.customRole} onChange={(e) => set('customRole', e.target.value)} placeholder="e.g. Lighting Technician" />
-              </div>
-            )}
-
-            <div className="sm:col-span-2 space-y-3 rounded-2xl border border-[#eee7e2] bg-[#fbfaf8] p-4">
-              <p className={LABEL}>Login access role *</p>
-              <p className="text-[11px] font-medium text-slate-500">This backend role controls the employee’s permissions. Direct user permission overrides are not supported by the API.</p>
-              <label>
-                <span className={LABEL}>Primary access role</span>
-                <input
-                  className={FIELD}
-                  value={roleSearch}
-                  onChange={(e) => setRoleSearch(e.target.value)}
-                  placeholder="Search roles, e.g. sales"
-                  aria-label="Search access roles"
-                />
-                <select
-                  className={`${FIELD} mt-2`}
-                  value={form.accessRoleId}
-                  required={!isEdit}
-                  disabled={!isEdit && assignable.length === 0}
-                  onChange={(e) => set('accessRoleId', e.target.value)}
-                >
-                  <option value="">
-                    {accessRoles.length === 0
-                      ? 'Loading backend roles…'
-                      : assignable.length === 0
-                        ? 'No roles you are allowed to assign'
-                        : 'Select an access role'}
-                  </option>
-                  {(['system', 'custom'] as const).map((group) => {
-                    const options = matchingRoles.filter((role) => role.type === group);
-                    if (options.length === 0) return null;
-                    return (
-                      <optgroup key={group} label={group === 'system' ? 'System roles' : 'Custom roles'}>
-                        {options.map((role) => (
-                          <option key={role.id} value={role.id}>
-                            {role.name}
-                            {role.description ? ` — ${role.description}` : ''}
-                          </option>
-                        ))}
-                      </optgroup>
-                    );
-                  })}
-                </select>
-              </label>
 
               {selectedAccessRole && (
-                <div className="rounded-xl border border-[#ded5cf] bg-white p-3">
+                <div className="rounded-xl border border-[#ded5cf] bg-[#fbfaf8] p-3">
                   <p className="text-xs font-extrabold text-slate-800">
                     {selectedAccessRole.name} provides
                   </p>

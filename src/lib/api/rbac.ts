@@ -4,6 +4,8 @@ export interface BackendPermission { id: string; key: string; module: string; la
 export interface BackendRole {
   id: string; name: string; description: string | null; type: 'SYSTEM' | 'CUSTOM'; status: 'ACTIVE' | 'INACTIVE';
   isDefault: boolean; createdAt: string; updatedAt: string;
+  /** Set when the role is one specific employee's own permission set. */
+  personalForUserId?: string | null;
   rolePermissions: Array<{ permission: Pick<BackendPermission, 'key'> }>;
   _count: { userRoles: number };
   /** Server-computed: the signed-in actor may hand this role to an employee. */
@@ -35,7 +37,7 @@ export interface RoleMember {
 export const rbacApi = {
   async listRoles(): Promise<BackendRole[]> { const { data } = await apiRequest<BackendRole[]>('/roles'); return data; },
   async listPermissions(): Promise<BackendPermission[]> { const { data } = await apiRequest<BackendPermission[]>('/permissions'); return data; },
-  async createRole(input: { name: string; description?: string; status?: 'ACTIVE' | 'INACTIVE'; permissionKeys: string[] }): Promise<BackendRole> { const { data } = await apiRequest<BackendRole>('/roles', { method: 'POST', body: JSON.stringify(input) }); return data; },
+  async createRole(input: { name: string; description?: string; status?: 'ACTIVE' | 'INACTIVE'; personalForUserId?: string; permissionKeys: string[] }): Promise<BackendRole> { const { data } = await apiRequest<BackendRole>('/roles', { method: 'POST', body: JSON.stringify(input) }); return data; },
   async updateRole(id: string, input: { name?: string; description?: string; status?: 'ACTIVE' | 'INACTIVE' }): Promise<BackendRole> { const { data } = await apiRequest<BackendRole>(`/roles/${id}`, { method: 'PATCH', body: JSON.stringify(input) }); return data; },
   async setRolePermissions(id: string, permissionKeys: string[]): Promise<BackendRole> { const { data } = await apiRequest<BackendRole>(`/roles/${id}/permissions`, { method: 'PUT', body: JSON.stringify({ permissionKeys }) }); return data; },
   async removeRole(id: string): Promise<void> { await apiRequest<void>(`/roles/${id}`, { method: 'DELETE' }); },

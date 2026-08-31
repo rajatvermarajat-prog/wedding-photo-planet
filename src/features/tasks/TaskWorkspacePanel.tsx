@@ -10,6 +10,8 @@ interface Props {
   showAssignee?: boolean;
   canUpdate: boolean;
   onUpdate: (task: TeamTask) => void;
+  /** Keeps the employee dashboard balanced when there are no assignments. */
+  compactEmpty?: boolean;
 }
 
 const STATUS_OPTIONS: Array<{ value: TeamTask['status']; label: string }> = [
@@ -23,7 +25,7 @@ function dueLabel(task: TeamTask): string {
   return task.dueDate ? `Due ${task.dueDate}` : 'No due date';
 }
 
-export function TaskWorkspacePanel({ tasks, title, description, showAssignee = false, canUpdate, onUpdate }: Props) {
+export function TaskWorkspacePanel({ tasks, title, description, showAssignee = false, canUpdate, onUpdate, compactEmpty = false }: Props) {
   const openCount = tasks.filter((task) => task.status !== 'completed').length;
   const completedCount = tasks.length - openCount;
 
@@ -45,7 +47,7 @@ export function TaskWorkspacePanel({ tasks, title, description, showAssignee = f
       </div>
 
       {tasks.length === 0 ? (
-        <div className="px-5 py-9 text-center">
+        <div className={`px-5 text-center ${compactEmpty ? 'py-6' : 'py-9'}`}>
           <CheckCircle2 className="mx-auto size-7 text-[#b8a4ac]" />
           <p className="mt-2 text-sm font-bold text-slate-700">No tasks assigned yet.</p>
           <p className="mt-1 text-xs text-slate-500">New assignments will appear here as soon as they are created.</p>

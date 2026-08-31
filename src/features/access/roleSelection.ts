@@ -26,9 +26,17 @@ export function filterRoles(roles: AccessRole[], filter: RoleFilter): AccessRole
 /**
  * Roles the signed-in actor may hand to an employee. `assignable` is computed
  * server-side; this only mirrors it so the UI does not offer a doomed choice.
+ *
+ * A personal role is one employee's own permission set, so it is offered only
+ * while editing that employee — never in anyone else's list.
  */
-export function assignableRoles(roles: AccessRole[]): AccessRole[] {
-  return roles.filter((role) => role.assignable && role.status === 'active');
+export function assignableRoles(roles: AccessRole[], forUserId?: string): AccessRole[] {
+  return roles.filter(
+    (role) =>
+      role.assignable &&
+      role.status === 'active' &&
+      (!role.personalForUserId || role.personalForUserId === forUserId),
+  );
 }
 
 export function enabledPermissionKeys(role: Pick<AccessRole, 'grants'>): string[] {
