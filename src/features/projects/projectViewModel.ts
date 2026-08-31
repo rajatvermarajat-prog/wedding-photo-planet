@@ -14,6 +14,7 @@ const typeByService: Record<string, BackendProjectType> = {
   'Haldi & Mehendi': 'HALDI_MEHENDI',
   Sangeet: 'SANGEET',
   Reception: 'RECEPTION',
+  Other: 'OTHER',
 };
 
 const emptyPipeline = {
@@ -52,7 +53,9 @@ export function normalizeProject(dto: ProjectDto): Project {
     clientWeddingTitle: dto.client?.displayName || dto.name,
     clientContactMobile: dto.client?.primaryPhone || '',
     venueLocation: [dto.venueName, dto.venueCity].filter(Boolean).join(', '),
-    primaryServiceType: legacyService[dto.type] || 'Wedding',
+    primaryServiceType: dto.customServiceType ? 'Other' : (legacyService[dto.type] || 'Wedding'),
+    customServiceType: dto.customServiceType || undefined,
+    otherClientDetails: dto.otherClientDetails || undefined,
     weddingFunctionDates: dto.weddingDate?.slice(0, 10) ?? '',
     finalDeliveryDeadline: dto.deliveryDueDate?.slice(0, 10) ?? '',
     totalBudget: budget,
@@ -92,6 +95,8 @@ export function toCreateProjectInput(project: Project, clientId: string): Create
     venueName: venue.venueName,
     venueCity: venue.venueCity,
     totalQuotation: Number.isFinite(project.totalBudget) ? String(project.totalBudget) : undefined,
+    customServiceType: project.primaryServiceType === 'Other' ? project.customServiceType : undefined,
+    otherClientDetails: project.primaryServiceType === 'Other' ? project.otherClientDetails : undefined,
     notes: project.specialNotesMusicPreferences || undefined,
     events: events.length ? events : undefined,
   };

@@ -217,6 +217,7 @@ export default function App() {
     updatedAt: role.updatedAt.slice(0, 10),
     userCount: role._count.userRoles,
     assignable: role.assignable ?? false,
+    personalForUserId: role.personalForUserId ?? null,
   })), [rbacQuery.roles]);
   const canViewAudit = Boolean(currentUser?.permissions?.includes('AUDIT_VIEW'));
   /** Role-scoped audit entries, loaded only when the log is opened. */
@@ -1118,6 +1119,9 @@ export default function App() {
                     name: `${userName} — ${source.name}`.slice(0, 64),
                     description: `Personal access for ${userName}, based on ${source.name}.`,
                     status: 'ACTIVE',
+                    // Pins the role to this employee, which keeps it out of
+                    // everyone else's role list.
+                    personalForUserId: userId,
                     permissionKeys: Object.entries(source.grants)
                       .filter(([, grant]) => grant.enabled)
                       .map(([key]) => key),

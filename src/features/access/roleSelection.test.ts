@@ -60,6 +60,30 @@ describe('assignableRoles', () => {
   it('drops roles the server flagged as unassignable and inactive ones', () => {
     expect(assignableRoles(roles).map((r) => r.name)).toEqual(['MEMBER', 'Sales Manager']);
   });
+
+  it('hides another employee’s personal role', () => {
+    const withPersonal = [
+      ...roles,
+      role({ id: '5', name: 'Kirti — MANAGER', personalForUserId: 'user-kirti' }),
+    ];
+    expect(assignableRoles(withPersonal).map((r) => r.name)).toEqual(['MEMBER', 'Sales Manager']);
+    expect(assignableRoles(withPersonal, 'user-swati').map((r) => r.name)).toEqual([
+      'MEMBER',
+      'Sales Manager',
+    ]);
+  });
+
+  it('keeps a personal role visible for its own employee', () => {
+    const withPersonal = [
+      ...roles,
+      role({ id: '5', name: 'Kirti — MANAGER', personalForUserId: 'user-kirti' }),
+    ];
+    expect(assignableRoles(withPersonal, 'user-kirti').map((r) => r.name)).toEqual([
+      'MEMBER',
+      'Sales Manager',
+      'Kirti — MANAGER',
+    ]);
+  });
 });
 
 describe('enabledPermissionKeys', () => {

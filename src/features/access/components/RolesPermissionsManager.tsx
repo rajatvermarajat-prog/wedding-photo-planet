@@ -374,6 +374,11 @@ export const RolesPermissionsManager: React.FC<Props> = ({
                         <Badge className={role.type === 'system' ? 'border-[#c9b7ad] bg-[#efe7e2] text-slate-700' : 'border-[#ddc89c] bg-[#f9f3e8] text-[#7a5a2e]'}>
                           {role.type === 'system' ? 'SYSTEM' : 'CUSTOM'}
                         </Badge>
+                        {role.personalForUserId && (
+                          <Badge className="border-[#c9b7ad] bg-[#f6f1ee] text-slate-700" title="Belongs to one employee only">
+                            PERSONAL
+                          </Badge>
+                        )}
                         {!role.assignable && (
                           <Badge className="border-slate-200 bg-slate-50 text-slate-500" title="You cannot assign this role to an employee">
                             Not assignable by you

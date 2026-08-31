@@ -36,6 +36,11 @@ export interface AccessRole {
   userCount: number;
   /** Whether the signed-in actor is allowed to assign this role. */
   assignable: boolean;
+  /**
+   * Set when this role is one specific employee's own permission set. Such a
+   * role is never offered to anyone else.
+   */
+  personalForUserId?: string | null;
 }
 
 export interface AccessAuditEntry {

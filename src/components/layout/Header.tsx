@@ -54,7 +54,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   const navItems = [
     { id: 'dashboard' as TabType, label: 'Dashboard', icon: LayoutDashboard },
-    { id: 'owner_workspace' as TabType, label: 'Owner Workspace', icon: Crown },
+    { id: 'owner_workspace' as TabType, label: 'My workrole', icon: Crown },
     { id: 'leads' as TabType, label: 'Leads & Inquiries', icon: Target },
     { id: 'projects' as TabType, label: 'Projects', icon: FolderKanban },
     { id: 'shoots' as TabType, label: 'Shoot Management', icon: Film },
