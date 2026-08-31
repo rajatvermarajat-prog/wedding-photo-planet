@@ -3,7 +3,7 @@ import type { TabType } from '@/components/layout/Header';
 /** Sidebar item → one or more view permissions (any match grants the tab). */
 export const TAB_PERMISSIONS: Partial<Record<TabType, string | string[]>> = {
   dashboard: 'dashboard.view',
-  equipment: 'settings.view',
+  equipment: ['settings.view', 'SETTING_VIEW'],
   leads: 'leads.view',
   projects: 'weddings.view',
   shoots: ['shoots.view', 'SHOOT_VIEW'],
@@ -13,5 +13,7 @@ export const TAB_PERMISSIONS: Partial<Record<TabType, string | string[]>> = {
   freelancers: 'freelancers.view',
   clients: 'clients.view',
   deliveries: ['media.view_photos', 'media.view_videos'],
-  access: 'settings.manage_roles',
+  // Reading the roles desk needs ROLE_VIEW; the create/edit/delete actions on
+  // the page are gated separately on their own permissions.
+  access: 'ROLE_VIEW',
 };

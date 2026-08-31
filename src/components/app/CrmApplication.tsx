@@ -211,11 +211,28 @@ export default function App() {
     name: role.name,
     description: role.description || '',
     type: role.type === 'SYSTEM' ? 'system' as const : 'custom' as const,
-    status: 'active' as const,
+    status: role.status === 'INACTIVE' ? 'inactive' as const : 'active' as const,
     grants: Object.fromEntries(role.rolePermissions.map(({ permission }) => [permission.key, { enabled: true }])),
     createdAt: role.createdAt.slice(0, 10),
     updatedAt: role.updatedAt.slice(0, 10),
+    userCount: role._count.userRoles,
+    assignable: role.assignable ?? false,
   })), [rbacQuery.roles]);
+  const canViewAudit = Boolean(currentUser?.permissions?.includes('AUDIT_VIEW'));
+  /** Role-scoped audit entries, loaded only when the log is opened. */
+  const loadRoleAudit = useCallback(async () => {
+    const entries = await rbacApi.roleAudit();
+    return entries.map((entry) => ({
+      id: entry.id,
+      roleId: entry.entityId ?? '',
+      roleName: entry.newData?.name ?? entry.oldData?.name ?? entry.summary ?? 'Role',
+      added: entry.newData?.added ?? [],
+      removed: entry.newData?.removed ?? [],
+      changedBy: entry.actor?.fullName ?? 'System',
+      date: entry.createdAt,
+    }));
+  }, []);
+
   // Role IDs used by employee creation must always come from the backend.
   // Do not fall back to the retired browser-persisted role catalogue.
   const effectiveAccessRoles = backendAccessRoles;
@@ -295,9 +312,6 @@ export default function App() {
 
   const canAccessTab = useCallback(
     (tab: TabType) => {
-      if (tab === 'equipment') {
-        return currentUser?.role === 'Owner';
-      }
       if (tab === 'owner_workspace') return true;
       const key = TAB_PERMISSIONS[tab];
       if (!key) return true;
@@ -321,14 +335,6 @@ export default function App() {
 
   useEffect(() => {
     if (!currentUser) return;
-    if (currentUser.role === 'Owner' && activeTab === 'roles') {
-      setActiveTab('owner_workspace');
-      return;
-    }
-    if (isStudioAdmin(currentUser) && activeTab === 'roles') {
-      setActiveTab('dashboard');
-      return;
-    }
     if (!canAccessTab(activeTab)) {
       const fallback = (['owner_workspace', 'dashboard', 'roles', 'leads', 'projects', 'shoots'] as TabType[]).find((tab) => canAccessTab(tab));
       if (fallback) setActiveTab(fallback);
@@ -1012,6 +1018,7 @@ export default function App() {
                 currentUser={currentUser}
                 onNavigateToFreelancers={() => setActiveTab('freelancers')}
                 accessRoles={effectiveAccessRoles}
+                accessPermissions={backendPermissionModules}
               />
             ) : (
               <AccessDenied />
@@ -1060,16 +1067,71 @@ export default function App() {
           )}
 
           {activeTab === 'access' && (
-            hasPermission(currentUser, accessRoles, 'settings.manage_roles') ? (
+            hasPermission(currentUser, accessRoles, 'ROLE_VIEW') ? (
               <RolesPermissionsManager
                 roles={effectiveAccessRoles}
-                audit={[]}
                 team={team}
                 currentUserName={currentUser?.name || 'Admin'}
                 permissions={backendPermissionModules}
-                onCreateRole={async (input) => { await rbacApi.createRole(input); await rbacQuery.refresh(); }}
-                onUpdateRole={async (input) => { await rbacApi.updateRole(input.id, { name: input.name, description: input.description }); await rbacApi.setRolePermissions(input.id, input.permissionKeys); await rbacQuery.refresh(); await refresh(true); }}
+                onCreateRole={async (input) => {
+                  await rbacApi.createRole({
+                    name: input.name,
+                    description: input.description,
+                    status: input.status === 'inactive' ? 'INACTIVE' : 'ACTIVE',
+                    permissionKeys: input.permissionKeys,
+                  });
+                  await rbacQuery.refresh();
+                }}
+                onUpdateRole={async (input) => {
+                  const status = input.status === 'inactive' ? 'INACTIVE' : 'ACTIVE';
+                  const before = rbacQuery.roles.find((role) => role.id === input.id);
+                  // Most saves only touch checkboxes, so skip the metadata write
+                  // unless the name, description or status actually moved.
+                  const metaChanged =
+                    !before ||
+                    before.name !== input.name ||
+                    (before.description ?? '') !== (input.description ?? '') ||
+                    before.status !== status;
+                  if (metaChanged) {
+                    await rbacApi.updateRole(input.id, {
+                      name: input.name,
+                      description: input.description,
+                      status,
+                    });
+                  }
+                  await rbacApi.setRolePermissions(input.id, input.permissionKeys);
+                  // The editor may have changed the actor's own permissions, so
+                  // reload both, in parallel.
+                  await Promise.all([rbacQuery.refresh(), refresh(true)]);
+                }}
                 onDeleteRole={async (id) => { await rbacApi.removeRole(id); await rbacQuery.refresh(); }}
+                onLoadAudit={canViewAudit ? loadRoleAudit : undefined}
+                onLoadRoleUsers={(roleId) => rbacApi.roleUsers(roleId)}
+                onAssignUserRole={async (userId, roleId) => {
+                  await teamMutations.setRoles(userId, [roleId]);
+                  await rbacQuery.refresh();
+                }}
+                onCreatePersonalRole={async ({ source, userId, userName }) => {
+                  // Clone the source role's permissions into a personal role so
+                  // this employee can diverge without affecting colleagues.
+                  const created = await rbacApi.createRole({
+                    name: `${userName} — ${source.name}`.slice(0, 64),
+                    description: `Personal access for ${userName}, based on ${source.name}.`,
+                    status: 'ACTIVE',
+                    permissionKeys: Object.entries(source.grants)
+                      .filter(([, grant]) => grant.enabled)
+                      .map(([key]) => key),
+                  });
+                  await teamMutations.setRoles(userId, [created.id]);
+                  await rbacQuery.refresh();
+                  return created.id;
+                }}
+                capabilities={{
+                  create: hasPermission(currentUser, accessRoles, 'ROLE_CREATE'),
+                  update: hasPermission(currentUser, accessRoles, 'ROLE_UPDATE'),
+                  assignPermissions: hasPermission(currentUser, accessRoles, 'PERMISSION_ASSIGN'),
+                  remove: hasPermission(currentUser, accessRoles, 'ROLE_DELETE'),
+                }}
               />
             ) : (
               <div className="bg-white rounded-3xl p-8 sm:p-12 text-center max-w-xl mx-auto border border-slate-200 shadow-xl space-y-5 my-12">
