@@ -11,6 +11,7 @@ import { mergeAssignees, FREELANCER_ASSIGNEE, UNASSIGNED_ASSIGNEE, assigneeSelec
 import { useTeam } from '@/hooks/useTeam';
 import { normalizeTeamMember } from '@/features/team/teamViewModel';
 import { BTN_PRIMARY, FIELD, LABEL } from '@/features/team/components/TeamUiKit';
+import { projectsApi } from '@/lib/api/projects';
 import { RoleColumnCrewManager } from './RoleColumnCrewManager';
 import { 
   X, 
@@ -178,50 +179,21 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
   };
 
   // Payment Schedule State
-  const [paymentSchedules, setPaymentSchedules] = useState<ScheduledPayment[]>(() => {
-    const total = project.totalBudget || 0;
-    const advance = project.advanceReceived || (project.payments ? project.payments.reduce((acc, p) => acc + p.amount, 0) : 0);
-    const balance = project.balanceDue ?? Math.max(0, total - advance);
+  // Start empty and hydrate from the persisted API. Rendering the old local
+  // default here caused deleted milestones to flash briefly after refresh.
+  const [paymentSchedules, setPaymentSchedules] = useState<ScheduledPayment[]>([]);
 
-    const initialSchedules = (project.paymentSchedule && project.paymentSchedule.length > 0)
-      ? project.paymentSchedule
-      : [
-          {
-            id: `sched-1`,
-            stageName: '30% Booking Token Advance',
-            dueDate: project.createdAt || new Date().toISOString().split('T')[0],
-            amount: Math.round(total * 0.30),
-            status: 'pending' as const,
-            notes: 'Token amount on booking confirmation',
-          },
-          {
-            id: `sched-2`,
-            stageName: '60% On Wedding Shoot Date',
-            dueDate: project.weddingFunctionDates ? project.weddingFunctionDates.split(' ')[0] : 'Shoot Date',
-            amount: Math.round(total * 0.60),
-            status: 'pending' as const,
-            notes: 'Second installment on main shoot day',
-          },
-          {
-            id: `sched-3`,
-            stageName: '10% Final Delivery & Album Handover',
-            dueDate: project.finalDeliveryDeadline || 'Final Delivery',
-            amount: Math.round(total * 0.10),
-            status: 'pending' as const,
-            notes: 'Final settlement on deliverable handover',
-          },
-        ];
-
-    let cumulative = 0;
-    return initialSchedules.map((item) => {
-      cumulative += item.amount;
-      const isMet = balance === 0 || (advance >= cumulative && cumulative > 0);
-      return {
-        ...item,
-        status: isMet ? ('received' as const) : ('pending' as const),
-      };
-    });
-  });
+  useEffect(() => {
+    let active = true;
+    void projectsApi.listPaymentMilestones(project.id).then((items) => {
+      if (!active) return;
+      setPaymentSchedules(items.map((item) => ({
+        id: String(item.id), stageName: String(item.title), dueDate: item.dueDate ? String(item.dueDate).slice(0, 10) : 'TBD',
+        amount: Number(item.amount), status: String(item.status).toLowerCase() as ScheduledPayment['status'], notes: item.notes || '',
+      })));
+    }).catch(() => undefined);
+    return () => { active = false; };
+  }, [project.id]);
 
   // Payments local state
   const [payments, setPayments] = useState<PaymentRecord[]>(project.payments || []);
@@ -303,14 +275,21 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
       isOpen: true,
       title: 'Delete Payment Milestone',
       itemTitle: `${item.stageName} (₹${item.amount.toLocaleString('en-IN')})`,
-      onConfirm: () => {
-        const updated = paymentSchedules.filter((s) => s.id !== item.id);
-        setPaymentSchedules(updated);
-        onUpdateProject({
-          ...project,
-          paymentSchedule: updated,
-        });
-        setGenericDeleteModal((prev) => ({ ...prev, isOpen: false }));
+      onConfirm: async () => {
+        if (deletingMilestoneId) return;
+        setDeletingMilestoneId(item.id);
+        try {
+          await projectsApi.removePaymentMilestone(project.id, item.id, paymentSchedules);
+          const updated = paymentSchedules.filter((s) => s.id !== item.id);
+          setPaymentSchedules(updated);
+          onUpdateProject({ ...project, paymentSchedule: updated });
+          setGenericDeleteModal((prev) => ({ ...prev, isOpen: false }));
+          showToast('Payment milestone deleted.', { variant: 'success' });
+        } catch {
+          showToast('Could not delete the payment milestone. Please try again.', { variant: 'error' });
+        } finally {
+          setDeletingMilestoneId(null);
+        }
       },
     });
   };
@@ -517,13 +496,14 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
     isOpen: boolean;
     title: string;
     itemTitle: string;
-    onConfirm: () => void;
+    onConfirm: () => void | Promise<void>;
   }>({
     isOpen: false,
     title: '',
     itemTitle: '',
     onConfirm: () => {},
   });
+  const [deletingMilestoneId, setDeletingMilestoneId] = useState<string | null>(null);
 
   // State for Editing Event Details in Data/Shoots tab
   const [editingEventData, setEditingEventData] = useState<{
