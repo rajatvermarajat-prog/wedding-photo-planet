@@ -7,6 +7,7 @@ import { useToast } from '@/components/common';
 import { mergeAssignees, FREELANCER_ASSIGNEE, UNASSIGNED_ASSIGNEE, assigneeSelectValue } from '@/features/projects/assigneeOptions';
 import { useTeam } from '@/hooks/useTeam';
 import { CLIENT_ASSET_ACCEPT, CLIENT_ASSET_MAX_BYTES, uploadProjectClientAsset } from '@/lib/api/clientAssets';
+import { paymentsApi, toPaymentMethod, type PaymentMethod } from '@/lib/api/payments';
 import { indianMobileError, nextIndianMobileValue } from '@/lib/validation/indianMobile';
 import { normalizeTeamMember } from '@/features/team/teamViewModel';
 import { ArrowLeft, ArrowRight, X, Save, IndianRupee, Phone, MapPin, Music, Link2, Calendar, Sparkles, Plus, Trash2, Camera, CheckSquare, UserCheck, Folder, Upload, FileText, Eye, Paperclip, Users, UserPlus, Clock3 } from 'lucide-react';
@@ -122,6 +123,9 @@ export const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
   const [finalDeliveryDeadline, setFinalDeliveryDeadline] = useState(existingProject?.finalDeliveryDeadline || '');
   const [totalBudget, setTotalBudget] = useState<number | ''>(existingProject?.totalBudget ? existingProject.totalBudget : '');
   const [advanceReceived, setAdvanceReceived] = useState<number | ''>(existingProject?.advanceReceived ? existingProject.advanceReceived : '');
+  // How the advance actually arrived — it is recorded as a real payment, so
+  // defaulting every booking to UPI would write the wrong method to the ledger.
+  const [advanceMode, setAdvanceMode] = useState<string>('UPI / GPay');
   const [quotationLink, setQuotationLink] = useState(existingProject?.quotationLink || '');
   const [specialNotesMusicPreferences, setSpecialNotesMusicPreferences] = useState(existingProject?.specialNotesMusicPreferences || '');
   const [status, setStatus] = useState<ProjectStatus>(existingProject?.status || 'new_project');
@@ -435,6 +439,13 @@ export const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
   const balanceDue = Math.max(0, Number(totalBudget || 0) - Number(advanceReceived || 0));
   const hasFinancialAmount = totalBudget !== '' || advanceReceived !== '';
   const [saving, setSaving] = useState(false);
+  // Stable for the life of this form: retrying a failed submit must replay the
+  // same advance rather than record it twice.
+  const advanceIdempotencyKey = useRef(
+    typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+      ? crypto.randomUUID()
+      : `advance-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+  );
 
   const handleSubmit = async (e?: React.SyntheticEvent) => {
     e?.preventDefault();
@@ -497,17 +508,21 @@ export const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
         totalDataSizeGB: 0,
         rawCleanupStatus: 'raw_kept',
       },
-      payments: existingProject ? existingProject.payments : [
-        {
-          id: `pay-${Date.now()}`,
-          date: new Date().toISOString().split('T')[0],
-          amount: Number(advanceReceived),
-          type: 'advance',
-          paymentMode: 'UPI / GPay',
-          receiptNumber: `WPP-REC-${Math.floor(1000 + Math.random() * 9000)}`,
-          notes: 'Advance booking amount',
-        }
-      ],
+      payments: existingProject
+        ? existingProject.payments
+        : Number(advanceReceived) > 0
+          ? [
+              {
+                id: `pay-${Date.now()}`,
+                date: new Date().toISOString().split('T')[0],
+                amount: Number(advanceReceived),
+                type: 'advance',
+                paymentMode: advanceMode as Project['payments'][number]['paymentMode'],
+                receiptNumber: '',
+                notes: 'Advance booking amount',
+              },
+            ]
+          : [],
       deliveryStatus: existingProject ? existingProject.deliveryStatus : {
         rawHandoverDone: false,
         teaserLinkSent: false,
@@ -527,6 +542,36 @@ export const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
       const projectId = createdProjectId || (persistedProject && typeof persistedProject === 'object' && 'id' in persistedProject
         ? persistedProject.id
         : (existingProject?.id && !existingProject.id.startsWith('proj-') ? existingProject.id : undefined));
+
+      // "Advance Received" is not a column on Project — every screen derives it
+      // from the project's COMPLETED payments (see `normalizeProject` and the
+      // dashboard's `received` aggregate). Recording it as a real payment is
+      // what makes the number, and the computed Balance Due, survive a refresh.
+      const advanceAmount = Number(advanceReceived) || 0;
+      if (!existingProject && !createdProjectId && advanceAmount > 0) {
+        if (!projectId) {
+          throw new Error('The project was saved but returned no database id, so the advance could not be recorded.');
+        }
+        const advanceClientId =
+          persistedProject && typeof persistedProject === 'object' && 'clientId' in persistedProject
+            ? (persistedProject as Project).clientId
+            : undefined;
+        if (!advanceClientId) {
+          throw new Error('The project was saved but returned no client id, so the advance could not be recorded.');
+        }
+        setCreatedProjectId(projectId);
+        await paymentsApi.createProjectPayment(
+          {
+            clientId: advanceClientId,
+            projectId,
+            amount: advanceAmount,
+            paymentDate: new Date().toISOString().split('T')[0],
+            paymentMethod: toPaymentMethod(advanceMode) as PaymentMethod,
+            notes: 'Advance booking amount',
+          },
+          advanceIdempotencyKey.current,
+        );
+      }
       if (clientAssets.length) {
         if (!projectId) throw new Error('The project was saved, but did not return a database id for client asset upload.');
         setCreatedProjectId(projectId);
@@ -546,8 +591,16 @@ export const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
     const extra = assigned.length ? ` Assigned to ${assigned.join(', ')}.` : '';
       showToast((existingProject ? 'Project saved to the studio records.' : 'Project created and saved.') + extra);
       onClose();
-    } catch {
-      showToast('Project could not be saved. Please try again.', { variant: 'error' });
+    } catch (error) {
+      // Surface what actually failed. A generic message here is how a lost
+      // advance looked like "the budget did not save".
+      showToast(
+        error instanceof Error && error.message
+          ? error.message
+          : 'Project could not be saved. Please try again.',
+        { variant: 'error' },
+      );
+      return;
     } finally {
       setSaving(false);
     }
@@ -846,6 +899,18 @@ export const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
                   onChange={(e) => setAdvanceReceived(e.target.value === '' ? '' : Number(e.target.value))}
                   className="w-full bg-white border border-slate-200 rounded px-3 py-1.5 text-slate-800 focus:outline-none focus:ring-1 focus:ring-indigo-500 transition"
                 />
+                {!existingProject && Number(advanceReceived) > 0 && (
+                  <select
+                    value={advanceMode}
+                    onChange={(e) => setAdvanceMode(e.target.value)}
+                    aria-label="How the advance was received"
+                    className="mt-1.5 w-full bg-white border border-slate-200 rounded px-3 py-1.5 text-[11px] font-semibold text-slate-700 focus:outline-none focus:ring-1 focus:ring-indigo-500 transition"
+                  >
+                    {['UPI / GPay', 'Bank Transfer', 'Cash', 'Card', 'Cheque', 'Other'].map((mode) => (
+                      <option key={mode} value={mode}>{`Received via ${mode}`}</option>
+                    ))}
+                  </select>
+                )}
               </div>
 
               {/* Balance Due (auto) */}
