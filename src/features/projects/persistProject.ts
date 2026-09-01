@@ -6,6 +6,7 @@ import { FREELANCER_ASSIGNEE, UNASSIGNED_ASSIGNEE } from './assigneeOptions';
 import { isPersistedProjectId, toCreateProjectInput, toUpdateProjectInput } from './projectViewModel';
 import { usersApi } from '@/lib/api/users';
 import { normalizeTeamMember } from '@/features/team/teamViewModel';
+import { indianMobileError } from '@/lib/validation/indianMobile';
 
 function digits(value: string) {
   return value.replace(/\D/g, '');
@@ -39,12 +40,13 @@ async function ensureClientId(project: Project): Promise<string> {
   const displayName = project.clientWeddingTitle.trim();
   const primaryPhone = project.clientContactMobile.trim();
   if (!displayName) throw new Error('Enter the client / wedding title.');
-  if (!primaryPhone) throw new Error('Enter the client mobile number so the project can be saved.');
+  const mobileError = indianMobileError(primaryPhone, true);
+  if (mobileError) throw new Error(mobileError);
 
   try {
     const listed = await clientsApi.list({ search: primaryPhone, limit: 50 });
     const match = listed.data.find((client) => {
-      const phoneMatch = digits(client.primaryPhone) === digits(primaryPhone) && digits(primaryPhone).length >= 6;
+      const phoneMatch = digits(client.primaryPhone) === primaryPhone;
       return phoneMatch || client.displayName.trim().toLowerCase() === displayName.toLowerCase();
     });
     if (match) return match.id;

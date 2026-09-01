@@ -28,6 +28,7 @@ import type { AccessRole } from '@/features/access';
 import type { PermissionModule } from '@/features/access/accessTypes';
 import { assignableRoles, rolePermissionPreview } from '@/features/access/roleSelection';
 import { useToast } from '@/components/common';
+import { indianMobileError, nextIndianMobileValue } from '@/lib/validation/indianMobile';
 import {
   Avatar,
   BTN_GHOST,
@@ -250,6 +251,11 @@ export const TeamMemberFormModal: React.FC<Props> = ({
       showToast('Full name is required.', { variant: 'error' });
       return;
     }
+    const phoneError = indianMobileError(form.phone, false);
+    if (phoneError) {
+      showToast(phoneError, { variant: 'error' });
+      return;
+    }
     if (!effectiveRole) {
       showToast('Pick the employee\u2019s role.', { variant: 'error' });
       return;
@@ -395,7 +401,7 @@ export const TeamMemberFormModal: React.FC<Props> = ({
               </div>
               <div>
                 <label className={LABEL} htmlFor="tm-phone">Phone</label>
-                <input id="tm-phone" className={FIELD} value={form.phone} onChange={(e) => set('phone', e.target.value)} placeholder="+91 98765 43210" />
+                <input id="tm-phone" type="tel" inputMode="numeric" maxLength={10} className={FIELD} value={form.phone} onChange={(e) => set('phone', nextIndianMobileValue(e.target.value, form.phone))} placeholder="9876543210" />
               </div>
               <div>
                 <label className={LABEL} htmlFor="tm-email">Email</label>

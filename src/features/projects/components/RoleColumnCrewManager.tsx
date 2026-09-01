@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { CrewMemberAssignment, TeamMember } from '@/types';
 import { ConfirmDeleteModal } from '@/components/common/ConfirmDeleteModal';
 import { Plus, Trash2, Users, Sparkles, X, Eye, EyeOff, ChevronDown, ChevronUp } from 'lucide-react';
+import { nextIndianMobileValue } from '@/lib/validation/indianMobile';
 
 interface RoleColumnCrewManagerProps {
   crewAssignments: CrewMemberAssignment[];
@@ -374,10 +375,13 @@ export const RoleColumnCrewManager: React.FC<RoleColumnCrewManagerProps> = ({
                               </div>
 
                               <input
-                                type="text"
+                                type="tel"
+                                inputMode="numeric"
+                                maxLength={10}
+                                pattern="[6-9][0-9]{9}"
                                 placeholder="Mobile / Contact No."
                                 value={crew.mobile || ''}
-                                onChange={(e) => onUpdateMember(crew.id, 'mobile', e.target.value)}
+                                onChange={(e) => onUpdateMember(crew.id, 'mobile', nextIndianMobileValue(e.target.value, crew.mobile || ''))}
                                 className="w-full bg-white border border-slate-200 rounded px-2 py-1 text-[11px] text-slate-700 focus:ring-1 focus:ring-indigo-500 outline-none"
                               />
                             </div>
