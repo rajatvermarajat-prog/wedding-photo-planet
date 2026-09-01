@@ -103,7 +103,9 @@ export const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
     'Reception',
   ];
 
-  const initialService = existingProject?.primaryServiceType || 'Complete Wedding Services';
+  const initialService = existingProject?.primaryServiceType === 'Other'
+    ? 'Complete Wedding Services'
+    : (existingProject?.primaryServiceType || 'Complete Wedding Services');
   const isStandardService = STANDARD_SERVICES.includes(initialService);
 
   const [selectedService, setSelectedService] = useState<string>(
@@ -680,53 +682,22 @@ export const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
                   <option value="Haldi & Mehendi">Haldi & Mehendi</option>
                   <option value="Sangeet">Sangeet</option>
                   <option value="Reception">Reception</option>
-                  <option value="Other">Other</option>
                 </select>
-                {selectedService !== 'Other' && (
-                  <button
-                    type="button"
-                    onClick={() => setSelectedService('Other')}
-                    className="mt-2 inline-flex items-center rounded-md border border-amber-300 bg-amber-50 px-2.5 py-1 text-[11px] font-bold text-amber-800 transition hover:bg-amber-100"
-                  >
-                    + Add a custom service instead
-                  </button>
-                )}
               </div>
 
-              {selectedService === 'Other' && (
-                <div className="md:col-span-2 rounded-lg border border-amber-200 bg-amber-50/70 p-3">
-                  <div className="mb-3 flex items-center justify-between gap-3">
-                    <div>
-                      <p className="text-xs font-bold uppercase tracking-wide text-amber-900">Custom service details</p>
-                      <p className="mt-0.5 text-[11px] text-amber-800">Add the service name and any requirements so the project is easy to understand later.</p>
-                    </div>
-                    <span className="shrink-0 rounded-full bg-amber-100 px-2 py-1 text-[10px] font-bold uppercase text-amber-800">Other service</span>
-                  </div>
-                  <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                    <div>
-                      <label className="mb-1 block text-[10px] font-bold uppercase tracking-wide text-amber-900">Service name <span className="text-rose-600">*</span></label>
-                      <input
-                        type="text"
-                        required
-                        placeholder="e.g. Birthday, Maternity, Fashion Shoot"
-                        value={customServiceType}
-                        onChange={(e) => setCustomServiceType(e.target.value)}
-                        className="w-full bg-white border border-amber-300 rounded px-3 py-2 text-slate-800 focus:outline-none focus:ring-1 focus:ring-amber-500 transition text-sm placeholder-slate-400"
-                      />
-                    </div>
-                    <div>
-                      <label className="mb-1 block text-[10px] font-bold uppercase tracking-wide text-amber-900">Requirements / details <span className="font-medium normal-case text-amber-700">(optional)</span></label>
-                      <textarea
-                        rows={3}
-                        placeholder="Special requirements or service details..."
-                        value={otherClientDetails}
-                        onChange={(e) => setOtherClientDetails(e.target.value)}
-                        className="w-full resize-y bg-white border border-amber-300 rounded px-3 py-2 text-slate-800 focus:outline-none focus:ring-1 focus:ring-amber-500 transition text-sm placeholder-slate-400"
-                      />
-                    </div>
-                  </div>
-                </div>
-              )}
+              <div className="md:col-span-2">
+                <label className="mb-1 block text-[10px] font-bold uppercase text-slate-500">
+                  Project Notes <span className="font-normal normal-case text-slate-400">(optional)</span>
+                </label>
+                <textarea
+                  rows={3}
+                  placeholder="Add important project requirements, client preferences, or internal notes..."
+                  value={specialNotesMusicPreferences}
+                  onChange={(event) => setSpecialNotesMusicPreferences(event.target.value)}
+                  className="w-full resize-y rounded border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 transition focus:outline-none focus:ring-1 focus:ring-indigo-500 placeholder:text-slate-400"
+                />
+              </div>
+
 
             </div>
 

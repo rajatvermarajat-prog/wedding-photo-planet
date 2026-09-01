@@ -1887,14 +1887,14 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
                 </div>
               )}
 
-              {/* Special Client Notes & Music Preferences */}
+              {/* Project Notes */}
               <div className="p-4 rounded-xl bg-white border border-slate-200 space-y-1.5 shadow-xs">
                 <h4 className="text-xs font-bold text-indigo-600 uppercase tracking-wider flex items-center gap-1.5">
                   <Music className="w-3.5 h-3.5" />
-                  Special Client Notes & Music Preferences
+                  Project Notes
                 </h4>
                 <p className="text-xs text-slate-700 leading-relaxed bg-slate-50 p-3 rounded border border-slate-200 italic">
-                  {project.specialNotesMusicPreferences || 'No specific music notes added yet.'}
+                  {project.specialNotesMusicPreferences || 'No project notes added yet.'}
                 </p>
               </div>
 
