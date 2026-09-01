@@ -12,8 +12,11 @@ import { useTeam } from '@/hooks/useTeam';
 import { normalizeTeamMember } from '@/features/team/teamViewModel';
 import { BTN_PRIMARY, FIELD, LABEL } from '@/features/team/components/TeamUiKit';
 import { projectsApi } from '@/lib/api/projects';
-import { isPersistedProjectId, toUpdateProjectInput } from '@/features/projects/projectViewModel';
+import { firstIsoDate, isPersistedProjectId, toUpdateProjectInput } from '@/features/projects/projectViewModel';
 import { persistStudioProject } from '@/features/projects/persistProject';
+import { loadProjectTasks, persistProjectTasks } from '@/features/projects/persistProjectTasks';
+import { shootsApi } from '@/lib/api/shoots';
+import { toCrewRole } from '@/features/shoots/persistShoots';
 import { nextIndianMobileValue } from '@/lib/validation/indianMobile';
 import { CLIENT_ASSET_ACCEPT, CLIENT_ASSET_MAX_BYTES, clientAssetsApi, uploadProjectClientAsset } from '@/lib/api/clientAssets';
 import { ApiProjectPayment, getProjectPaymentReceiptUrl, paymentMethodLabel, paymentsApi, toPaymentMethod, uploadProjectPaymentReceipt } from '@/lib/api/payments';
@@ -115,6 +118,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
     can('shoots.assign_photographer') ||
     can('shoots.assign_cinematographer') ||
     can('shoots.assign_freelancer');
+  const canViewTasks = can('tasks.view');
   const canAddTask = can('weddings.edit') && can('tasks.create');
   const canEditTask = can('weddings.edit') && (can('tasks.edit') || can('tasks.change_status'));
   const canDeleteTask = can('weddings.edit') && can('tasks.delete');
@@ -602,53 +606,27 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
     });
   };
 
-  // Local Tasks state
-  const [taskList, setTaskList] = useState<ProjectTask[]>(
-    project.tasks && project.tasks.length > 0
-      ? project.tasks
-      : [
-          {
-            id: `task-${Date.now()}-1`,
-            taskName: 'Cinematic Teaser Video',
-            quantity: 1,
-            unit: 'Video',
-            assignedTo: 'Vikram Sharma',
-            status: 'not_started',
-          },
-          {
-            id: `task-${Date.now()}-2`,
-            taskName: 'Instagram Reels / Shorts',
-            quantity: 5,
-            unit: 'Reels',
-            assignedTo: 'Rahul Editor',
-            status: 'not_started',
-          },
-          {
-            id: `task-${Date.now()}-3`,
-            taskName: 'Wedding Film / Long Video',
-            quantity: 1,
-            unit: 'Video',
-            assignedTo: 'Amit Editor',
-            status: 'not_started',
-          },
-          {
-            id: `task-${Date.now()}-4`,
-            taskName: 'Photo Selection & Retouching',
-            quantity: 100,
-            unit: 'Photos',
-            assignedTo: 'Pooja Verma',
-            status: 'not_started',
-          },
-          {
-            id: `task-${Date.now()}-5`,
-            taskName: 'Wedding Albums (12x36)',
-            quantity: 2,
-            unit: 'Albums',
-            assignedTo: 'Rajat Verma',
-            status: 'not_started',
-          }
-        ]
-  );
+  // Local Tasks state. The project list endpoint does not carry tasks, so the
+  // tab loads its own rows the way the vault and payments tabs do; until that
+  // read lands there is nothing to show rather than placeholder rows.
+  const [taskList, setTaskList] = useState<ProjectTask[]>(project.tasks || []);
+  // What the API last confirmed, so a save can diff against it.
+  const [savedTasks, setSavedTasks] = useState<ProjectTask[]>(project.tasks || []);
+
+  useEffect(() => {
+    if (!isPersistedProjectId(project.id) || !canViewTasks) return;
+    let cancelled = false;
+    void loadProjectTasks(project.id)
+      .then((rows) => {
+        if (cancelled) return;
+        setTaskList(rows);
+        setSavedTasks(rows);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [project.id, canViewTasks]);
 
   const handleAddTask = () => {
     if (!canAddTask) return;
@@ -709,15 +687,21 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
     if (!canEditTask && !canAddTask) return;
     setIsSavingTasks(true);
     try {
+      // `updateProjectSchema` deliberately omits `tasks`, so saving the project
+      // never persisted these rows. They are their own resource and go through
+      // the tasks API.
+      let rows = taskList;
+      if (isPersistedProjectId(project.id)) {
+        rows = await persistProjectTasks(project.id, taskList, savedTasks, activeTeamMembers);
+        setTaskList(rows);
+        setSavedTasks(rows);
+      }
       const updatedProject: Project = {
         ...project,
-        tasks: taskList,
+        tasks: rows,
       };
       const autoWork = computeAutoProjectStatus(updatedProject);
       updatedProject.status = autoWork.autoStatus;
-      if (isPersistedProjectId(project.id)) {
-        await persistStudioProject(updatedProject, activeTeamMembers);
-      }
       onUpdateProject(updatedProject);
       showToast('Tasks and assignments saved successfully.');
     } catch (error) {
@@ -995,10 +979,15 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
       isOpen: true,
       title: 'Delete Shoot Event',
       itemTitle: shoot?.title || 'Shoot Event',
-      onConfirm: () => {
-        const updatedShoots = project.shoots.filter((s) => s.id !== shootId);
-        onUpdateProject({ ...project, shoots: updatedShoots });
+      onConfirm: async () => {
         setGenericDeleteModal((prev) => ({ ...prev, isOpen: false }));
+        try {
+          if (isPersistedProjectId(shootId)) await shootsApi.remove(shootId);
+          const updatedShoots = project.shoots.filter((s) => s.id !== shootId);
+          onUpdateProject({ ...project, shoots: updatedShoots });
+        } catch (error) {
+          showToast(error instanceof Error ? error.message : 'Failed to delete the shoot.', { variant: 'error' });
+        }
       },
     });
   };
@@ -1016,7 +1005,22 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
         status: editingEventData.status || s.status || 'scheduled',
       };
     });
-    onUpdateProject({ ...project, shoots: updatedShoots });
+    const edited = updatedShoots.find((s) => s.id === editingEventData.shootId);
+    void (async () => {
+      try {
+        if (edited && isPersistedProjectId(edited.id)) {
+          await shootsApi.update(edited.id, {
+            title: edited.title,
+            ...(firstIsoDate(edited.date) ? { shootDate: firstIsoDate(edited.date) as string } : {}),
+            location: edited.venue || undefined,
+            status: edited.status === 'completed' ? 'COMPLETED' : edited.status === 'cancelled' ? 'CANCELLED' : 'SCHEDULED',
+          });
+        }
+        onUpdateProject({ ...project, shoots: updatedShoots });
+      } catch (error) {
+        showToast(error instanceof Error ? error.message : 'Failed to save the shoot.', { variant: 'error' });
+      }
+    })();
     setEditingEventData(null);
   };
 
@@ -1216,13 +1220,40 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
       status: 'scheduled',
     };
 
-    const updatedShoots = [...project.shoots, newShoot];
-    const updatedProject: Project = {
-      ...project,
-      shoots: updatedShoots,
-    };
-
-    onUpdateProject(updatedProject);
+    // Create the shoot for real, then attach the crew rows that resolve to a
+    // team member. The local row keeps the id the API hands back so a later
+    // edit or delete addresses the same record.
+    void (async () => {
+      try {
+        let created = newShoot;
+        if (isPersistedProjectId(project.id) && firstIsoDate(newShoot.date)) {
+          const dto = await shootsApi.create({
+            projectId: project.id,
+            title: newShoot.title,
+            shootDate: firstIsoDate(newShoot.date) as string,
+            shootType: 'PHOTO_AND_VIDEO',
+            location: newShoot.venue || undefined,
+          });
+          created = { ...newShoot, id: dto.id };
+          for (const crew of activeCrew) {
+            const name = (crew.name || '').trim();
+            if (!name) continue;
+            const member = activeTeamMembers.find(
+              (row) => row.name.trim().toLowerCase() === name.toLowerCase(),
+            );
+            if (!member || !isPersistedProjectId(member.id)) continue;
+            try {
+              await shootsApi.assign(dto.id, { userId: member.id, role: toCrewRole(crew.role || '') });
+            } catch {
+              // A duplicate or forbidden assignment must not lose the shoot.
+            }
+          }
+        }
+        onUpdateProject({ ...project, shoots: [...project.shoots, created] });
+      } catch (error) {
+        showToast(error instanceof Error ? error.message : 'Failed to create the shoot.', { variant: 'error' });
+      }
+    })();
     setShowAddShoot(false);
     setShootTitle('');
     setShootDate('');
