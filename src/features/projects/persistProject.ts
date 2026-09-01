@@ -69,11 +69,13 @@ export async function persistStudioProject(project: Project, team: TeamMember[] 
   }
   if (isPersistedProjectId(project.id)) {
     const dto = await projectsApi.update(project.id, toUpdateProjectInput(project));
-    return { ...project, id: dto.id, name: dto.name };
+    return { ...project, id: dto.id, name: dto.name, clientId: dto.client?.id ?? project.clientId };
   }
   const clientId = await ensureClientId(project);
   const input = toCreateProjectInput(project, clientId);
   const tasks = assignedTaskPayloads(project, roster);
   const dto = await projectsApi.create({ ...input, tasks: tasks.length ? tasks : undefined });
-  return { ...project, id: dto.id, name: dto.name };
+  // The caller needs the client id to record the booking advance against the
+  // new project, so hand it back rather than making it look it up again.
+  return { ...project, id: dto.id, name: dto.name, clientId: dto.client?.id ?? clientId };
 }
