@@ -446,19 +446,7 @@ export default function App() {
   };
 
   const handleUpdateProject = (updatedProject: Project) => {
-    const previous = projects.find((row) => row.id === updatedProject.id);
     setProjects((prev) => prev.map((p) => (p.id === updatedProject.id ? updatedProject : p)));
-    if (!isPersistedProjectId(updatedProject.id)) return;
-    const canWriteProject = hasPermission(currentUser, accessRoles, 'weddings.edit');
-    if (!canWriteProject && !canMutateShoots) return;
-    void (async () => {
-      let next = updatedProject;
-      if (canWriteProject) next = await persistStudioProject(next, team);
-      if (canMutateShoots) next = await persistProjectShoots(next, previous, team);
-      setProjects((prev) => prev.map((p) => (p.id === next.id ? next : p)));
-    })().catch((error: unknown) => {
-      window.alert(apiErrorMessage(error, 'Unable to update shoot.'));
-    });
   };
 
   const dataHandoverTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);

@@ -12,6 +12,9 @@ import { useTeam } from '@/hooks/useTeam';
 import { normalizeTeamMember } from '@/features/team/teamViewModel';
 import { BTN_PRIMARY, FIELD, LABEL } from '@/features/team/components/TeamUiKit';
 import { projectsApi } from '@/lib/api/projects';
+import { isPersistedProjectId, toUpdateProjectInput } from '@/features/projects/projectViewModel';
+import { persistStudioProject } from '@/features/projects/persistProject';
+import { nextIndianMobileValue } from '@/lib/validation/indianMobile';
 import { CLIENT_ASSET_ACCEPT, CLIENT_ASSET_MAX_BYTES, clientAssetsApi, uploadProjectClientAsset } from '@/lib/api/clientAssets';
 import { ApiProjectPayment, getProjectPaymentReceiptUrl, paymentMethodLabel, paymentsApi, toPaymentMethod, uploadProjectPaymentReceipt } from '@/lib/api/payments';
 import { RoleColumnCrewManager } from './RoleColumnCrewManager';
@@ -690,30 +693,38 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
     });
   };
 
+  const [isSavingTasks, setIsSavingTasks] = useState(false);
+  const [isSavingDataBackup, setIsSavingDataBackup] = useState(false);
+  const [isSavingDeliveries, setIsSavingDeliveries] = useState(false);
+  const [isSavingPipeline, setIsSavingPipeline] = useState(false);
+
   const handleTaskChange = (index: number, field: keyof ProjectTask, value: any) => {
     if (!canEditTask) return;
     const updated = [...taskList];
     updated[index] = { ...updated[index], [field]: value };
     setTaskList(updated);
-
-    const updatedProject: Project = {
-      ...project,
-      tasks: updated,
-    };
-    updatedProject.status = computeAutoProjectStatus(updatedProject).autoStatus;
-    onUpdateProject(updatedProject);
   };
 
-  const handleSaveTasks = () => {
+  const handleSaveTasks = async () => {
     if (!canEditTask && !canAddTask) return;
-    const updatedProject: Project = {
-      ...project,
-      tasks: taskList,
-    };
-    const autoWork = computeAutoProjectStatus(updatedProject);
-    updatedProject.status = autoWork.autoStatus;
-    onUpdateProject(updatedProject);
-    showToast('Tasks and assignments saved successfully.');
+    setIsSavingTasks(true);
+    try {
+      const updatedProject: Project = {
+        ...project,
+        tasks: taskList,
+      };
+      const autoWork = computeAutoProjectStatus(updatedProject);
+      updatedProject.status = autoWork.autoStatus;
+      if (isPersistedProjectId(project.id)) {
+        await persistStudioProject(updatedProject, activeTeamMembers);
+      }
+      onUpdateProject(updatedProject);
+      showToast('Tasks and assignments saved successfully.');
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Failed to save tasks.', { variant: 'error' });
+    } finally {
+      setIsSavingTasks(false);
+    }
   };
 
   // Video Pipeline local state
@@ -734,15 +745,55 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
       rawCleanupStatus: 'archived',
     }
   );
+  // Delivery Status local state
+  const [deliveryStatusState, setDeliveryStatusState] = useState(
+    project.deliveryStatus || {
+      rawHandoverDone: false,
+      teaserLinkSent: false,
+      fullFilmSent: false,
+      reelsSent: false,
+      highResPhotosSent: false,
+      albumPrintedAndDelivered: false,
+    }
+  );
   const [saveSuccess, setSaveSuccess] = useState(false);
 
   const handleUpdateDataBackup = (updatedFields: Partial<DataBackup>) => {
     const updatedBackup = { ...dataBackup, ...updatedFields };
     setDataBackup(updatedBackup);
-    onUpdateProject({
-      ...project,
-      dataBackup: updatedBackup,
-    });
+  };
+
+  const handleSaveDataBackup = async () => {
+    setIsSavingDataBackup(true);
+    try {
+      if (isPersistedProjectId(project.id)) {
+        await projectsApi.updateDataBackup(project.id, dataBackup);
+      }
+      onUpdateProject({ ...project, dataBackup });
+      showToast('Data backup posture saved successfully.');
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Failed to save data backup posture.', { variant: 'error' });
+    } finally {
+      setIsSavingDataBackup(false);
+    }
+  };
+
+  const handleSaveDeliveries = async (nextState?: typeof deliveryStatusState) => {
+    const targetState = nextState || deliveryStatusState;
+    setIsSavingDeliveries(true);
+    try {
+      if (isPersistedProjectId(project.id)) {
+        await projectsApi.updateDeliveries(project.id, targetState);
+      }
+      const updatedProject: Project = { ...project, deliveryStatus: targetState };
+      updatedProject.status = computeAutoProjectStatus(updatedProject).autoStatus;
+      onUpdateProject(updatedProject);
+      showToast('Delivery checklist saved successfully.');
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Failed to save delivery checklist.', { variant: 'error' });
+    } finally {
+      setIsSavingDeliveries(false);
+    }
   };
 
   // New Payment Form
@@ -1045,29 +1096,44 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
   };
 
   // Save changes
-  const handleSavePipeline = () => {
+  const handleSavePipeline = async () => {
     if (!canEditProject) return;
-    const updatedAdvance = payments.reduce((acc, p) => acc + p.amount, 0);
-    const updatedBalance = Math.max(0, project.totalBudget - updatedAdvance);
+    setIsSavingPipeline(true);
+    try {
+      const updatedAdvance = payments.reduce((acc, p) => acc + p.amount, 0);
+      const updatedBalance = Math.max(0, project.totalBudget - updatedAdvance);
 
-    const updatedProject: Project = {
-      ...project,
-      videoPipeline: videoPipe,
-      photoPipeline: photoPipe,
-      dataBackup,
-      payments,
-      advanceReceived: updatedAdvance,
-      balanceDue: updatedBalance,
-    };
+      const updatedProject: Project = {
+        ...project,
+        videoPipeline: videoPipe,
+        photoPipeline: photoPipe,
+        dataBackup,
+        deliveryStatus: deliveryStatusState,
+        payments,
+        advanceReceived: updatedAdvance,
+        balanceDue: updatedBalance,
+      };
 
-    const autoWork = computeAutoProjectStatus(updatedProject);
-    updatedProject.status = autoWork.autoStatus;
+      const autoWork = computeAutoProjectStatus(updatedProject);
+      updatedProject.status = autoWork.autoStatus;
 
-    onUpdateProject(updatedProject);
-    setSaveSuccess(true);
-    setTimeout(() => {
-      setSaveSuccess(false);
-    }, 2500);
+      if (isPersistedProjectId(project.id)) {
+        await projectsApi.update(project.id, toUpdateProjectInput(updatedProject));
+        await projectsApi.updateDataBackup(project.id, dataBackup);
+        await projectsApi.updateDeliveries(project.id, deliveryStatusState);
+      }
+
+      onUpdateProject(updatedProject);
+      setSaveSuccess(true);
+      showToast('Project workflow saved successfully.');
+      setTimeout(() => {
+        setSaveSuccess(false);
+      }, 2500);
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Failed to save project overview.', { variant: 'error' });
+    } finally {
+      setIsSavingPipeline(false);
+    }
   };
 
   const handleAddPayment = async (e: React.FormEvent) => {
@@ -2163,11 +2229,12 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
                   {(canEditTask || canAddTask) && (
                   <button
                     type="button"
+                    disabled={isSavingTasks}
                     onClick={handleSaveTasks}
-                    className="px-3 py-1.5 rounded bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs uppercase tracking-wider flex items-center gap-1.5 shadow-xs"
+                    className="px-3 py-1.5 rounded bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-bold text-xs uppercase tracking-wider flex items-center gap-1.5 shadow-xs"
                   >
                     <Save className="w-3.5 h-3.5" />
-                    <span>Save Tasks</span>
+                    <span>{isSavingTasks ? 'Saving...' : 'Save Tasks'}</span>
                   </button>
                   )}
                 </div>
@@ -2695,26 +2762,30 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
                   <p className="text-xs text-slate-500">Memory cards offload status, Hard Drive 1, Hard Drive 2, Cloud NAS backup & Shoot Team Data Offloading</p>
                 </div>
                 {canEditProject && (
-                <button
-                  onClick={handleSavePipeline}
-                  className={`px-3.5 py-1.5 rounded-lg font-black text-xs uppercase tracking-wider flex items-center gap-1.5 shadow-sm cursor-pointer transition-all duration-300 ${
-                    saveSuccess
-                      ? 'bg-emerald-600 text-white ring-2 ring-emerald-300 scale-105'
-                      : 'bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white'
-                  }`}
-                >
-                  {saveSuccess ? (
-                    <>
-                      <CheckCircle2 className="w-4 h-4 text-emerald-200 animate-bounce" />
-                      <span>Data Log Saved ✓</span>
-                    </>
-                  ) : (
-                    <>
-                      <Save className="w-3.5 h-3.5" />
-                      <span>Save Data Log</span>
-                    </>
-                  )}
-                </button>
+                  <button
+                    type="button"
+                    disabled={isSavingDataBackup}
+                    onClick={handleSaveDataBackup}
+                    className={`px-3.5 py-1.5 rounded-lg font-black text-xs uppercase tracking-wider flex items-center gap-1.5 shadow-sm cursor-pointer transition-all duration-300 ${
+                      saveSuccess
+                        ? 'bg-emerald-600 text-white ring-2 ring-emerald-300 scale-105'
+                        : 'bg-indigo-600 hover:bg-indigo-700 active:scale-95 disabled:opacity-50 text-white'
+                    }`}
+                  >
+                    {isSavingDataBackup ? (
+                      <span>Saving...</span>
+                    ) : saveSuccess ? (
+                      <>
+                        <CheckCircle2 className="w-4 h-4 text-emerald-200 animate-bounce" />
+                        <span>Data Log Saved ✓</span>
+                      </>
+                    ) : (
+                      <>
+                        <Save className="w-3.5 h-3.5" />
+                        <span>Save Data Log</span>
+                      </>
+                    )}
+                  </button>
                 )}
               </div>
               {(() => {
@@ -3621,9 +3692,22 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
           {/* DELIVERIES TAB */}
           {activeTab === 'deliveries' && (
             <div className="space-y-4">
-              <div>
-                <h4 className="text-sm font-bold text-slate-900 uppercase tracking-tight">Deliveries & Client Handover Checklist</h4>
-                <p className="text-xs text-slate-500">Mark deliverables handed over to client</p>
+              <div className="flex items-center justify-between">
+                <div>
+                  <h4 className="text-sm font-bold text-slate-900 uppercase tracking-tight">Deliveries & Client Handover Checklist</h4>
+                  <p className="text-xs text-slate-500">Mark deliverables handed over to client</p>
+                </div>
+                {canMutateDeliveries && (
+                  <button
+                    type="button"
+                    disabled={isSavingDeliveries}
+                    onClick={() => handleSaveDeliveries()}
+                    className="inline-flex items-center gap-2 px-3 py-1.5 bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-white text-xs font-bold rounded-lg transition"
+                  >
+                    <Save className="w-3.5 h-3.5" />
+                    <span>{isSavingDeliveries ? 'Saving...' : 'Save Delivery Status'}</span>
+                  </button>
+                )}
               </div>
 
               <div className="p-3.5 rounded-xl bg-white border border-slate-200 space-y-2 text-xs shadow-xs">
@@ -3632,14 +3716,8 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
                   <input
                     type="checkbox"
                     disabled={!canMutateDeliveries}
-                    checked={project.deliveryStatus.rawHandoverDone}
-                    onChange={(e) => {
-                      const updated = {
-                        ...project,
-                        deliveryStatus: { ...project.deliveryStatus, rawHandoverDone: e.target.checked }
-                      };
-                      onUpdateProject(updated);
-                    }}
+                    checked={deliveryStatusState.rawHandoverDone}
+                    onChange={(e) => setDeliveryStatusState((prev) => ({ ...prev, rawHandoverDone: e.target.checked }))}
                   />
                 </div>
 
@@ -3648,15 +3726,8 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
                   <input
                     type="checkbox"
                     disabled={!canMutateDeliveries}
-                    checked={project.deliveryStatus.teaserLinkSent}
-                    onChange={(e) => {
-                      const updated = {
-                        ...project,
-                        deliveryStatus: { ...project.deliveryStatus, teaserLinkSent: e.target.checked }
-                      };
-                      updated.status = computeAutoProjectStatus(updated).autoStatus;
-                      onUpdateProject(updated);
-                    }}
+                    checked={deliveryStatusState.teaserLinkSent}
+                    onChange={(e) => setDeliveryStatusState((prev) => ({ ...prev, teaserLinkSent: e.target.checked }))}
                   />
                 </div>
 
@@ -3665,15 +3736,8 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
                   <input
                     type="checkbox"
                     disabled={!canMutateDeliveries}
-                    checked={project.deliveryStatus.fullFilmSent}
-                    onChange={(e) => {
-                      const updated = {
-                        ...project,
-                        deliveryStatus: { ...project.deliveryStatus, fullFilmSent: e.target.checked }
-                      };
-                      updated.status = computeAutoProjectStatus(updated).autoStatus;
-                      onUpdateProject(updated);
-                    }}
+                    checked={deliveryStatusState.fullFilmSent}
+                    onChange={(e) => setDeliveryStatusState((prev) => ({ ...prev, fullFilmSent: e.target.checked }))}
                   />
                 </div>
 
@@ -3682,15 +3746,8 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
                   <input
                     type="checkbox"
                     disabled={!canMutateDeliveries}
-                    checked={project.deliveryStatus.reelsSent}
-                    onChange={(e) => {
-                      const updated = {
-                        ...project,
-                        deliveryStatus: { ...project.deliveryStatus, reelsSent: e.target.checked }
-                      };
-                      updated.status = computeAutoProjectStatus(updated).autoStatus;
-                      onUpdateProject(updated);
-                    }}
+                    checked={deliveryStatusState.reelsSent}
+                    onChange={(e) => setDeliveryStatusState((prev) => ({ ...prev, reelsSent: e.target.checked }))}
                   />
                 </div>
 
@@ -3699,15 +3756,8 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
                   <input
                     type="checkbox"
                     disabled={!canMutateDeliveries}
-                    checked={project.deliveryStatus.highResPhotosSent}
-                    onChange={(e) => {
-                      const updated = {
-                        ...project,
-                        deliveryStatus: { ...project.deliveryStatus, highResPhotosSent: e.target.checked }
-                      };
-                      updated.status = computeAutoProjectStatus(updated).autoStatus;
-                      onUpdateProject(updated);
-                    }}
+                    checked={deliveryStatusState.highResPhotosSent}
+                    onChange={(e) => setDeliveryStatusState((prev) => ({ ...prev, highResPhotosSent: e.target.checked }))}
                   />
                 </div>
 
@@ -3716,15 +3766,8 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
                   <input
                     type="checkbox"
                     disabled={!canMutateDeliveries}
-                    checked={project.deliveryStatus.albumPrintedAndDelivered}
-                    onChange={(e) => {
-                      const updated = {
-                        ...project,
-                        deliveryStatus: { ...project.deliveryStatus, albumPrintedAndDelivered: e.target.checked }
-                      };
-                      updated.status = computeAutoProjectStatus(updated).autoStatus;
-                      onUpdateProject(updated);
-                    }}
+                    checked={deliveryStatusState.albumPrintedAndDelivered}
+                    onChange={(e) => setDeliveryStatusState((prev) => ({ ...prev, albumPrintedAndDelivered: e.target.checked }))}
                   />
                 </div>
               </div>
@@ -3834,10 +3877,13 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
               <div>
                 <label className="font-bold text-slate-700 block mb-1">Contact Mobile Number</label>
                 <input
-                  type="text"
+                  type="tel"
+                  inputMode="numeric"
+                  maxLength={10}
+                  pattern="[6-9][0-9]{9}"
                   value={editingCrewData.mobile}
-                  onChange={(e) => setEditingCrewData({ ...editingCrewData, mobile: e.target.value })}
-                  placeholder="e.g. +91 9876543210"
+                  onChange={(e) => setEditingCrewData({ ...editingCrewData, mobile: nextIndianMobileValue(e.target.value, editingCrewData.mobile) })}
+                  placeholder="9876543210"
                   className="w-full bg-slate-50 border border-slate-300 rounded-lg p-2 font-medium text-slate-900"
                 />
               </div>
