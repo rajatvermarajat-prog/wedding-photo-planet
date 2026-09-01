@@ -3,7 +3,7 @@ import { shootsApi, type BackendCrewRole, type BackendShoot, type BackendShootSt
 import type { CrewMemberAssignment, DataBackup, Project, ShootEvent, TeamMember } from '@/types';
 import { firstIsoDate, isPersistedProjectId } from '@/features/projects/projectViewModel';
 
-function toCrewRole(role: string): BackendCrewRole {
+export function toCrewRole(role: string): BackendCrewRole {
   const value = role.toLowerCase();
   if (value.includes('drone')) return 'DRONE_OPERATOR';
   if (value.includes('cinema')) return 'CINEMATOGRAPHER';

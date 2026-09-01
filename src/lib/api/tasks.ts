@@ -11,6 +11,8 @@ export interface BackendTask {
   category: BackendTaskCategory;
   priority: BackendTaskPriority;
   status: BackendTaskStatus;
+  quantity: number | null;
+  unit: string | null;
   dueDate: string | null;
   assigneeId: string | null;
   projectId: string | null;
@@ -28,6 +30,7 @@ export interface TaskListQuery {
   priority?: BackendTaskPriority;
   category?: BackendTaskCategory;
   assigneeId?: string;
+  projectId?: string;
 }
 
 export interface CreateTaskInput {
@@ -35,6 +38,8 @@ export interface CreateTaskInput {
   description?: string;
   category?: BackendTaskCategory;
   priority?: BackendTaskPriority;
+  quantity?: number;
+  unit?: string;
   dueDate?: string;
   assigneeId?: string;
   projectId?: string;
@@ -64,6 +69,13 @@ export const tasksApi = {
   },
   async changeStatus(id: string, status: BackendTaskStatus): Promise<BackendTask> {
     const { data } = await apiRequest<BackendTask>(`/tasks/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) });
+    return data;
+  },
+  async reassign(id: string, toUserId: string, reason?: string): Promise<BackendTask> {
+    const { data } = await apiRequest<BackendTask>(`/tasks/${id}/reassign`, {
+      method: 'POST',
+      body: JSON.stringify({ toUserId, ...(reason ? { reason } : {}) }),
+    });
     return data;
   },
   async remove(id: string): Promise<void> {
