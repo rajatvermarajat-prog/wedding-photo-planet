@@ -38,6 +38,7 @@ import { isPersistedProjectId, normalizeProject } from '@/features/projects/proj
 import { persistStudioProject } from '@/features/projects/persistProject';
 import { attachShoots, persistProjectShoots, persistShootDataHandover } from '@/features/shoots/persistShoots';
 import { shootsApi } from '@/lib/api/shoots';
+import { paymentMethodLabel, paymentsApi } from '@/lib/api/payments';
 import { normalizeTask, taskCreateInput, taskStatusInput } from '@/features/tasks/taskViewModel';
 import { useAuthSession } from '@/components/auth/AuthSessionProvider';
 import { AISuggestionsModal } from '@/components/ai/AISuggestionsModal';
@@ -143,6 +144,32 @@ export default function App() {
     setProjects(mapped);
     void shootsApi.list({ page: 1, limit: 100 })
       .then((result) => setProjects((current) => attachShoots(current, result.items)))
+      .catch(() => undefined);
+    // Project financial summaries must be derived from the persisted finance
+    // ledger, not the legacy project-local `advanceReceived` field.
+    void paymentsApi.listCompletedProjectPayments()
+      .then((items) => {
+        const byProject = new Map<string, Project['payments']>();
+        items.forEach((payment) => {
+          if (!payment.projectId) return;
+          const records = byProject.get(payment.projectId) ?? [];
+          records.push({
+            id: payment.id,
+            date: payment.paymentDate.slice(0, 10),
+            amount: Number(payment.amount),
+            type: 'installment',
+            paymentMode: paymentMethodLabel(payment.paymentMethod) as Project['payments'][number]['paymentMode'],
+            receiptNumber: payment.paymentNumber,
+            notes: payment.notes || undefined,
+          });
+          byProject.set(payment.projectId, records);
+        });
+        setProjects((current) => current.map((project) => {
+          const payments = byProject.get(project.id) ?? [];
+          const advanceReceived = payments.reduce((sum, payment) => sum + payment.amount, 0);
+          return { ...project, payments, advanceReceived, balanceDue: Math.max(0, project.totalBudget - advanceReceived) };
+        }));
+      })
       .catch(() => undefined);
   }, [currentUser, isDashboard, projectQuery.data, projectQuery.error, projectQuery.loading]);
   const projectMutations = useProjectMutation(projectQuery.retry);
@@ -409,6 +436,7 @@ export default function App() {
       const next = prev.filter((project) => project.id !== savedProject.id && project.id !== persisted.id);
       return [persisted, ...next];
     });
+    return persisted;
   };
 
   const handleSaveProjectFromWorkspace = (project: Project) => {

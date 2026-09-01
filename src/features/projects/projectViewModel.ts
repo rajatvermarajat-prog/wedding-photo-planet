@@ -48,6 +48,7 @@ export function normalizeProject(dto: ProjectDto): Project {
   const budget = Number(dto.totalQuotation) || 0;
   return {
     id: dto.id,
+    clientId: dto.client?.id,
     name: dto.name,
     projectName: dto.name,
     clientWeddingTitle: dto.client?.displayName || dto.name,

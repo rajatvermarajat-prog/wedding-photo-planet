@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Freelancer, FreelancerApplicationStatus, FreelancerCategory, FreelancerWorkingStatus } from '@/types';
 import { UserPlus } from 'lucide-react';
 import { BTN_GHOST, BTN_PRIMARY, FIELD, LABEL, Modal, ModalHero } from '@/features/team/components/TeamUiKit';
+import { indianMobileError, nextIndianMobileValue } from '@/lib/validation/indianMobile';
 
 interface FreelancerFormModalProps {
   existingFreelancer?: Freelancer | null;
@@ -97,6 +98,10 @@ export const FreelancerFormModal: React.FC<FreelancerFormModalProps> = ({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) return;
+    const mobileError = indianMobileError(mobile, true);
+    if (mobileError) { window.alert(mobileError); return; }
+    const whatsappError = indianMobileError(whatsapp, false);
+    if (whatsappError) { window.alert(`WhatsApp: ${whatsappError}`); return; }
     const skills = skillsStr.split(',').map((s) => s.trim()).filter(Boolean);
     onSave({
       ...(existingFreelancer || ({} as Freelancer)),
@@ -179,8 +184,8 @@ export const FreelancerFormModal: React.FC<FreelancerFormModalProps> = ({
             <label><span className={LABEL}>Full name *</span><input required className={FIELD} value={name} onChange={(e) => setName(e.target.value)} /></label>
             <label><span className={LABEL}>Freelancer ID</span><input className={FIELD} value={freelancerId} onChange={(e) => setFreelancerId(e.target.value)} /></label>
             <label><span className={LABEL}>Joining date</span><input type="date" className={FIELD} value={joiningDate} onChange={(e) => setJoiningDate(e.target.value)} /></label>
-            <label><span className={LABEL}>Mobile *</span><input required className={FIELD} value={mobile} onChange={(e) => setMobile(e.target.value)} /></label>
-            <label><span className={LABEL}>WhatsApp</span><input className={FIELD} value={whatsapp} onChange={(e) => setWhatsapp(e.target.value)} /></label>
+            <label><span className={LABEL}>Mobile *</span><input required type="tel" inputMode="numeric" maxLength={10} className={FIELD} value={mobile} onChange={(e) => setMobile(nextIndianMobileValue(e.target.value, mobile))} placeholder="9876543210" /></label>
+            <label><span className={LABEL}>WhatsApp</span><input type="tel" inputMode="numeric" maxLength={10} className={FIELD} value={whatsapp} onChange={(e) => setWhatsapp(nextIndianMobileValue(e.target.value, whatsapp))} placeholder="9876543210" /></label>
             <label><span className={LABEL}>Email</span><input type="email" className={FIELD} value={email} onChange={(e) => setEmail(e.target.value)} /></label>
             <label><span className={LABEL}>City</span><input className={FIELD} value={city} onChange={(e) => setCity(e.target.value)} /></label>
             <label><span className={LABEL}>Emergency contact</span><input className={FIELD} value={emergencyContact} onChange={(e) => setEmergencyContact(e.target.value)} /></label>

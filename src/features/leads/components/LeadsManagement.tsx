@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { OwnerLead, LeadStatus, TeamMember, LeadQuotationFile, LeadActivityLog } from '@/types';
 import { usePermission } from '@/features/access';
+import { indianMobileError } from '@/lib/validation/indianMobile';
 import { crmApi } from '@/lib/api/resources';
 import { LeadFormModal } from './LeadFormModal';
 import { LeadsFilterBar } from './LeadsFilterBar';
@@ -430,8 +431,9 @@ export const LeadsManagement: React.FC<LeadsManagementProps> = ({ currentUser })
   const handleSaveLead = (e: React.FormEvent) => {
     e.preventDefault();
     if (editingLead ? !canEditLead : !canCreateLead) return;
-    if (!mobile.trim()) {
-      alert('Please enter a valid mobile number for the inquiry.');
+    const mobileError = indianMobileError(mobile, true);
+    if (mobileError) {
+      alert(mobileError);
       return;
     }
 

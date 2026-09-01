@@ -12,6 +12,8 @@ import { useTeam } from '@/hooks/useTeam';
 import { normalizeTeamMember } from '@/features/team/teamViewModel';
 import { BTN_PRIMARY, FIELD, LABEL } from '@/features/team/components/TeamUiKit';
 import { projectsApi } from '@/lib/api/projects';
+import { CLIENT_ASSET_ACCEPT, CLIENT_ASSET_MAX_BYTES, clientAssetsApi, uploadProjectClientAsset } from '@/lib/api/clientAssets';
+import { ApiProjectPayment, getProjectPaymentReceiptUrl, paymentMethodLabel, paymentsApi, toPaymentMethod, uploadProjectPaymentReceipt } from '@/lib/api/payments';
 import { RoleColumnCrewManager } from './RoleColumnCrewManager';
 import { 
   X, 
@@ -68,6 +70,21 @@ interface ProjectDetailModalProps {
   userRole?: string;
 }
 
+const toPaymentRecord = (payment: ApiProjectPayment): PaymentRecord => ({
+  id: payment.id,
+  date: payment.paymentDate.slice(0, 10),
+  amount: Number(payment.amount),
+  type: 'installment',
+  paymentMode: paymentMethodLabel(payment.paymentMethod) as PaymentRecord['paymentMode'],
+  receiptNumber: payment.paymentNumber,
+  notes: payment.notes || 'Installment received',
+});
+
+const idempotencyKey = () =>
+  typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+    ? crypto.randomUUID()
+    : `payment-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
 export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
   project,
   variant = 'modal',
@@ -119,63 +136,43 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
     if (activeTab === 'deliveries' && !canViewDeliveries) setActiveTab('overview');
   }, [activeTab, canEditProject, canViewPayments, canViewDeliveries]);
 
-  // Client Folder Vault State
-  const [vaultDocs, setVaultDocs] = useState<ClientVaultDocument[]>(() => {
-    if (project.clientVaultDocuments && project.clientVaultDocuments.length > 0) {
-      return project.clientVaultDocuments;
-    }
-    if (project.quotationLink) {
-      return [
-        {
-          id: `doc-${Date.now()}-1`,
-          name: 'Client Quotation PDF',
-          category: 'Quotation PDF',
-          fileUrl: project.quotationLink,
-          fileType: 'pdf',
-          uploadDate: project.createdAt || new Date().toISOString().split('T')[0],
-        }
-      ];
-    }
-    return [];
-  });
-
-  const [vaultCategory, setVaultCategory] = useState<'Quotation PDF' | 'Payment Slip' | 'Contract / Agreement' | 'Client ID Proof' | 'Other PDF / Doc'>('Quotation PDF');
+  // Always hydrate Client Vault from the project-scoped client-assets API.
+  const [vaultDocs, setVaultDocs] = useState<ClientVaultDocument[]>([]);
+  const [vaultLoading, setVaultLoading] = useState(false);
+  const [vaultUploading, setVaultUploading] = useState(false);
+  const [vaultCategory, setVaultCategory] = useState('Client reference');
   const [vaultDocName, setVaultDocName] = useState('');
+  const refreshClientAssets = async () => {
+    setVaultLoading(true);
+    try {
+      const assets = await clientAssetsApi.getProjectClientAssets(project.id);
+      const docs = await Promise.all(assets.map(async (asset) => ({
+        id: asset.id,
+        name: asset.metadata?.title || asset.originalName,
+        category: asset.metadata?.category || 'Client asset',
+        fileUrl: await clientAssetsApi.getProjectClientAssetDownloadUrl(project.id, asset.id),
+        fileType: asset.mimeType.includes('pdf') ? 'pdf' : asset.mimeType.startsWith('image/') ? 'image' : 'doc',
+        uploadDate: asset.createdAt.slice(0, 10),
+        fileSize: `${(asset.sizeBytes / 1024 / 1024).toFixed(2)} MB`,
+      } as ClientVaultDocument)));
+      setVaultDocs(docs);
+    } catch (error) { showToast(error instanceof Error ? error.message : 'Unable to load client assets.', { variant: 'error' }); }
+    finally { setVaultLoading(false); }
+  };
 
-  const handleVaultFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (file.size > 10 * 1024 * 1024) {
-      showToast('File size must be under 10MB.', { variant: 'error' });
-      return;
-    }
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      if (typeof reader.result === 'string') {
-        const isPdf = file.type.includes('pdf') || file.name.toLowerCase().endsWith('.pdf');
-        const isImg = file.type.includes('image');
-        const fileType = isPdf ? 'pdf' : (isImg ? 'image' : 'doc');
+  useEffect(() => { void refreshClientAssets(); }, [project.id]);
 
-        const newDoc: ClientVaultDocument = {
-          id: `vault-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
-          name: vaultDocName.trim() || file.name,
-          category: vaultCategory,
-          fileUrl: reader.result,
-          fileType,
-          uploadDate: new Date().toISOString().split('T')[0],
-          fileSize: `${(file.size / (1024 * 1024)).toFixed(2)} MB`,
-        };
-
-        const updatedDocs = [...vaultDocs, newDoc];
-        setVaultDocs(updatedDocs);
-        setVaultDocName('');
-        onUpdateProject({
-          ...project,
-          clientVaultDocuments: updatedDocs,
-        });
-      }
-    };
-    reader.readAsDataURL(file);
+  const handleVaultFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []); e.currentTarget.value = '';
+    if (!files.length) return;
+    const invalid = files.find((file) => !CLIENT_ASSET_ACCEPT.includes(file.type as typeof CLIENT_ASSET_ACCEPT[number]) || !file.size || file.size > CLIENT_ASSET_MAX_BYTES);
+    if (invalid) { showToast(`${invalid.name} must be a supported file under 10MB.`, { variant: 'error' }); return; }
+    setVaultUploading(true);
+    try {
+      await Promise.all(files.map((file) => uploadProjectClientAsset(project.id, file, { category: vaultCategory, title: vaultDocName.trim() || file.name })));
+      setVaultDocName(''); await refreshClientAssets(); showToast(`${files.length} client asset${files.length === 1 ? '' : 's'} uploaded.`);
+    } catch (error) { showToast(error instanceof Error ? error.message : 'Client asset upload failed.', { variant: 'error' }); }
+    finally { setVaultUploading(false); }
   };
 
   // Payment Schedule State
@@ -195,8 +192,58 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
     return () => { active = false; };
   }, [project.id]);
 
-  // Payments local state
+  // Payments are hydrated from the DB-backed finance resource, never from
+  // generated browser ids or a project-local fallback.
   const [payments, setPayments] = useState<PaymentRecord[]>(project.payments || []);
+  const [paymentsLoading, setPaymentsLoading] = useState(false);
+  const [paymentSubmitting, setPaymentSubmitting] = useState(false);
+
+  const receivedAmount = payments.reduce((sum, payment) => sum + (payment.amount || 0), 0);
+  const balanceDue = Math.max(0, project.totalBudget - receivedAmount);
+
+  const hydratePaymentRecords = async (items: ApiProjectPayment[]) => Promise.all(items.map(async (item) => ({
+    ...toPaymentRecord(item),
+    // The FileObject is the durable receipt reference. A new signed URL is
+    // requested on every read instead of persisting an expiring browser URL.
+    receiptScreenshot: await getProjectPaymentReceiptUrl(item.id).catch(() => undefined),
+  })));
+
+  const refreshProjectPayments = async () => {
+    setPaymentsLoading(true);
+    try {
+      const items = await paymentsApi.getProjectPayments(project.id);
+      const next = await hydratePaymentRecords(items);
+      setPayments(next);
+      return next;
+    } finally {
+      setPaymentsLoading(false);
+    }
+  };
+
+  const syncPaymentSummary = (nextPayments: PaymentRecord[]) => {
+    const received = nextPayments.reduce((sum, payment) => sum + payment.amount, 0);
+    onUpdateProject({
+      ...project,
+      payments: nextPayments,
+      advanceReceived: received,
+      balanceDue: Math.max(0, project.totalBudget - received),
+    });
+  };
+
+  useEffect(() => {
+    let active = true;
+    setPaymentsLoading(true);
+    void paymentsApi.getProjectPayments(project.id)
+      .then(async (items) => {
+        const next = await hydratePaymentRecords(items);
+        if (active) setPayments(next);
+      })
+      .catch((error: unknown) => {
+        if (active) showToast(error instanceof Error ? error.message : 'Unable to load payment history.', { variant: 'error' });
+      })
+      .finally(() => { if (active) setPaymentsLoading(false); });
+    return () => { active = false; };
+  }, [project.id]);
 
   const [showAddScheduleModal, setShowAddScheduleModal] = useState(false);
   const [editingScheduleItem, setEditingScheduleItem] = useState<ScheduledPayment | null>(null);
@@ -538,14 +585,16 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
       isOpen: true,
       title: 'Delete Document',
       itemTitle: targetDoc?.title || 'Vault Document',
-      onConfirm: () => {
-        const updatedDocs = vaultDocs.filter((d) => d.id !== id);
-        setVaultDocs(updatedDocs);
-        onUpdateProject({
-          ...project,
-          clientVaultDocuments: updatedDocs,
-        });
-        setGenericDeleteModal((prev) => ({ ...prev, isOpen: false }));
+      onConfirm: async () => {
+        try {
+          await clientAssetsApi.deleteProjectClientAsset(project.id, id);
+          await refreshClientAssets();
+          showToast('Client asset deleted.');
+        } catch (error) {
+          showToast(error instanceof Error ? error.message : 'Unable to delete client asset.', { variant: 'error' });
+        } finally {
+          setGenericDeleteModal((prev) => ({ ...prev, isOpen: false }));
+        }
       },
     });
   };
@@ -698,9 +747,10 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
 
   // New Payment Form
   const [newPayAmount, setNewPayAmount] = useState<number>(0);
-  const [newPayMode, setNewPayMode] = useState<'UPI / GPay' | 'Bank Transfer' | 'Cash' | 'Cheque'>('UPI / GPay');
+  const [newPayMode, setNewPayMode] = useState<PaymentRecord['paymentMode']>('UPI / GPay');
   const [newPayNotes, setNewPayNotes] = useState<string>('');
   const [newPayScreenshot, setNewPayScreenshot] = useState<string>('');
+  const [newPayReceiptFile, setNewPayReceiptFile] = useState<File | null>(null);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
 
   const handleScreenshotUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -714,34 +764,24 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
     reader.onloadend = () => {
       if (typeof reader.result === 'string') {
         setNewPayScreenshot(reader.result);
+        setNewPayReceiptFile(file);
       }
     };
     reader.readAsDataURL(file);
   };
 
-  const handleUpdatePaymentScreenshot = (paymentId: string, file: File) => {
+  const handleUpdatePaymentScreenshot = async (paymentId: string, file: File) => {
     if (file.size > 5 * 1024 * 1024) {
       showToast('File size must be under 5MB.', { variant: 'error' });
       return;
     }
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      if (typeof reader.result === 'string') {
-        const updatedPayments = payments.map((p) =>
-          p.id === paymentId ? { ...p, receiptScreenshot: reader.result as string } : p
-        );
-        setPayments(updatedPayments);
-        const totalAdv = updatedPayments.reduce((acc, p) => acc + p.amount, 0);
-        const balDue = Math.max(0, project.totalBudget - totalAdv);
-        onUpdateProject({
-          ...project,
-          payments: updatedPayments,
-          advanceReceived: totalAdv,
-          balanceDue: balDue,
-        });
-      }
-    };
-    reader.readAsDataURL(file);
+    try {
+      await uploadProjectPaymentReceipt(file, paymentId, project.id);
+      await refreshProjectPayments();
+      showToast('Receipt uploaded and linked to this payment.', { variant: 'success' });
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Unable to upload receipt.', { variant: 'error' });
+    }
   };
 
   // New Shoot Form
@@ -983,17 +1023,23 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
       title: 'Delete Payment',
       itemTitle: `₹${p?.amount ? p.amount.toLocaleString('en-IN') : 0} (${p?.paymentMode || 'Payment'})`,
       onConfirm: () => {
-        const updatedPayments = payments.filter((item) => item.id !== paymentId);
-        const updatedAdvance = updatedPayments.reduce((acc, pay) => acc + pay.amount, 0);
-        const updatedBalance = Math.max(0, project.totalBudget - updatedAdvance);
-        setPayments(updatedPayments);
-        onUpdateProject({
-          ...project,
-          payments: updatedPayments,
-          advanceReceived: updatedAdvance,
-          balanceDue: updatedBalance,
-        });
-        setGenericDeleteModal((prev) => ({ ...prev, isOpen: false }));
+        if (paymentSubmitting) return;
+        void (async () => {
+          setPaymentSubmitting(true);
+          try {
+            // Financial payment rows remain auditable. "Delete" reverses the
+            // completed record in the DB and removes it from the active ledger.
+            await paymentsApi.reverseProjectPayment(paymentId, 'Removed from project payment log', idempotencyKey());
+            const nextPayments = await refreshProjectPayments();
+            syncPaymentSummary(nextPayments);
+            showToast('Payment reversal recorded and balances refreshed.', { variant: 'success' });
+            setGenericDeleteModal((prev) => ({ ...prev, isOpen: false }));
+          } catch (error) {
+            showToast(error instanceof Error ? error.message : 'Unable to remove payment.', { variant: 'error' });
+          } finally {
+            setPaymentSubmitting(false);
+          }
+        })();
       },
     });
   };
@@ -1024,49 +1070,52 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
     }, 2500);
   };
 
-  const handleAddPayment = (e: React.FormEvent) => {
+  const handleAddPayment = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!canRecordPayment) return;
-    if (newPayAmount <= 0) return;
+    if (!project.clientId) {
+      showToast('This project is missing its client link and cannot accept a payment.', { variant: 'error' });
+      return;
+    }
+    if (!Number.isFinite(newPayAmount) || newPayAmount <= 0) {
+      showToast('Enter a payment amount greater than ₹0.', { variant: 'error' });
+      return;
+    }
+    if (paymentSubmitting) return;
 
-    const newPay: PaymentRecord = {
-      id: `pay-${Date.now()}`,
-      date: new Date().toISOString().split('T')[0],
-      amount: Number(newPayAmount),
-      type: 'installment',
-      paymentMode: newPayMode,
-      receiptNumber: `WPP-REC-${Math.floor(1000 + Math.random() * 9000)}`,
-      notes: newPayNotes || 'Installment received',
-      receiptScreenshot: newPayScreenshot || undefined,
-    };
+    setPaymentSubmitting(true);
+    try {
+      const createdPayment = await paymentsApi.createProjectPayment({
+        clientId: project.clientId,
+        projectId: project.id,
+        amount: Number(newPayAmount),
+        paymentDate: new Date().toISOString().slice(0, 10),
+        paymentMethod: toPaymentMethod(newPayMode),
+        notes: newPayNotes.trim() || undefined,
+      }, idempotencyKey());
 
-    const updatedPayments = [...payments, newPay];
-    const totalAdv = updatedPayments.reduce((acc, p) => acc + p.amount, 0);
-    const balDue = Math.max(0, project.totalBudget - totalAdv);
-
-    setPayments(updatedPayments);
-    setNewPayAmount(0);
-    setNewPayNotes('');
-    setNewPayScreenshot('');
-
-    let cumulativeReq = 0;
-    const syncSchedules = paymentSchedules.map((item) => {
-      cumulativeReq += item.amount;
-      const isMet = balDue === 0 || (totalAdv >= cumulativeReq && cumulativeReq > 0);
-      return { ...item, status: isMet ? ('received' as const) : ('pending' as const) };
-    });
-
-    setPaymentSchedules(syncSchedules);
-
-    const updatedProject: Project = {
-      ...project,
-      payments: updatedPayments,
-      advanceReceived: totalAdv,
-      balanceDue: balDue,
-      paymentSchedule: syncSchedules,
-    };
-
-    onUpdateProject(updatedProject);
+      const nextPayments = await refreshProjectPayments();
+      syncPaymentSummary(nextPayments);
+      setNewPayAmount(0);
+      setNewPayNotes('');
+      setNewPayScreenshot('');
+      setNewPayReceiptFile(null);
+      if (newPayReceiptFile) {
+        try {
+          await uploadProjectPaymentReceipt(newPayReceiptFile, createdPayment.id, project.id);
+          await refreshProjectPayments();
+          showToast('Payment and receipt saved successfully.', { variant: 'success' });
+        } catch (receiptError) {
+          showToast(receiptError instanceof Error ? `Payment saved. ${receiptError.message}` : 'Payment saved, but the receipt could not be uploaded.', { variant: 'error' });
+        }
+      } else {
+        showToast('Payment recorded successfully.', { variant: 'success' });
+      }
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Unable to record payment.', { variant: 'error' });
+    } finally {
+      setPaymentSubmitting(false);
+    }
   };
 
   const handleAddShoot = (e: React.FormEvent) => {
@@ -1188,10 +1237,13 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
         </div>
 
         {/* Tab Navigation */}
-        <div className="bg-slate-100 border-b border-slate-200 px-3 sm:px-4 flex items-center gap-1.5 overflow-x-auto text-xs pt-1.5 scrollbar-thin scrollbar-thumb-slate-300 pr-8 w-full shrink-0 sticky top-0 z-10">
+        <nav
+          aria-label="Project workspace sections"
+          className="flex w-full shrink-0 items-center gap-2 overflow-x-auto border-b border-slate-200 bg-slate-100 px-3 pb-0.5 pt-1.5 pr-8 text-xs scroll-px-3 scrollbar-thin scrollbar-thumb-slate-300 sm:px-4 sm:scroll-px-4 sticky top-0 z-10"
+        >
           <button
             onClick={() => setActiveTab('overview')}
-            className={`px-3 py-2 font-bold border-b-2 uppercase tracking-wider text-[11px] transition whitespace-nowrap shrink-0 rounded-t-md ${
+            className={`min-h-9 px-3.5 py-2 font-bold border-b-2 uppercase tracking-wider text-[11px] transition whitespace-nowrap shrink-0 rounded-t-md ${
               activeTab === 'overview' ? 'border-indigo-600 text-indigo-600 bg-white shadow-2xs font-extrabold' : 'border-transparent text-slate-500 hover:text-slate-800 hover:bg-slate-200/50'
             }`}
           >
@@ -1200,7 +1252,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
           {canEditProject && (
             <button
               onClick={() => setActiveTab('vault')}
-              className={`px-3 py-2 font-bold border-b-2 uppercase tracking-wider text-[11px] transition whitespace-nowrap shrink-0 flex items-center gap-1.5 rounded-t-md ${
+              className={`min-h-9 px-3.5 py-2 font-bold border-b-2 uppercase tracking-wider text-[11px] transition whitespace-nowrap shrink-0 flex items-center gap-1.5 rounded-t-md ${
                 activeTab === 'vault' ? 'border-indigo-600 text-indigo-600 bg-white shadow-2xs font-extrabold' : 'border-transparent text-slate-500 hover:text-slate-800 hover:bg-slate-200/50'
               }`}
             >
@@ -1210,7 +1262,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
           )}
           <button
             onClick={() => setActiveTab('tasks')}
-            className={`px-3 py-2 font-bold border-b-2 uppercase tracking-wider text-[11px] transition whitespace-nowrap shrink-0 flex items-center gap-1.5 rounded-t-md ${
+            className={`min-h-9 px-3.5 py-2 font-bold border-b-2 uppercase tracking-wider text-[11px] transition whitespace-nowrap shrink-0 flex items-center gap-1.5 rounded-t-md ${
               activeTab === 'tasks' ? 'border-indigo-600 text-indigo-600 bg-white shadow-2xs font-extrabold' : 'border-transparent text-slate-500 hover:text-slate-800 hover:bg-slate-200/50'
             }`}
           >
@@ -1219,7 +1271,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
           </button>
           <button
             onClick={() => setActiveTab('shoots')}
-            className={`px-3 py-2 font-bold border-b-2 uppercase tracking-wider text-[11px] transition whitespace-nowrap shrink-0 flex items-center gap-1.5 rounded-t-md ${
+            className={`min-h-9 px-3.5 py-2 font-bold border-b-2 uppercase tracking-wider text-[11px] transition whitespace-nowrap shrink-0 flex items-center gap-1.5 rounded-t-md ${
               activeTab === 'shoots' ? 'border-indigo-600 text-indigo-600 bg-white shadow-2xs font-extrabold' : 'border-transparent text-slate-500 hover:text-slate-800 hover:bg-slate-200/50'
             }`}
           >
@@ -1228,7 +1280,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
           </button>
           <button
             onClick={() => setActiveTab('data')}
-            className={`px-3 py-2 font-bold border-b-2 uppercase tracking-wider text-[11px] transition whitespace-nowrap shrink-0 flex items-center gap-1.5 rounded-t-md ${
+            className={`min-h-9 px-3.5 py-2 font-bold border-b-2 uppercase tracking-wider text-[11px] transition whitespace-nowrap shrink-0 flex items-center gap-1.5 rounded-t-md ${
               activeTab === 'data' ? 'border-indigo-600 text-indigo-600 bg-white shadow-2xs font-extrabold' : 'border-transparent text-slate-500 hover:text-slate-800 hover:bg-slate-200/50'
             }`}
           >
@@ -1238,18 +1290,18 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
           {canViewPayments && (
             <button
               onClick={() => setActiveTab('payments')}
-              className={`px-3 py-2 font-bold border-b-2 uppercase tracking-wider text-[11px] transition whitespace-nowrap shrink-0 flex items-center gap-1.5 rounded-t-md ${
+              className={`min-h-9 px-3.5 py-2 font-bold border-b-2 uppercase tracking-wider text-[11px] transition whitespace-nowrap shrink-0 flex items-center gap-1.5 rounded-t-md ${
                 activeTab === 'payments' ? 'border-indigo-600 text-indigo-600 bg-white shadow-2xs font-extrabold' : 'border-transparent text-slate-500 hover:text-slate-800 hover:bg-slate-200/50'
               }`}
             >
               <IndianRupee className="w-3.5 h-3.5 text-emerald-600" />
-              Payments ({project.balanceDue > 0 ? `Due: ₹${project.balanceDue.toLocaleString('en-IN')}` : 'Paid'})
+              Payments ({balanceDue > 0 ? `Due: ₹${balanceDue.toLocaleString('en-IN')}` : 'Paid'})
             </button>
           )}
           {canViewDeliveries && (
           <button
             onClick={() => setActiveTab('deliveries')}
-            className={`px-3 py-2 font-bold border-b-2 uppercase tracking-wider text-[11px] transition whitespace-nowrap shrink-0 flex items-center gap-1.5 rounded-t-md ${
+            className={`min-h-9 px-3.5 py-2 font-bold border-b-2 uppercase tracking-wider text-[11px] transition whitespace-nowrap shrink-0 flex items-center gap-1.5 rounded-t-md ${
               activeTab === 'deliveries' ? 'border-indigo-600 text-indigo-600 bg-white shadow-2xs font-extrabold' : 'border-transparent text-slate-500 hover:text-slate-800 hover:bg-slate-200/50'
             }`}
           >
@@ -1257,7 +1309,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
             Deliveries
           </button>
           )}
-        </div>
+        </nav>
 
         {/* Tab Body */}
         <div className="p-5 overflow-y-auto space-y-5 flex-1 text-slate-800 text-xs w-full">
@@ -1276,13 +1328,13 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
 
                   <div className="p-3.5 rounded-lg bg-slate-50 border border-slate-200">
                     <span className="text-[10px] text-green-700 uppercase font-bold tracking-wider">Total Received</span>
-                    <div className="text-xl font-black text-green-700 mt-0.5">₹{project.advanceReceived.toLocaleString('en-IN')}</div>
+                    <div className="text-xl font-black text-green-700 mt-0.5">₹{receivedAmount.toLocaleString('en-IN')}</div>
                   </div>
 
                   <div className="p-3.5 rounded-lg bg-slate-50 border border-slate-200">
                     <span className="text-[10px] text-red-600 uppercase font-bold tracking-wider">Balance Due</span>
-                    <div className={`text-xl font-black mt-0.5 ${project.balanceDue > 0 ? 'text-red-600' : 'text-green-700'}`}>
-                      ₹{project.balanceDue.toLocaleString('en-IN')}
+                    <div className={`text-xl font-black mt-0.5 ${balanceDue > 0 ? 'text-red-600' : 'text-green-700'}`}>
+                      ₹{balanceDue.toLocaleString('en-IN')}
                     </div>
                   </div>
                 </div>
@@ -1820,21 +1872,23 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
                         onChange={(e) => setVaultCategory(e.target.value as any)}
                         className="w-full bg-white border border-slate-200 rounded px-2 py-1 text-slate-800 text-xs font-medium"
                       >
-                        <option value="Quotation PDF">Quotation PDF</option>
-                        <option value="Payment Slip">Payment Slip</option>
-                        <option value="Contract / Agreement">Contract / Agreement</option>
-                        <option value="Client ID Proof">Client ID Proof</option>
-                        <option value="Other PDF / Doc">Other PDF / Doc</option>
+                        <option value="Client reference">Client reference</option>
+                        <option value="Inspiration / moodboard">Inspiration / moodboard</option>
+                        <option value="Couple photo">Couple photo</option>
+                        <option value="Venue reference">Venue reference</option>
+                        <option value="Document">Document</option>
                       </select>
                     </div>
 
                     <div className="sm:col-span-2">
                       <label className="cursor-pointer bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-3 py-1.5 rounded-lg text-xs transition flex items-center justify-center gap-1.5 shadow-xs w-full">
                         <Upload className="w-3.5 h-3.5" />
-                        <span>+ Upload PDF / Payment Slip File</span>
+                        <span>{vaultUploading ? 'Uploading…' : '+ Upload Client Assets'}</span>
                         <input
                           type="file"
-                          accept="application/pdf,image/*"
+                          accept=".jpg,.jpeg,.png,.webp,.pdf,.doc,.docx"
+                          multiple
+                          disabled={vaultUploading}
                           onChange={handleVaultFileUpload}
                           className="hidden"
                         />
@@ -1952,7 +2006,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
                     Client Documents Folder & Vault
                   </h4>
                   <p className="text-xs text-slate-600 mt-0.5">
-                    Store Quotation PDFs, Payment Slips/Receipts, Contracts, and Client ID Proofs for <span className="font-bold text-slate-900">{project.clientWeddingTitle}</span>
+                    Store client reference images, moodboards, venue photos, PDFs, and documents for <span className="font-bold text-slate-900">{project.clientWeddingTitle}</span>
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
@@ -1966,7 +2020,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
               <div className="p-4 bg-white rounded-xl border border-slate-200 shadow-xs space-y-3">
                 <h5 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
                   <FolderPlus className="w-4 h-4 text-indigo-600" />
-                  Upload New Document / Payment Slip PDF
+                  Upload New Client Asset
                 </h5>
 
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
@@ -1988,22 +2042,24 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
                       onChange={(e) => setVaultCategory(e.target.value as any)}
                       className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-slate-800 font-medium"
                     >
-                      <option value="Quotation PDF">Quotation PDF</option>
-                      <option value="Payment Slip">Payment Slip</option>
-                      <option value="Contract / Agreement">Contract / Agreement</option>
-                      <option value="Client ID Proof">Client ID Proof</option>
-                      <option value="Other PDF / Doc">Other PDF / Doc</option>
+                        <option value="Client reference">Client reference</option>
+                        <option value="Inspiration / moodboard">Inspiration / moodboard</option>
+                        <option value="Couple photo">Couple photo</option>
+                        <option value="Venue reference">Venue reference</option>
+                        <option value="Document">Document</option>
                     </select>
                   </div>
 
                   <div>
-                    <label className="block text-slate-600 mb-1 font-extrabold text-[10px] uppercase">Select PDF / Image File</label>
+                    <label className="block text-slate-600 mb-1 font-extrabold text-[10px] uppercase">Select client assets</label>
                     <label className="cursor-pointer bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold px-3 py-2 rounded-lg text-xs transition flex items-center justify-center gap-2 shadow-xs w-full">
                       <Upload className="w-4 h-4" />
-                      <span>Choose File to Upload</span>
+                      <span>{vaultUploading ? 'Uploading…' : 'Choose Assets to Upload'}</span>
                       <input
                         type="file"
-                        accept="application/pdf,image/*"
+                        accept=".jpg,.jpeg,.png,.webp,.pdf,.doc,.docx"
+                        multiple
+                        disabled={vaultUploading}
                         onChange={handleVaultFileUpload}
                         className="hidden"
                       />
@@ -2056,7 +2112,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
                         <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs">
                           <span className="text-[10px] text-slate-400 font-mono">{doc.fileSize || 'Attached File'}</span>
                           <div className="flex items-center gap-2">
-                            {doc.fileUrl.startsWith('data:image') ? (
+                            {doc.fileType === 'image' ? (
                               <button
                                 onClick={() => setSelectedImage(doc.fileUrl)}
                                 className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-[11px] rounded-md transition flex items-center gap-1"
@@ -3410,7 +3466,9 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
                     <option value="UPI / GPay">UPI / GPay</option>
                     <option value="Bank Transfer">Bank Transfer</option>
                     <option value="Cash">Cash</option>
+                    <option value="Card">Card</option>
                     <option value="Cheque">Cheque</option>
+                    <option value="Other">Other</option>
                   </select>
                 </div>
 
@@ -3467,16 +3525,19 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
 
                 <button
                   type="submit"
+                  disabled={paymentSubmitting}
                   className="w-full py-2 rounded-lg bg-emerald-600 text-white font-extrabold hover:bg-emerald-700 uppercase tracking-wider text-xs transition shadow-xs flex items-center justify-center gap-1.5"
                 >
                   <Plus className="w-4 h-4" />
-                  <span>Record Payment</span>
+                  <span>{paymentSubmitting ? 'Recording…' : 'Record Payment'}</span>
                 </button>
               </form>
               )}
               <div className="space-y-2 pt-1">
                 <h5 className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">Payment History</h5>
-                {payments.length === 0 ? (
+                {paymentsLoading ? (
+                  <p className="text-xs text-slate-400 italic py-2">Loading payment history…</p>
+                ) : payments.length === 0 ? (
                   <p className="text-xs text-slate-400 italic py-2">No payment installments recorded yet.</p>
                 ) : (
                   payments.map((p) => (

@@ -96,7 +96,7 @@ export interface PaymentRecord {
   date: string;
   amount: number;
   type: 'advance' | 'installment' | 'final' | 'other' | 'settlement';
-  paymentMode: 'UPI / GPay' | 'Bank Transfer' | 'Cash' | 'Cheque';
+  paymentMode: 'UPI / GPay' | 'Bank Transfer' | 'Cash' | 'Card' | 'Cheque' | 'Other';
   receiptNumber: string;
   notes?: string;
   receiptScreenshot?: string; // Base64 image data URL or image link for slip/screenshot
@@ -127,6 +127,8 @@ export interface ProjectTask {
 
 export interface Project {
   id: string;
+  /** Backend client UUID used when recording a real project payment. */
+  clientId?: string;
   name?: string;
   projectName?: string;
   // Requested fields 01 to 03 + details

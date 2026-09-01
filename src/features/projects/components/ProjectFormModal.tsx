@@ -1,11 +1,13 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Project, ServiceType, ProjectStatus, VideoPipeline, PhotoPipeline, ShootEvent, ProjectTask, EditingStatus, TeamMember, ClientVaultDocument, CrewMemberAssignment } from '@/types';
+import { Project, ServiceType, ProjectStatus, VideoPipeline, PhotoPipeline, ShootEvent, ProjectTask, EditingStatus, TeamMember, CrewMemberAssignment } from '@/types';
 import { computeAutoProjectStatus } from '@/utils/projectStatusCalculator';
 import { RoleColumnCrewManager } from './RoleColumnCrewManager';
 import { ConfirmDeleteModal } from '@/components/common/ConfirmDeleteModal';
 import { useToast } from '@/components/common';
 import { mergeAssignees, FREELANCER_ASSIGNEE, UNASSIGNED_ASSIGNEE, assigneeSelectValue } from '@/features/projects/assigneeOptions';
 import { useTeam } from '@/hooks/useTeam';
+import { CLIENT_ASSET_ACCEPT, CLIENT_ASSET_MAX_BYTES, uploadProjectClientAsset } from '@/lib/api/clientAssets';
+import { indianMobileError, nextIndianMobileValue } from '@/lib/validation/indianMobile';
 import { normalizeTeamMember } from '@/features/team/teamViewModel';
 import { ArrowLeft, ArrowRight, X, Save, IndianRupee, Phone, MapPin, Music, Link2, Calendar, Sparkles, Plus, Trash2, Camera, CheckSquare, UserCheck, Folder, Upload, FileText, Eye, Paperclip, Users, UserPlus, Clock3 } from 'lucide-react';
 
@@ -67,7 +69,7 @@ interface ProjectFormModalProps {
   isOpen: boolean;
   variant?: 'modal' | 'page';
   onClose: () => void;
-  onSave: (project: Project) => void | Promise<void>;
+  onSave: (project: Project) => Project | void | Promise<Project | void>;
   existingProject?: Project | null;
   team?: TeamMember[];
 }
@@ -130,76 +132,30 @@ export const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
     stepContentRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
   }, [activeStep]);
 
-  // Internal Client Vault Documents (PDF & Payment Slips Folder)
-  const [vaultDocuments, setVaultDocuments] = useState<ClientVaultDocument[]>(() => {
-    if (existingProject?.clientVaultDocuments && existingProject.clientVaultDocuments.length > 0) {
-      return existingProject.clientVaultDocuments;
-    }
-    if (existingProject?.quotationLink) {
-      return [
-        {
-          id: `doc-${Date.now()}`,
-          name: 'Client Quotation PDF',
-          category: 'Quotation PDF',
-          fileUrl: existingProject.quotationLink,
-          fileType: 'pdf',
-          uploadDate: existingProject.createdAt || new Date().toISOString().split('T')[0],
-        }
-      ];
-    }
-    return [];
-  });
+  type PendingClientAsset = { id: string; file: File; previewUrl?: string; category: string; status: 'ready' | 'uploading' | 'error'; error?: string };
+  const [clientAssets, setClientAssets] = useState<PendingClientAsset[]>([]);
+  const [assetCategory, setAssetCategory] = useState('Client reference');
+  // If project creation succeeds but a later asset upload fails, retry only
+  // the failed assets; never create a duplicate project on a second click.
+  const [createdProjectId, setCreatedProjectId] = useState<string | null>(null);
+  const assetInputRef = useRef<HTMLInputElement>(null);
 
-  const [docCategory, setDocCategory] = useState<'Quotation PDF' | 'Payment Slip' | 'Contract / Agreement' | 'Client ID Proof' | 'Other PDF / Doc'>('Quotation PDF');
-  const [docUrlInput, setDocUrlInput] = useState('');
-
-  const handleFormFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (file.size > 10 * 1024 * 1024) {
-      showToast('File size must be under 10MB.', { variant: 'error' });
-      return;
-    }
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      if (typeof reader.result === 'string') {
-        const isPdf = file.type.includes('pdf') || file.name.toLowerCase().endsWith('.pdf');
-        const isImg = file.type.includes('image');
-        const fileType = isPdf ? 'pdf' : (isImg ? 'image' : 'doc');
-
-        const newDoc: ClientVaultDocument = {
-          id: `vault-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
-          name: file.name,
-          category: docCategory,
-          fileUrl: reader.result,
-          fileType,
-          uploadDate: new Date().toISOString().split('T')[0],
-          fileSize: `${(file.size / (1024 * 1024)).toFixed(2)} MB`,
-        };
-        setVaultDocuments((prev) => [...prev, newDoc]);
+  const addClientAssets = (files: FileList | File[]) => {
+    const accepted: PendingClientAsset[] = [];
+    Array.from(files).forEach((file) => {
+      if (!CLIENT_ASSET_ACCEPT.includes((file.type || '').toLowerCase() as typeof CLIENT_ASSET_ACCEPT[number])) {
+        showToast(`${file.name}: JPG, PNG, WEBP, PDF, DOC, and DOCX files are supported.`, { variant: 'error' }); return;
       }
-    };
-    reader.readAsDataURL(file);
+      if (!file.size || file.size > CLIENT_ASSET_MAX_BYTES) { showToast(`${file.name}: file must be under 10MB.`, { variant: 'error' }); return; }
+      accepted.push({ id: `${file.name}-${file.lastModified}-${Math.random()}`, file, category: assetCategory, status: 'ready', previewUrl: file.type.startsWith('image/') ? URL.createObjectURL(file) : undefined });
+    });
+    if (accepted.length) setClientAssets((current) => [...current, ...accepted]);
   };
 
-  const handleAddDocUrl = () => {
-    if (!docUrlInput.trim()) return;
-    const isPdf = docUrlInput.toLowerCase().includes('.pdf');
-    const newDoc: ClientVaultDocument = {
-      id: `vault-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
-      name: docCategory,
-      category: docCategory,
-      fileUrl: docUrlInput.trim(),
-      fileType: isPdf ? 'pdf' : 'doc',
-      uploadDate: new Date().toISOString().split('T')[0],
-    };
-    setVaultDocuments((prev) => [...prev, newDoc]);
-    setDocUrlInput('');
-  };
-
-  const handleRemoveVaultDoc = (id: string) => {
-    setVaultDocuments((prev) => prev.filter((d) => d.id !== id));
-  };
+  const removeClientAsset = (id: string) => setClientAssets((current) => {
+    const asset = current.find((item) => item.id === id); if (asset?.previewUrl) URL.revokeObjectURL(asset.previewUrl);
+    return current.filter((item) => item.id !== id);
+  });
 
   // Shoots State (Dynamic Add & Remove)
   const [shoots, setShoots] = useState<ShootEvent[]>(
@@ -490,8 +446,9 @@ export const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
       return;
     }
 
-    if (!clientContactMobile.trim()) {
-      showToast('Please enter the client mobile number so the project can be saved.', { variant: 'error' });
+    const mobileError = indianMobileError(clientContactMobile, true);
+    if (mobileError) {
+      showToast(mobileError, { variant: 'error' });
       setActiveStep(1);
       return;
     }
@@ -520,7 +477,9 @@ export const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
       advanceReceived: Number(advanceReceived),
       balanceDue,
       quotationLink,
-      clientVaultDocuments: vaultDocuments,
+      // Files are persisted through the project client-assets API after this
+      // project receives its database id; never persist browser data URLs here.
+      clientVaultDocuments: existingProject?.clientVaultDocuments || [],
       specialNotesMusicPreferences,
       status,
       createdAt: existingProject ? existingProject.createdAt : new Date().toISOString().split('T')[0],
@@ -564,7 +523,25 @@ export const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
 
     setSaving(true);
     try {
-      await onSave(newProject);
+      const persistedProject = createdProjectId ? undefined : await onSave(newProject);
+      const projectId = createdProjectId || (persistedProject && typeof persistedProject === 'object' && 'id' in persistedProject
+        ? persistedProject.id
+        : (existingProject?.id && !existingProject.id.startsWith('proj-') ? existingProject.id : undefined));
+      if (clientAssets.length) {
+        if (!projectId) throw new Error('The project was saved, but did not return a database id for client asset upload.');
+        setCreatedProjectId(projectId);
+        const assetsToUpload = [...clientAssets];
+        setClientAssets((items) => items.map((item) => ({ ...item, status: 'uploading' })));
+        const results = await Promise.allSettled(assetsToUpload.map((asset) => uploadProjectClientAsset(projectId, asset.file, { category: asset.category, title: asset.file.name })));
+        const failed = results.filter((result) => result.status === 'rejected').length;
+        if (failed) {
+          setClientAssets(() => assetsToUpload.flatMap((asset, index) => {
+            if (results[index].status === 'fulfilled') { if (asset.previewUrl) URL.revokeObjectURL(asset.previewUrl); return []; }
+            return [{ ...asset, status: 'error' as const, error: 'Upload failed' }];
+          }));
+          throw new Error(`${failed} client asset${failed === 1 ? '' : 's'} failed to upload.`);
+        }
+      }
     const assigned = [...new Set(tasks.map((row) => row.assignedTo?.trim()).filter((name) => name && name !== 'Unassigned'))];
     const extra = assigned.length ? ` Assigned to ${assigned.join(', ')}.` : '';
       showToast((existingProject ? 'Project saved to the studio records.' : 'Project created and saved.') + extra);
@@ -631,10 +608,13 @@ export const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
                   02 Contact / Mobile
                 </label>
                 <input
-                  type="text"
-                  placeholder="+91 98765 43210"
+                  type="tel"
+                  inputMode="numeric"
+                  maxLength={10}
+                  pattern="[6-9][0-9]{9}"
+                  placeholder="9876543210"
                   value={clientContactMobile}
-                  onChange={(e) => setClientContactMobile(e.target.value)}
+                  onChange={(e) => setClientContactMobile(nextIndianMobileValue(e.target.value, clientContactMobile))}
                   className="w-full bg-white border border-slate-200 rounded px-3 py-1.5 text-slate-800 focus:outline-none focus:ring-1 focus:ring-indigo-500 transition"
                 />
               </div>
@@ -880,86 +860,78 @@ export const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
 
             </div>
 
-            {/* Client Folder / Documents & Payment Slips Vault */}
-            <div className={`${activeStep === 3 ? 'block' : 'hidden'} p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-4`}>
+            {/* Client Assets are selected during the wizard and persisted only after the project exists. */}
+            <div className={`${activeStep === 1 ? 'block' : 'hidden'} p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-4`}>
               <div className="flex items-center justify-between">
                 <label className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
                   <Folder className="w-4 h-4 text-indigo-600" />
-                  04 · Client Documents (PDFs & Payment Slips)
+                  04 · Client Assets
                 </label>
                 <span className="text-[10px] font-bold text-slate-500 bg-slate-200 px-2 py-0.5 rounded-full">
-                  {vaultDocuments.length} Document(s)
+                  {clientAssets.length} Asset(s)
                 </span>
               </div>
 
-              {/* Upload Controls */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
                 <div>
                   <label className="block text-[10px] font-bold text-slate-500 uppercase mb-0.5">Category</label>
-                  <select
-                    value={docCategory}
-                    onChange={(e) => setDocCategory(e.target.value as any)}
+                  <input
+                    type="text"
+                    value={assetCategory}
+                    onChange={(e) => setAssetCategory(e.target.value)}
+                    placeholder="e.g. Venue reference"
                     className="w-full bg-white border border-slate-200 rounded px-2 py-1.5 text-slate-800 text-xs font-medium"
-                  >
-                    <option value="Quotation PDF">Quotation PDF</option>
-                    <option value="Payment Slip">Payment Slip</option>
-                    <option value="Contract / Agreement">Contract / Agreement</option>
-                    <option value="Client ID Proof">Client ID Proof</option>
-                    <option value="Other PDF / Doc">Other PDF / Doc</option>
-                  </select>
+                  />
                 </div>
 
                 <div className="sm:col-span-2">
-                  <label className="block text-[10px] font-bold text-slate-500 uppercase mb-0.5">Upload File / PDF Attachment</label>
-                  <div className="flex items-center gap-2">
-                    <label className="cursor-pointer flex-1 bg-white border border-dashed border-indigo-300 hover:border-indigo-500 rounded px-3 py-1.5 text-center text-indigo-600 hover:bg-indigo-50 transition flex items-center justify-center gap-1.5 font-bold text-xs shadow-xs">
+                  <label className="block text-[10px] font-bold text-slate-500 uppercase mb-0.5">Upload assets</label>
+                  <div
+                    onDragOver={(event) => event.preventDefault()}
+                    onDrop={(event) => { event.preventDefault(); addClientAssets(event.dataTransfer.files); }}
+                    className="flex items-center gap-2 rounded border border-dashed border-indigo-300 bg-white p-1 hover:border-indigo-500"
+                  >
+                    <label className="cursor-pointer flex-1 rounded px-3 py-1.5 text-center text-indigo-600 hover:bg-indigo-50 transition flex items-center justify-center gap-1.5 font-bold text-xs">
                       <Upload className="w-3.5 h-3.5" />
-                      <span>Upload PDF or Slip Image</span>
+                      <span>Upload Assets or drop files here</span>
                       <input
+                        ref={assetInputRef}
                         type="file"
-                        accept="application/pdf,image/*"
-                        onChange={handleFormFileUpload}
+                        accept=".jpg,.jpeg,.png,.webp,.pdf,.doc,.docx"
+                        multiple
+                        onChange={(event) => { if (event.target.files) addClientAssets(event.target.files); event.currentTarget.value = ''; }}
                         className="hidden"
                       />
                     </label>
                   </div>
+                  <p className="mt-1 text-[10px] text-slate-500">JPG, PNG, WEBP, PDF, DOC, DOCX · max 10MB each</p>
                 </div>
               </div>
 
-              {/* Attached Files List */}
-              {vaultDocuments.length > 0 && (
+              {clientAssets.length > 0 && (
                 <div className="space-y-1.5 pt-1">
-                  <span className="text-[10px] font-bold text-slate-500 uppercase">Uploaded Client Files:</span>
+                  <span className="text-[10px] font-bold text-slate-500 uppercase">Selected client assets:</span>
                   <div className="grid grid-cols-1 gap-1.5 max-h-40 overflow-y-auto pr-1">
-                    {vaultDocuments.map((doc) => (
-                      <div key={doc.id} className="p-2 bg-white border border-slate-200 rounded-lg flex items-center justify-between text-xs shadow-2xs">
+                    {clientAssets.map((asset) => (
+                      <div key={asset.id} className="p-2 bg-white border border-slate-200 rounded-lg flex items-center justify-between text-xs shadow-2xs">
                         <div className="flex items-center gap-2 overflow-hidden">
-                          <FileText className="w-4 h-4 text-indigo-600 shrink-0" />
+                          {asset.previewUrl ? <img src={asset.previewUrl} alt="" className="size-8 rounded object-cover shrink-0" /> : <FileText className="w-4 h-4 text-indigo-600 shrink-0" />}
                           <div className="truncate">
-                            <span className="font-bold text-slate-800 text-xs truncate block">{doc.name}</span>
+                            <span className="font-bold text-slate-800 text-xs truncate block">{asset.file.name}</span>
                             <div className="flex items-center gap-1.5 text-[10px] text-slate-500">
-                              <span className="bg-indigo-50 text-indigo-700 font-bold px-1.5 py-0.2 rounded border border-indigo-100">{doc.category}</span>
-                              <span>• {doc.uploadDate}</span>
-                              {doc.fileSize && <span>• {doc.fileSize}</span>}
+                              <span className="bg-indigo-50 text-indigo-700 font-bold px-1.5 py-0.2 rounded border border-indigo-100">{asset.category}</span>
+                              <span>• {(asset.file.size / 1024 / 1024).toFixed(2)} MB</span>
+                              {asset.status === 'uploading' && <span>• Uploading…</span>}
+                              {asset.status === 'error' && <span className="text-red-600">• {asset.error}</span>}
                             </div>
                           </div>
                         </div>
-
                         <div className="flex items-center gap-1 shrink-0">
-                          <a
-                            href={doc.fileUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="p-1 text-indigo-600 hover:bg-indigo-50 rounded"
-                            title="View File"
-                          >
-                            <Eye className="w-3.5 h-3.5" />
-                          </a>
                           <button
                             type="button"
-                            onClick={() => handleRemoveVaultDoc(doc.id)}
+                            onClick={() => removeClientAsset(asset.id)}
                             className="p-1 text-red-500 hover:bg-red-50 rounded"
-                            title="Remove"
+                            title="Remove before saving"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
