@@ -415,16 +415,6 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
             receiptNumber: pay.receiptNumber,
           });
         });
-      } else if (p.advanceReceived && p.advanceReceived > 0) {
-        list.push({
-          id: `adv_${p.id}`,
-          clientTitle: p.clientWeddingTitle,
-          amount: p.advanceReceived,
-          date: p.createdAt || new Date().toISOString().split('T')[0],
-          mode: 'Advance Token',
-          type: 'Advance Token',
-          receiptNumber: 'ADVANCE',
-        });
       }
     });
 
@@ -462,7 +452,7 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
     : projects.reduce((acc, p) => acc + (p.totalBudget || 0), 0);
   const totalAdvanceReceived = summary?.finance
     ? summary.finance.received
-    : projects.reduce((acc, p) => acc + (p.advanceReceived || 0), 0);
+    : projects.reduce((acc, p) => acc + (p.payments || []).reduce((sum, payment) => sum + (payment.amount || 0), 0), 0);
   const totalBalanceDue = summary?.finance
     ? summary.finance.outstanding
     : projects.reduce((acc, p) => acc + (p.balanceDue || 0), 0);
