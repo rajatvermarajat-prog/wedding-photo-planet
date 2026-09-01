@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { OfficeExpense } from '@/types';
 import { MemberSalaryRecord, OwnerDashboardProps, SalaryInstallment } from './dashboardTypes';
-import { DEFAULT_OFFICE_EXPENSES, DEFAULT_SALARY_RECORDS } from './dashboardDefaults';
+import { DEFAULT_OFFICE_EXPENSES } from './dashboardDefaults';
 import { DashboardHeader } from './DashboardHeader';
 import { DashboardKpiGrid } from './DashboardKpiGrid';
 import { DashboardSecurityAlerts } from './DashboardSecurityAlerts';
@@ -21,6 +21,7 @@ import { ExpenseModals } from './ExpenseModals';
 import { QuickActionsPanel } from './QuickActionsPanel';
 import { useToast } from '@/components/common';
 import { usePermission } from '@/features/access';
+import { settingsApi } from '@/lib/api/settings';
 
 
 export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
@@ -55,37 +56,62 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
   }, [router]);
 
   // Salary State Management
-  const [salaryRecords, setSalaryRecords] = useState<MemberSalaryRecord[]>(() => {
-    const saved = localStorage.getItem('wpp_owner_monthly_salary_ledger');
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (e) {
-        console.error(e);
-      }
-    }
-
-    if (team && team.length > 0) {
-      // A real team member's paid amount always starts at 0 — it must never be
-      // silently seeded from demo/mock records, even if a name happens to match.
-      return team.map((m) => {
-        const sal = m.monthlySalary || (m.dailyRate ? m.dailyRate * 26 : 45000);
-        return {
-          memberId: m.id,
-          memberName: m.name,
-          role: m.role || 'Team Member',
-          monthlySalary: sal,
-          paidAmount: 0,
-        };
-      });
-    }
-
-    return DEFAULT_SALARY_RECORDS;
-  });
+  const [salaryRecords, setSalaryRecords] = useState<MemberSalaryRecord[]>([]);
+  const [salaryLedgerReady, setSalaryLedgerReady] = useState(false);
 
   useEffect(() => {
-    localStorage.setItem('wpp_owner_monthly_salary_ledger', JSON.stringify(salaryRecords));
-  }, [salaryRecords]);
+    let cancelled = false;
+    void settingsApi.list()
+      .then((settings) => {
+        if (cancelled) return;
+        const stored = settings.find((setting) => setting.key === 'payroll.salary-ledger.v1')?.value;
+        if (Array.isArray(stored)) setSalaryRecords(stored as MemberSalaryRecord[]);
+      })
+      .catch(() => showToast('Unable to load saved salary payments.', { variant: 'error' }))
+      .finally(() => { if (!cancelled) setSalaryLedgerReady(true); });
+    return () => { cancelled = true; };
+  }, [showToast]);
+
+  // The dashboard payroll panel is a view of the actual team roster—not a
+  // sample ledger. Keep saved payment history only for members who still
+  // exist, and add newly created members with a zero paid amount.
+  useEffect(() => {
+    setSalaryRecords((previous) => {
+      const savedByMemberId = new Map(previous.map((record) => [record.memberId, record]));
+      const next = team.map((member) => {
+        const saved = savedByMemberId.get(member.id);
+        const monthlySalary = member.monthlySalary ?? (member.dailyRate ? member.dailyRate * 26 : 0);
+        return {
+          memberId: member.id,
+          memberName: member.name,
+          role: member.role || 'Team Member',
+          monthlySalary,
+          paidAmount: saved?.paidAmount ?? 0,
+          lastPaymentDate: saved?.lastPaymentDate,
+          paymentMonth: saved?.paymentMonth,
+          notes: saved?.notes,
+          installments: saved?.installments,
+        };
+      });
+
+      const unchanged = next.length === previous.length && next.every((record, index) => {
+        const current = previous[index];
+        return current && current.memberId === record.memberId && current.memberName === record.memberName
+          && current.role === record.role && current.monthlySalary === record.monthlySalary
+          && current.paidAmount === record.paidAmount;
+      });
+      return unchanged ? previous : next;
+    });
+  }, [team]);
+
+  useEffect(() => {
+    if (!salaryLedgerReady) return;
+    void settingsApi.upsert(
+      'payroll.salary-ledger.v1',
+      salaryRecords,
+      'Monthly staff salary payment ledger',
+    ).catch(() => showToast('Salary payment could not be saved to the server.', { variant: 'error' }));
+  }, [salaryLedgerReady, salaryRecords, showToast]);
 
   // Modal State for Updating Salary Payments
   const [editingSalaryMember, setEditingSalaryMember] = useState<MemberSalaryRecord | null>(null);
@@ -172,14 +198,13 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
     setEditPaidAmount(sum);
   };
 
-  const handleSaveMemberSalary = () => {
+  const handleSaveMemberSalary = async () => {
     if (!editingSalaryMember) return;
     const activeInstallments = editInstallments.filter((i) => Number(i.amount) > 0 || i.notes);
     const installmentsSum = activeInstallments.reduce((acc, i) => acc + (Number(i.amount) || 0), 0);
     const updatedPaid = activeInstallments.length > 0 ? installmentsSum : (Number(editPaidAmount) || 0);
 
-    setSalaryRecords(
-      salaryRecords.map((r) =>
+    const nextRecords = salaryRecords.map((r) =>
         r.memberId === editingSalaryMember.memberId
           ? {
               ...r,
@@ -190,10 +215,19 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
               installments: activeInstallments,
             }
           : r
-      )
     );
-    showToast(`Salary payment saved for ${editingSalaryMember.memberName}.`);
-    setEditingSalaryMember(null);
+    try {
+      await settingsApi.upsert(
+        'payroll.salary-ledger.v1',
+        nextRecords,
+        'Monthly staff salary payment ledger',
+      );
+      setSalaryRecords(nextRecords);
+      showToast(`Salary payment saved for ${editingSalaryMember.memberName}.`);
+      setEditingSalaryMember(null);
+    } catch {
+      showToast('Salary payment could not be saved. Please try again.', { variant: 'error' });
+    }
   };
 
   const totalMonthlyPayroll = salaryRecords.reduce((acc, r) => acc + (r.monthlySalary || 0), 0);
@@ -448,29 +482,13 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
     : projects.filter(p => p.status === 'running').length;
   const urgentProjectsCount = projects.filter(p => p.status === 'urgent').length;
 
-  // The summary already returns the next scheduled shoots with their crew, so
-  // the dashboard no longer pages in every project's shoots to find four rows.
   const upcomingShoots = React.useMemo(() => {
-    if (!summary) return [];
-    const crewName = (crew: { role: string; name: string | null }[], role: string) =>
-      crew.find((member) => member.role === role)?.name ?? '';
-    return summary.upcomingShoots.slice(0, 4).map((shoot) => ({
-      id: shoot.id,
-      title: shoot.eventName || shoot.title,
-      date: shoot.shootDate,
-      time: shoot.startTime
-        ? new Date(shoot.startTime).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })
-        : '',
-      venue: shoot.location || '',
-      location: shoot.location || '',
-      status: 'scheduled' as const,
-      clientTitle: shoot.clientName,
-      projectId: shoot.id,
-      leadPhotographer: crewName(shoot.crew, 'LEAD_PHOTOGRAPHER'),
-      cinematographer: crewName(shoot.crew, 'CINEMATOGRAPHER'),
-      droneOperator: crewName(shoot.crew, 'DRONE_OPERATOR'),
-    }));
-  }, [summary]);
+    const today = new Date().toISOString().slice(0, 10);
+    return projects.flatMap((project) => (project.shoots || []).map((shoot) => ({ ...shoot, projectId: project.id, clientTitle: project.clientWeddingTitle })))
+      .filter((shoot) => shoot.date >= today && shoot.status !== 'cancelled')
+      .sort((a, b) => `${a.date} ${a.startTime || a.time || ''}`.localeCompare(`${b.date} ${b.startTime || b.time || ''}`))
+      .slice(0, 4);
+  }, [projects]);
 
   const isEditor = currentUser?.role === 'Video Editor' || 
                    currentUser?.role === 'Photo Editor' || 

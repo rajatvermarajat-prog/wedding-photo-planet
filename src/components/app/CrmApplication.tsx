@@ -141,9 +141,6 @@ export default function App() {
     if (!currentUser || projectQuery.loading || projectQuery.error) return;
     const mapped = projectQuery.data.map(normalizeProject);
     setProjects(mapped);
-    // The dashboard reads its upcoming shoots from the summary, so the full
-    // shoot list is only fetched by the views that render shoot records.
-    if (isDashboard) return;
     void shootsApi.list({ page: 1, limit: 100 })
       .then((result) => setProjects((current) => attachShoots(current, result.items)))
       .catch(() => undefined);
@@ -468,6 +465,21 @@ export default function App() {
     try {
       const phone = member.phone?.trim();
       const employeeCode = member.employeeId?.trim();
+      const profile = {
+        employmentType: member.employmentType === 'Part Time' ? 'PART_TIME' as const
+          : member.employmentType === 'Contract' ? 'CONTRACT' as const
+          : member.employmentType === 'Intern' ? 'INTERN' as const
+          : 'FULL_TIME' as const,
+        joiningDate: member.joiningDate || undefined,
+        monthlySalary: member.monthlySalary ?? 0,
+        dailyRate: member.dailyRate ?? 0,
+        workLocation: member.attendanceMode === 'WFH' ? 'WFH' as const
+          : member.attendanceMode === 'Hybrid' ? 'HYBRID' as const
+          : member.attendanceMode === 'Field' ? 'ON_SHOOT' as const
+          : 'OFFICE' as const,
+        skills: member.skills || [],
+        reportingManagerId: member.reportingManagerId || undefined,
+      };
       await teamMutations.create({
         fullName: member.name,
         email: member.email?.trim() || '',
@@ -475,6 +487,7 @@ export default function App() {
         phone: phone || undefined,
         employeeCode: employeeCode || undefined,
         roleIds: [roleId],
+        profile,
       });
     } catch (error) {
       window.alert(apiErrorMessage(error, 'Unable to create employee.'));
@@ -488,6 +501,21 @@ export default function App() {
       await teamMutations.update(updatedMember.id, {
         fullName: updatedMember.name, phone: updatedMember.phone, employeeCode: updatedMember.employeeId,
         status: updatedMember.status === 'active' ? 'ACTIVE' : updatedMember.status === 'suspended' ? 'SUSPENDED' : 'INACTIVE',
+        profile: {
+          employmentType: updatedMember.employmentType === 'Part Time' ? 'PART_TIME'
+            : updatedMember.employmentType === 'Contract' ? 'CONTRACT'
+            : updatedMember.employmentType === 'Intern' ? 'INTERN'
+            : 'FULL_TIME',
+          joiningDate: updatedMember.joiningDate || undefined,
+          monthlySalary: updatedMember.monthlySalary ?? 0,
+          dailyRate: updatedMember.dailyRate ?? 0,
+          workLocation: updatedMember.attendanceMode === 'WFH' ? 'WFH'
+            : updatedMember.attendanceMode === 'Hybrid' ? 'HYBRID'
+            : updatedMember.attendanceMode === 'Field' ? 'ON_SHOOT'
+            : 'OFFICE',
+          skills: updatedMember.skills || [],
+          reportingManagerId: updatedMember.reportingManagerId || undefined,
+        },
       });
       if (updatedMember.accessRoleId) await teamMutations.setRoles(updatedMember.id, [updatedMember.accessRoleId]);
     } catch (error) {

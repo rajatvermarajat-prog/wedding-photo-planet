@@ -17,6 +17,8 @@ export function normalizeTeamMember(user: BackendUser): TeamMember {
     status: statusMap[user.status],
     employmentType: profile?.employmentType ? employmentMap[profile.employmentType] : undefined,
     joiningDate: profile?.joiningDate?.slice(0, 10),
+    monthlySalary: profile?.monthlySalary == null ? undefined : Number(profile.monthlySalary),
+    dailyRate: profile?.dailyRate == null ? undefined : Number(profile.dailyRate),
     skills: profile?.skills ?? [],
   };
 }

@@ -141,7 +141,9 @@ export function attachShoots(projects: Project[], shoots: BackendShoot[]): Proje
     byProject.set(shoot.projectId, list);
   });
   return projects.map((project) => {
-    const nextShoots = byProject.get(project.id) || project.shoots || [];
+    // API is authoritative: an empty list must clear a previously deleted
+    // shoot instead of retaining stale project-local data.
+    const nextShoots = byProject.get(project.id) || [];
     return { ...project, shoots: nextShoots, dataBackup: backupFromShoots(nextShoots, project.dataBackup) };
   });
 }
