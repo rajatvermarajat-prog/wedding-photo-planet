@@ -22,6 +22,8 @@ export interface BackendUser {
   employeeProfile: {
     employmentType: 'FULL_TIME' | 'PART_TIME' | 'CONTRACT' | 'INTERN' | null;
     joiningDate: string | null;
+    monthlySalary: string | number | null;
+    dailyRate: string | number | null;
     workLocation: 'OFFICE' | 'WFH' | 'HYBRID' | 'ON_SHOOT' | null;
     skills: string[];
   } | null;
@@ -36,8 +38,18 @@ export interface CreateUserInput {
   employeeCode?: string;
   branchId?: string;
   roleIds: string[];
+  profile?: EmployeeProfileInput;
 }
-export interface UpdateUserInput { fullName?: string; phone?: string; employeeCode?: string; branchId?: string; status?: BackendUserStatus; }
+export interface EmployeeProfileInput {
+  employmentType?: 'FULL_TIME' | 'PART_TIME' | 'CONTRACT' | 'INTERN';
+  joiningDate?: string;
+  monthlySalary?: number;
+  dailyRate?: number;
+  workLocation?: 'OFFICE' | 'WFH' | 'HYBRID' | 'ON_SHOOT';
+  skills?: string[];
+  reportingManagerId?: string;
+}
+export interface UpdateUserInput { fullName?: string; phone?: string; employeeCode?: string; branchId?: string; status?: BackendUserStatus; profile?: EmployeeProfileInput; }
 
 function queryString(query: UserListQuery): string {
   const params = new URLSearchParams();
