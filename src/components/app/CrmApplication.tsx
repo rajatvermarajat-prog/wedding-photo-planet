@@ -142,7 +142,7 @@ export default function App() {
     if (!currentUser || projectQuery.loading || projectQuery.error) return;
     const mapped = projectQuery.data.map(normalizeProject);
     setProjects(mapped);
-    void shootsApi.list({ page: 1, limit: 100 })
+    void shootsApi.list({ page: 1, limit: 100, sortBy: 'createdAt', sortOrder: 'asc' })
       .then((result) => setProjects((current) => attachShoots(current, result.items)))
       .catch(() => undefined);
     // Project financial summaries must be derived from the persisted finance

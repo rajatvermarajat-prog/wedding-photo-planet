@@ -277,7 +277,7 @@ async function syncAssignmentData(shootId: string, shoot: ShootEvent, backup?: D
 
 async function reloadProjectShoots(project: Project, fallback: ShootEvent[]): Promise<Project> {
   try {
-    const listed = await shootsApi.list({ projectId: project.id, page: 1, limit: 100 });
+    const listed = await shootsApi.list({ projectId: project.id, page: 1, limit: 100, sortBy: 'createdAt', sortOrder: 'asc' });
     const shoots = listed.items.map(toShootEvent);
     return { ...project, shoots, dataBackup: backupFromShoots(shoots, project.dataBackup) };
   } catch {
