@@ -125,15 +125,6 @@ export function toCreateProjectInput(project: Project, clientId: string): Create
   const venue = splitVenue(project.venueLocation);
   const weddingDate = firstIsoDate(project.weddingFunctionDates);
   const deliveryDueDate = firstIsoDate(project.finalDeliveryDeadline);
-  const events = (project.shoots || [])
-    .filter((shoot) => firstIsoDate(shoot.date))
-    .map((shoot) => ({
-      name: shoot.title?.trim() || 'Shoot',
-      eventDate: firstIsoDate(shoot.date) as string,
-      venueName: shoot.venue || venue.venueName,
-      address: shoot.location || undefined,
-      notes: shoot.notes || undefined,
-    }));
   return {
     clientId,
     name: (project.clientWeddingTitle || project.name || 'Untitled project').trim(),
@@ -146,7 +137,6 @@ export function toCreateProjectInput(project: Project, clientId: string): Create
     customServiceType: project.primaryServiceType === 'Other' ? project.customServiceType : undefined,
     otherClientDetails: project.primaryServiceType === 'Other' ? project.otherClientDetails : undefined,
     notes: project.specialNotesMusicPreferences || undefined,
-    events: events.length ? events : undefined,
   };
 }
 

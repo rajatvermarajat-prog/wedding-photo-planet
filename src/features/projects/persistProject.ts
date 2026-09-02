@@ -7,25 +7,12 @@ import { isPersistedProjectId, toCreateProjectInput, toUpdateProjectInput } from
 import { usersApi } from '@/lib/api/users';
 import { normalizeTeamMember } from '@/features/team/teamViewModel';
 import { indianMobileError } from '@/lib/validation/indianMobile';
+import { loadProjectTasks, persistProjectTasks } from './persistProjectTasks';
+import { persistProjectShoots, toShootEvent } from '@/features/shoots/persistShoots';
+import { shootsApi } from '@/lib/api/shoots';
 
 function digits(value: string) {
   return value.replace(/\D/g, '');
-}
-
-function assignedTaskPayloads(project: Project, team: TeamMember[]) {
-  return (project.tasks || [])
-    .filter((task) => task.taskName?.trim())
-    .map((task) => {
-      const name = (task.assignedTo || '').trim();
-      const member = team.find((row) => row.id === task.assignedToId || row.name === name);
-      return {
-        title: task.taskName.trim(),
-        quantity: task.quantity || 1,
-        unit: task.unit || undefined,
-        assigneeId: (task.assignedToId && isPersistedProjectId(task.assignedToId) && task.assignedToId)
-          || (member && isPersistedProjectId(member.id) ? member.id : undefined),
-      };
-    });
 }
 
 export function assignedNames(project: Project) {
@@ -68,14 +55,27 @@ export async function persistStudioProject(project: Project, team: TeamMember[] 
     }
   }
   if (isPersistedProjectId(project.id)) {
+    const [previousTasks, previousShoots] = await Promise.all([
+      loadProjectTasks(project.id),
+      shootsApi.list({ projectId: project.id, page: 1, limit: 100 }).then((result) => result.items.map(toShootEvent)),
+    ]);
     const dto = await projectsApi.update(project.id, toUpdateProjectInput(project));
-    return { ...project, id: dto.id, name: dto.name, clientId: dto.client?.id ?? project.clientId };
+    const base = { ...project, id: dto.id, name: dto.name, clientId: dto.client?.id ?? project.clientId };
+    const [tasks, shoots] = await Promise.all([
+      persistProjectTasks(base.id, project.tasks || [], previousTasks, roster),
+      persistProjectShoots(base, { ...base, shoots: previousShoots }, roster),
+    ]);
+    return { ...base, tasks, shoots: shoots.shoots, dataBackup: shoots.dataBackup };
   }
   const clientId = await ensureClientId(project);
   const input = toCreateProjectInput(project, clientId);
-  const tasks = assignedTaskPayloads(project, roster);
-  const dto = await projectsApi.create({ ...input, tasks: tasks.length ? tasks : undefined });
+  const dto = await projectsApi.create(input);
   // The caller needs the client id to record the booking advance against the
   // new project, so hand it back rather than making it look it up again.
-  return { ...project, id: dto.id, name: dto.name, clientId: dto.client?.id ?? clientId };
+  const base = { ...project, id: dto.id, name: dto.name, clientId: dto.client?.id ?? clientId };
+  const [tasks, shoots] = await Promise.all([
+    persistProjectTasks(base.id, project.tasks || [], [], roster),
+    persistProjectShoots(base, undefined, roster),
+  ]);
+  return { ...base, tasks, shoots: shoots.shoots, dataBackup: shoots.dataBackup };
 }

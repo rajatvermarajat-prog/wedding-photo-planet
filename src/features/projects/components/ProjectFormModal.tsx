@@ -6,11 +6,15 @@ import { ConfirmDeleteModal } from '@/components/common/ConfirmDeleteModal';
 import { useToast } from '@/components/common';
 import { mergeAssignees, FREELANCER_ASSIGNEE, UNASSIGNED_ASSIGNEE, assigneeSelectValue } from '@/features/projects/assigneeOptions';
 import { useTeam } from '@/hooks/useTeam';
-import { CLIENT_ASSET_ACCEPT, CLIENT_ASSET_MAX_BYTES, uploadProjectClientAsset } from '@/lib/api/clientAssets';
+import { CLIENT_ASSET_ACCEPT, CLIENT_ASSET_MAX_BYTES, clientAssetsApi, type ProjectClientAsset, uploadProjectClientAsset } from '@/lib/api/clientAssets';
 import { paymentsApi, toPaymentMethod, type PaymentMethod } from '@/lib/api/payments';
 import { indianMobileError, nextIndianMobileValue } from '@/lib/validation/indianMobile';
 import { normalizeTeamMember } from '@/features/team/teamViewModel';
 import { ArrowLeft, ArrowRight, X, Save, IndianRupee, Phone, MapPin, Music, Link2, Calendar, Sparkles, Plus, Trash2, Camera, CheckSquare, UserCheck, Folder, Upload, FileText, Eye, Paperclip, Users, UserPlus, Clock3 } from 'lucide-react';
+import { isPersistedProjectId } from '@/features/projects/projectViewModel';
+import { loadProjectTasks } from '@/features/projects/persistProjectTasks';
+import { shootsApi } from '@/lib/api/shoots';
+import { toShootEvent } from '@/features/shoots/persistShoots';
 
 function normalizeMeridiemTime(value: string) {
   const input = value.trim().toUpperCase().replace(/\./g, '');
@@ -138,6 +142,8 @@ export const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
 
   type PendingClientAsset = { id: string; file: File; previewUrl?: string; category: string; status: 'ready' | 'uploading' | 'error'; error?: string };
   const [clientAssets, setClientAssets] = useState<PendingClientAsset[]>([]);
+  const [savedClientAssets, setSavedClientAssets] = useState<ProjectClientAsset[]>([]);
+  const [clientAssetsLoading, setClientAssetsLoading] = useState(false);
   const [assetCategory, setAssetCategory] = useState('Client reference');
   // If project creation succeeds but a later asset upload fails, retry only
   // the failed assets; never create a duplicate project on a second click.
@@ -161,31 +167,55 @@ export const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
     return current.filter((item) => item.id !== id);
   });
 
+  const previewPendingClientAsset = (asset: PendingClientAsset) => {
+    const url = asset.previewUrl || URL.createObjectURL(asset.file);
+    window.open(url, '_blank', 'noopener,noreferrer');
+    if (!asset.previewUrl) window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  };
+
+  const formatFileSize = (bytes: number) => bytes < 1024 * 1024
+    ? `${Math.max(1, Math.round(bytes / 1024))} KB`
+    : `${(bytes / 1024 / 1024).toFixed(2)} MB`;
+
+  const openSavedClientAsset = async (asset: ProjectClientAsset) => {
+    try {
+      const url = await clientAssetsApi.getProjectClientAssetDownloadUrl(existingProject!.id, asset.id);
+      window.open(url, '_blank', 'noopener,noreferrer');
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Unable to open this document.', { variant: 'error' });
+    }
+  };
+
+  const removeSavedClientAsset = async (asset: ProjectClientAsset) => {
+    if (!existingProject || !window.confirm(`Remove ${asset.originalName}?`)) return;
+    try {
+      await clientAssetsApi.deleteProjectClientAsset(existingProject.id, asset.id);
+      setSavedClientAssets((items) => items.filter((item) => item.id !== asset.id));
+      showToast('Document removed.');
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Unable to remove this document.', { variant: 'error' });
+    }
+  };
+
+  useEffect(() => {
+    if (!isOpen || !existingProject || !isPersistedProjectId(existingProject.id)) {
+      setSavedClientAssets([]);
+      return;
+    }
+    let cancelled = false;
+    setClientAssetsLoading(true);
+    void clientAssetsApi.getProjectClientAssets(existingProject.id)
+      .then((assets) => { if (!cancelled) setSavedClientAssets(assets); })
+      .catch((error) => { if (!cancelled) showToast(error instanceof Error ? error.message : 'Unable to load saved documents.', { variant: 'error' }); })
+      .finally(() => { if (!cancelled) setClientAssetsLoading(false); });
+    return () => { cancelled = true; };
+  }, [isOpen, existingProject?.id, showToast]);
+
   // Shoots State (Dynamic Add & Remove)
   const [shoots, setShoots] = useState<ShootEvent[]>(
     existingProject?.shoots && existingProject.shoots.length > 0 
       ? existingProject.shoots 
-      : [
-          {
-            id: `shoot-${Date.now()}-1`,
-            title: '',
-            date: existingProject?.weddingFunctionDates || '',
-            time: '06:00 PM',
-            venue: existingProject?.venueLocation || '',
-            location: '',
-            leadPhotographer: 'Rajat Verma',
-            cinematographer: 'Vikram Sharma',
-            droneOperator: 'Rahul Kumar',
-            assistant: 'Amit Singh',
-            crewAssignments: [
-              { id: `c-${Date.now()}-1`, name: 'Rajat Verma', role: 'Photographer', mobile: '' },
-              { id: `c-${Date.now()}-2`, name: 'Vikram Sharma', role: 'Videographer', mobile: '' },
-              { id: `c-${Date.now()}-3`, name: 'Amit Singh', role: 'Assistant', mobile: '' }
-            ],
-            equipmentChecklist: [],
-            status: 'scheduled',
-          }
-        ]
+      : []
   );
 
   const handleAddShoot = () => {
@@ -386,6 +416,25 @@ export const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
           }
         ]
   );
+
+  // The project list intentionally stays lightweight. When editing, hydrate
+  // resource-owned rows from their APIs so the wizard never treats a partial
+  // list response as an empty shoot or task plan.
+  useEffect(() => {
+    if (!isOpen || !existingProject || !isPersistedProjectId(existingProject.id)) return;
+    let cancelled = false;
+    void Promise.all([
+      loadProjectTasks(existingProject.id),
+      shootsApi.list({ projectId: existingProject.id, page: 1, limit: 100 }),
+    ]).then(([storedTasks, storedShoots]) => {
+      if (cancelled) return;
+      setTasks(storedTasks);
+      setShoots(storedShoots.items.map(toShootEvent));
+    }).catch((error) => {
+      if (!cancelled) showToast(error instanceof Error ? error.message : 'Unable to load the saved project plan.', { variant: 'error' });
+    });
+    return () => { cancelled = true; };
+  }, [isOpen, existingProject?.id, showToast]);
 
   const handleAddTask = () => {
     setTasks([
@@ -925,15 +974,16 @@ export const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
 
             </div>
 
-            {/* Client Assets are selected during the wizard and persisted only after the project exists. */}
-            <div className={`${activeStep === 1 ? 'block' : 'hidden'} p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-4`}>
+            {/* New files stay in wizard state until the project receives a database id,
+                then use the existing signed-upload and FileObject flow on save. */}
+            <div className={`${activeStep === 3 ? 'block' : 'hidden'} p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-4`}>
               <div className="flex items-center justify-between">
                 <label className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
                   <Folder className="w-4 h-4 text-indigo-600" />
-                  04 · Client Assets
+                  Client Documents
                 </label>
                 <span className="text-[10px] font-bold text-slate-500 bg-slate-200 px-2 py-0.5 rounded-full">
-                  {clientAssets.length} Asset(s)
+                  {savedClientAssets.length + clientAssets.length} File(s)
                 </span>
               </div>
 
@@ -950,7 +1000,7 @@ export const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
                 </div>
 
                 <div className="sm:col-span-2">
-                  <label className="block text-[10px] font-bold text-slate-500 uppercase mb-0.5">Upload assets</label>
+                  <label className="block text-[10px] font-bold text-slate-500 uppercase mb-0.5">Upload documents</label>
                   <div
                     onDragOver={(event) => event.preventDefault()}
                     onDrop={(event) => { event.preventDefault(); addClientAssets(event.dataTransfer.files); }}
@@ -958,7 +1008,7 @@ export const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
                   >
                     <label className="cursor-pointer flex-1 rounded px-3 py-1.5 text-center text-indigo-600 hover:bg-indigo-50 transition flex items-center justify-center gap-1.5 font-bold text-xs">
                       <Upload className="w-3.5 h-3.5" />
-                      <span>Upload Assets or drop files here</span>
+                      <span>Upload documents or drop files here</span>
                       <input
                         ref={assetInputRef}
                         type="file"
@@ -973,9 +1023,36 @@ export const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
                 </div>
               </div>
 
+              {clientAssetsLoading && <p className="text-[11px] text-slate-500">Loading saved documents…</p>}
+
+              {savedClientAssets.length > 0 && (
+                <div className="space-y-1.5 pt-1">
+                  <span className="text-[10px] font-bold text-slate-500 uppercase">Saved documents:</span>
+                  <div className="grid grid-cols-1 gap-1.5 max-h-40 overflow-y-auto pr-1">
+                    {savedClientAssets.map((asset) => (
+                      <div key={asset.id} className="p-2 bg-white border border-slate-200 rounded-lg flex items-center justify-between text-xs shadow-2xs">
+                        <div className="flex items-center gap-2 overflow-hidden">
+                          <FileText className="w-4 h-4 text-indigo-600 shrink-0" />
+                          <div className="truncate">
+                            <span className="font-bold text-slate-800 text-xs truncate block">{asset.metadata?.title || asset.originalName}</span>
+                            <div className="flex items-center gap-1.5 text-[10px] text-slate-500">
+                              <span>{asset.mimeType}</span><span>•</span><span>{formatFileSize(asset.sizeBytes)}</span><span>•</span><span>{new Date(asset.createdAt).toLocaleDateString()}</span>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1 shrink-0">
+                          <button type="button" onClick={() => void openSavedClientAsset(asset)} className="p-1 text-indigo-600 hover:bg-indigo-50 rounded" title="View document"><Eye className="w-3.5 h-3.5" /></button>
+                          <button type="button" onClick={() => void removeSavedClientAsset(asset)} className="p-1 text-red-500 hover:bg-red-50 rounded" title="Remove document"><Trash2 className="w-3.5 h-3.5" /></button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {clientAssets.length > 0 && (
                 <div className="space-y-1.5 pt-1">
-                  <span className="text-[10px] font-bold text-slate-500 uppercase">Selected client assets:</span>
+                  <span className="text-[10px] font-bold text-slate-500 uppercase">Ready to upload when saved:</span>
                   <div className="grid grid-cols-1 gap-1.5 max-h-40 overflow-y-auto pr-1">
                     {clientAssets.map((asset) => (
                       <div key={asset.id} className="p-2 bg-white border border-slate-200 rounded-lg flex items-center justify-between text-xs shadow-2xs">
@@ -985,13 +1062,22 @@ export const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
                             <span className="font-bold text-slate-800 text-xs truncate block">{asset.file.name}</span>
                             <div className="flex items-center gap-1.5 text-[10px] text-slate-500">
                               <span className="bg-indigo-50 text-indigo-700 font-bold px-1.5 py-0.2 rounded border border-indigo-100">{asset.category}</span>
-                              <span>• {(asset.file.size / 1024 / 1024).toFixed(2)} MB</span>
+                              <span>• {asset.file.type || 'Unknown type'}</span>
+                              <span>• {formatFileSize(asset.file.size)}</span>
                               {asset.status === 'uploading' && <span>• Uploading…</span>}
                               {asset.status === 'error' && <span className="text-red-600">• {asset.error}</span>}
                             </div>
                           </div>
                         </div>
                         <div className="flex items-center gap-1 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => previewPendingClientAsset(asset)}
+                            className="p-1 text-indigo-600 hover:bg-indigo-50 rounded"
+                            title="Preview selected document"
+                          >
+                            <Eye className="w-3.5 h-3.5" />
+                          </button>
                           <button
                             type="button"
                             onClick={() => removeClientAsset(asset.id)}
