@@ -486,8 +486,6 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
                    currentUser?.role === 'Lead Photographer' || 
                    (!!currentUser?.role && currentUser.role.toLowerCase().includes('editor'));
 
-  const urgentProjectsList = projects.filter(p => p.status === 'urgent' || p.status === 'running').slice(0, 4);
-
   if (isAddExpensePage) {
     return (
       <ExpenseModals open variant="page" setOpen={(open) => { if (!open) router.push('/dashboard'); }} editingExpense={editingExpense} setEditingExpense={setEditingExpense} onSubmit={handleAddExpenseSubmit} title={newExpTitle} setTitle={setNewExpTitle} amount={newExpAmount} setAmount={setNewExpAmount} category={newExpCategory} setCategory={setNewExpCategory} date={newExpDate} setDate={setNewExpDate} spentBy={newExpSpentBy} setSpentBy={setNewExpSpentBy} paidVia={newExpPaidVia} setPaidVia={setNewExpPaidVia} notes={newExpNotes} setNotes={setNewExpNotes} expenseToDelete={expenseToDelete} setExpenseToDelete={setExpenseToDelete} confirmDelete={confirmDeleteExpense} />
@@ -509,7 +507,7 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
               {projectsPending ? (
                 <PanelSkeleton title="Project deadlines" rows={4} />
               ) : (
-                <ClientProjectsDeadlines projects={projects} urgentProjects={urgentProjectsList} isEditor={isEditor} onSelect={onSelectProject} onViewAll={() => setActiveTab('projects')} />
+                <ClientProjectsDeadlines projects={projects} isEditor={isEditor} onSelect={onSelectProject} onViewAll={() => setActiveTab('projects')} />
               )}
             </div>
           )}

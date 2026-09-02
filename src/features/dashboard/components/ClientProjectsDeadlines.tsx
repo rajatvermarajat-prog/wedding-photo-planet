@@ -4,7 +4,6 @@ import { computeAutoProjectStatus } from '@/utils/projectStatusCalculator';
 
 interface Props {
   projects: Project[];
-  urgentProjects: Project[];
   isEditor: boolean;
   onSelect: (project: Project) => void;
   onViewAll: () => void;
@@ -17,9 +16,9 @@ const STATUS_BADGE_CLASS: Record<string, string> = {
   pending: 'border-slate-200 bg-slate-100 text-slate-700',
 };
 
-export function ClientProjectsDeadlines({ projects, urgentProjects, isEditor, onSelect, onViewAll }: Props) {
+export function ClientProjectsDeadlines({ projects, isEditor, onSelect, onViewAll }: Props) {
   return (
-    <section className="dashboard-panel dashboard-panel--projects flex flex-col overflow-hidden rounded-2xl border border-[#dfd9d2] border-t-3 border-t-[#b99a5e] bg-white shadow-[0_10px_30px_rgba(48,44,46,.07)]">
+    <section className="dashboard-panel dashboard-panel--projects flex h-[34rem] flex-col overflow-hidden rounded-2xl border border-[#dfd9d2] border-t-3 border-t-[#b99a5e] bg-white shadow-[0_10px_30px_rgba(48,44,46,.07)]">
       <div className="flex items-center justify-between border-b border-[#ece6e1] bg-linear-to-r from-[#f8f1f3] via-[#fbf7f1] to-white p-4 sm:p-5">
         <h3 className="flex items-center gap-2 text-sm font-extrabold uppercase tracking-wide text-slate-800">
           <Briefcase className="size-4 text-rose-700" />
@@ -30,13 +29,13 @@ export function ClientProjectsDeadlines({ projects, urgentProjects, isEditor, on
         </button>
       </div>
 
-      {urgentProjects.length === 0 ? (
+      {projects.length === 0 ? (
         <p className="px-4 py-8 text-center text-xs italic text-slate-400">
-          No urgent projects right now — the studio is on schedule.
+          No projects yet.
         </p>
       ) : (
-        <div className="space-y-2.5 p-4">
-          {urgentProjects.map((project) => {
+        <div className="min-h-0 flex-1 space-y-2.5 overflow-y-auto p-4">
+          {projects.map((project) => {
             const { completionPercent } = computeAutoProjectStatus(project);
             const isPaid = project.balanceDue <= 0;
             return (
