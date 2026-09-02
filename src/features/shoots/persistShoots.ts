@@ -96,6 +96,14 @@ function memberId(crew: CrewMemberAssignment, team: TeamMember[]) {
   return team.find((row) => row.name.trim().toLowerCase() === name)?.id;
 }
 
+function assertCrewMembersResolvable(shoot: ShootEvent, team: TeamMember[]) {
+  for (const row of crewRows(shoot)) {
+    if (!memberId(row, team)) {
+      throw new Error(`${row.name} is not an active team member. Select a crew member from the Team list before saving the shoot plan.`);
+    }
+  }
+}
+
 export function backupFromShoots(shoots: ShootEvent[], existing?: DataBackup): DataBackup {
   const crew = mainCrew(shoots.flatMap((shoot) => shoot.crewAssignments || []));
   const copies = [...new Set(crew.map((row) => (row.copyInHD || row.hardDriveName || '').trim()).filter(Boolean))];
@@ -123,6 +131,7 @@ export function toShootEvent(dto: BackendShoot): ShootEvent {
     id: row.id,
     name: row.user?.fullName || row.freelancer?.fullName || '',
     role: fromCrewRole(row.role),
+    mobile: row.user?.phone || row.freelancer?.phone || '',
     dataReceived: !!row.dataReceived,
     dataSizeGB: num(row.dataSizeGb),
     copyInHD: row.storageReference || '',
@@ -201,6 +210,7 @@ async function syncAssignmentData(shootId: string, shoot: ShootEvent, backup?: D
   for (const row of rows) {
     try {
       await shootsApi.updateAssignment(shootId, row.id, {
+        role: toCrewRole(row.role || ''),
         dataReceived: !!row.dataReceived,
         dataSizeGb: String(row.dataSizeGB || 0),
         storageReference: (row.copyInHD || row.hardDriveName || '').slice(0, 160),
@@ -272,6 +282,7 @@ export async function persistProjectShoots(
       nextShoots.push(shoot);
       continue;
     }
+    assertCrewMembersResolvable(shoot, team);
     const payload = {
       title: shoot.title?.trim() || 'Shoot',
       shootDate: date,
@@ -292,6 +303,7 @@ export async function persistProjectShoots(
       }
     }
     await syncAssignments(shootId, shoot, previousById.get(shoot.id), team);
+    await syncAssignmentData(shootId, shoot, project.dataBackup);
     nextShoots.push({ ...shoot, id: shootId });
   }
 
