@@ -423,7 +423,7 @@ export const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
     let cancelled = false;
     void Promise.all([
       loadProjectTasks(existingProject.id),
-      shootsApi.list({ projectId: existingProject.id, page: 1, limit: 100 }),
+      shootsApi.list({ projectId: existingProject.id, page: 1, limit: 100, sortBy: 'createdAt', sortOrder: 'asc' }),
     ]).then(([storedTasks, storedShoots]) => {
       if (cancelled) return;
       setTasks(storedTasks);

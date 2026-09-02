@@ -70,7 +70,7 @@ export async function persistStudioProject(project: Project, team: TeamMember[] 
   if (isPersistedProjectId(project.id)) {
     const [previousTasks, previousShoots] = await Promise.all([
       loadProjectTasks(project.id),
-      shootsApi.list({ projectId: project.id, page: 1, limit: 100 }).then((result) => result.items.map(toShootEvent)),
+      shootsApi.list({ projectId: project.id, page: 1, limit: 100, sortBy: 'createdAt', sortOrder: 'asc' }).then((result) => result.items.map(toShootEvent)),
     ]);
     const dto = await projectsApi.update(project.id, toUpdateProjectInput(project));
     const base = { ...project, id: dto.id, name: dto.name, clientId: dto.client?.id ?? project.clientId };

@@ -93,7 +93,7 @@ function queryString(query: Record<string, string | number | undefined> = {}) {
 }
 
 export const shootsApi = {
-  async list(query: { page?: number; limit?: number; projectId?: string } = {}): Promise<{ items: BackendShoot[]; meta: ApiMeta }> {
+  async list(query: { page?: number; limit?: number; projectId?: string; sortBy?: 'shootDate' | 'createdAt'; sortOrder?: 'asc' | 'desc' } = {}): Promise<{ items: BackendShoot[]; meta: ApiMeta }> {
     const response = await apiRequest<BackendShoot[]>(`/shoots${queryString(query)}`);
     return { items: Array.isArray(response.data) ? response.data : [], meta: response.meta };
   },
