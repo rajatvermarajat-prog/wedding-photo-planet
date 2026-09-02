@@ -38,6 +38,7 @@ export interface PhotoPipeline {
 
 export interface CrewMemberAssignment {
   id: string;
+  userId?: string;
   name: string;
   role: 'Photographer' | 'Videographer' | 'Cinematographer' | 'Drone Operator' | 'Assistant' | 'Candid Photographer' | 'Traditional Video' | 'Editor / Live' | string;
   mobile?: string;

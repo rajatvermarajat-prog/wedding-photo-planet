@@ -357,6 +357,7 @@ export const RoleColumnCrewManager: React.FC<RoleColumnCrewManagerProps> = ({
                                     const matched = activeTeamMembers.find(
                                       (m) => m.name.toLowerCase() === val.trim().toLowerCase()
                                     );
+                                    onUpdateMember(crew.id, 'userId', matched?.id || '');
                                     if (matched && matched.mobile) {
                                       onUpdateMember(crew.id, 'mobile', matched.mobile);
                                     }

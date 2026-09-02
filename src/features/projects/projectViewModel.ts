@@ -1,5 +1,12 @@
-import type { CreateProjectInput, Project as ProjectDto, UpdateProjectInput, BackendProjectType } from '@/lib/api/projects';
-import type { Project } from '@/types';
+import type {
+  BackendProjectStatus,
+  BackendProjectType,
+  CreateProjectInput,
+  Project as ProjectDto,
+  UpdateProjectInput,
+} from '@/lib/api/projects';
+import { FREELANCER_ASSIGNEE, UNASSIGNED_ASSIGNEE } from '@/features/projects/assigneeOptions';
+import type { CrewMemberAssignment, Project, ProjectTask, TeamMember } from '@/types';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -16,6 +23,24 @@ const typeByService: Record<string, BackendProjectType> = {
   Reception: 'RECEPTION',
   Other: 'OTHER',
 };
+
+const backendTaskStatusByEditingStatus = {
+  not_started: 'TODO',
+  in_progress: 'IN_PROGRESS',
+  client_review: 'IN_REVIEW',
+  revision: 'IN_PROGRESS',
+  completed: 'COMPLETED',
+} as const;
+
+const editingStatusByBackendTaskStatus = {
+  TODO: 'not_started',
+  ASSIGNED: 'not_started',
+  IN_PROGRESS: 'in_progress',
+  PAUSED: 'in_progress',
+  IN_REVIEW: 'client_review',
+  COMPLETED: 'completed',
+  CANCELLED: 'not_started',
+} as const;
 
 const emptyPipeline = {
   video: { preWeddingVideo:'not_started' as const, longVideo:'not_started' as const, teaser:'not_started' as const, highlights:'not_started' as const, reels:'not_started' as const, otherVideo:'' },
@@ -77,6 +102,77 @@ export function toBackendProjectType(service?: string): BackendProjectType {
   return typeByService[service || ''] || 'WEDDING';
 }
 
+export function toBackendProjectStatus(status: Project['status']): BackendProjectStatus {
+  return status === 'completed' ? 'COMPLETED'
+    : status === 'ready_to_deliver' ? 'DELIVERY'
+    : status === 'pending' ? 'CANCELLED'
+    : status === 'running' ? 'CONFIRMED'
+    : 'LEAD';
+}
+
+function toBackendTaskStatus(
+  status: ProjectTask['status'],
+  isAssigned: boolean,
+): NonNullable<CreateProjectInput['tasks']>[number]['status'] {
+  if (status === 'not_started') return isAssigned ? 'ASSIGNED' : 'TODO';
+  return backendTaskStatusByEditingStatus[status] || 'TODO';
+}
+
+function toIsoDateTime(date: string, time?: string): string | undefined {
+  if (!time?.trim()) return undefined;
+  const twentyFourHour = time.trim().match(/^(\d{1,2}):(\d{2})$/);
+  if (twentyFourHour) {
+    const hour = Number(twentyFourHour[1]);
+    const minute = Number(twentyFourHour[2]);
+    if (hour <= 23 && minute <= 59) {
+      return `${date}T${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}:00.000Z`;
+    }
+  }
+  const twelveHour = time.trim().toUpperCase().match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/);
+  if (!twelveHour) return undefined;
+  let hour = Number(twelveHour[1]);
+  if (hour < 1 || hour > 12 || Number(twelveHour[2]) > 59) return undefined;
+  if (twelveHour[3] === 'PM' && hour !== 12) hour += 12;
+  if (twelveHour[3] === 'AM' && hour === 12) hour = 0;
+  return `${date}T${String(hour).padStart(2, '0')}:${twelveHour[2]}:00.000Z`;
+}
+
+function toBackendCrewRole(role: string): NonNullable<NonNullable<CreateProjectInput['shoots']>[number]['crewAssignments']>[number]['role'] {
+  const value = role.toLowerCase();
+  if (value.includes('drone')) return 'DRONE_OPERATOR';
+  if (value.includes('cinema')) return 'CINEMATOGRAPHER';
+  if (value.includes('video') || value.includes('videograph')) return 'TRADITIONAL_VIDEOGRAPHER';
+  if (value.includes('candid')) return 'CANDID_PHOTOGRAPHER';
+  if (value.includes('light')) return 'LIGHT_ASSISTANT';
+  if (value.includes('assist')) return 'ASSISTANT';
+  if (value.includes('editor') || value.includes('live')) return 'LIVE_EDITOR';
+  if (value.includes('coord')) return 'COORDINATOR';
+  if (value.includes('photo')) return 'LEAD_PHOTOGRAPHER';
+  return 'OTHER';
+}
+
+function toBackendShootStatus(
+  status?: Project['shoots'][number]['status'],
+): NonNullable<CreateProjectInput['shoots']>[number]['status'] {
+  if (status === 'completed') return 'COMPLETED';
+  if (status === 'cancelled') return 'CANCELLED';
+  return 'SCHEDULED';
+}
+
+function taskAssigneeId(task: ProjectTask, team: TeamMember[]) {
+  if (task.assignedToId && isPersistedProjectId(task.assignedToId)) return task.assignedToId;
+  const name = (task.assignedTo || '').trim();
+  if (!name || name === UNASSIGNED_ASSIGNEE || name === FREELANCER_ASSIGNEE) return undefined;
+  return team.find((member) => member.name.trim().toLowerCase() === name.toLowerCase())?.id;
+}
+
+function crewUserId(crew: CrewMemberAssignment, team: TeamMember[]) {
+  if (crew.userId && isPersistedProjectId(crew.userId)) return crew.userId;
+  if (isPersistedProjectId(crew.id) && team.some((member) => member.id === crew.id)) return crew.id;
+  const name = crew.name.trim().toLowerCase();
+  return team.find((member) => member.name.trim().toLowerCase() === name)?.id;
+}
+
 /** Maps only API-provided values; unavailable legacy workflow sections stay empty. */
 export function normalizeProject(dto: any): Project {
   const budget = Number(dto.totalQuotation) || 0;
@@ -122,16 +218,17 @@ export function normalizeProject(dto: any): Project {
       time: s.startTime?.slice(11, 16) || '',
       venue: s.venueName || s.venue || '',
       notes: s.notes || '',
-      status: s.status?.toLowerCase() || 'scheduled',
+      status: s.status === 'COMPLETED' ? 'completed' : s.status === 'CANCELLED' ? 'cancelled' : 'scheduled',
       crewAssignments: (s.assignments || []).map((a: any) => ({
         id: a.id,
+        userId: a.user?.id || undefined,
         role: a.role,
         name: a.user?.fullName || a.freelancer?.fullName || '',
-        mobile: '',
+        mobile: a.user?.phone || a.freelancer?.phone || '',
         dataReceived: Boolean(a.dataReceived),
         dataSizeGB: Number(a.dataSizeGb || 0),
         copyInHD: a.storageReference || '',
-        backupInHD: '',
+        backupInHD: a.notes || '',
       })),
     })),
     tasks: (dto.tasks || []).map((t: any) => ({
@@ -139,9 +236,12 @@ export function normalizeProject(dto: any): Project {
       taskName: t.title || '',
       quantity: t.quantity || 1,
       unit: t.unit || '',
-      assignedTo: t.assignee?.fullName || '',
+      assignedTo: t.assignee?.fullName || UNASSIGNED_ASSIGNEE,
       assignedToId: t.assigneeId || undefined,
-      status: t.status === 'COMPLETED' ? 'completed' : t.status === 'IN_PROGRESS' ? 'in_progress' : 'not_started',
+      status: editingStatusByBackendTaskStatus[t.status as keyof typeof editingStatusByBackendTaskStatus] || 'not_started',
+      notes: t.description || undefined,
+      category: t.category,
+      completedAt: t.completedAt || undefined,
     })),
     dataBackup: parsedMeta.dataBackup || dto.dataBackup || { ...emptyPipeline.backup },
     payments,
@@ -149,12 +249,11 @@ export function normalizeProject(dto: any): Project {
   };
 }
 
-export function toCreateProjectInput(project: Project, clientId: string): CreateProjectInput {
+function projectCoreInput(project: Project) {
   const venue = splitVenue(project.venueLocation);
   const weddingDate = firstIsoDate(project.weddingFunctionDates);
   const deliveryDueDate = firstIsoDate(project.finalDeliveryDeadline);
   return {
-    clientId,
     name: (project.clientWeddingTitle || project.name || 'Untitled project').trim(),
     type: toBackendProjectType(project.primaryServiceType),
     weddingDate,
@@ -168,18 +267,56 @@ export function toCreateProjectInput(project: Project, clientId: string): Create
   };
 }
 
-export function toUpdateProjectInput(project: Project): UpdateProjectInput {
-  const input = toCreateProjectInput(project, '00000000-0000-4000-8000-000000000000');
+export function toCreateProjectInput(project: Project, team: TeamMember[] = []): CreateProjectInput {
+  const tasks: NonNullable<CreateProjectInput['tasks']> = (project.tasks || []).flatMap((task) => {
+    const title = task.taskName?.trim();
+    if (!title) return [];
+    const assigneeId = taskAssigneeId(task, team);
+    return [{
+      title,
+      description: task.notes || undefined,
+      quantity: task.quantity || 1,
+      unit: task.unit || undefined,
+      ...(assigneeId ? { assigneeId } : {}),
+      status: toBackendTaskStatus(task.status, Boolean(assigneeId)),
+    }];
+  });
+  const shoots: NonNullable<CreateProjectInput['shoots']> = (project.shoots || []).flatMap((shoot) => {
+      const shootDate = firstIsoDate(shoot.date);
+      if (!shootDate) return [];
+      const crewAssignments = (shoot.crewAssignments || [])
+        .filter((crew) => crew.name?.trim())
+        .map((crew) => {
+          const userId = crewUserId(crew, team);
+          if (!userId) {
+            throw new Error(`${crew.name} is not an active team member. Select a crew member from the Team list before saving the shoot plan.`);
+          }
+          return { userId, role: toBackendCrewRole(crew.role || '') };
+        });
+      return [{
+        title: shoot.title?.trim() || 'Shoot',
+        shootDate,
+        startTime: toIsoDateTime(shootDate, shoot.startTime || shoot.time),
+        endTime: toIsoDateTime(shootDate, shoot.endTime),
+        location: shoot.venue || shoot.location || undefined,
+        notes: shoot.notes || undefined,
+        status: toBackendShootStatus(shoot.status),
+        shootType: 'PHOTO_AND_VIDEO' as const,
+        ...(crewAssignments.length ? { crewAssignments } : {}),
+      }];
+    });
   return {
-    name: input.name,
-    type: input.type,
-    weddingDate: input.weddingDate,
-    deliveryDueDate: input.deliveryDueDate,
-    venueName: input.venueName,
-    venueCity: input.venueCity,
-    totalQuotation: input.totalQuotation,
-    customServiceType: input.customServiceType,
-    otherClientDetails: input.otherClientDetails,
-    notes: input.notes,
+    client: {
+      displayName: project.clientWeddingTitle.trim(),
+      primaryPhone: project.clientContactMobile.trim(),
+    },
+    status: toBackendProjectStatus(project.status),
+    ...projectCoreInput(project),
+    ...(tasks.length ? { tasks } : {}),
+    ...(shoots.length ? { shoots } : {}),
   };
+}
+
+export function toUpdateProjectInput(project: Project): UpdateProjectInput {
+  return projectCoreInput(project);
 }

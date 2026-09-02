@@ -123,6 +123,7 @@ function crewRows(shoot: ShootEvent): CrewMemberAssignment[] {
 }
 
 function memberId(crew: CrewMemberAssignment, team: TeamMember[]) {
+  if (crew.userId && isPersistedProjectId(crew.userId)) return crew.userId;
   if (isPersistedProjectId(crew.id) && team.some((row) => row.id === crew.id)) return crew.id;
   const name = crew.name.trim().toLowerCase();
   return team.find((row) => row.name.trim().toLowerCase() === name)?.id;
@@ -161,6 +162,7 @@ export function toShootEvent(dto: BackendShoot): ShootEvent {
   const assignments = dto.assignments || [];
   const crew = assignments.map((row) => ({
     id: row.id,
+    userId: row.user?.id || undefined,
     name: row.user?.fullName || row.freelancer?.fullName || '',
     role: fromCrewRole(row.role),
     mobile: row.user?.phone || row.freelancer?.phone || '',
