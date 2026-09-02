@@ -16,6 +16,7 @@ export interface BackendTask {
   dueDate: string | null;
   assigneeId: string | null;
   projectId: string | null;
+  completedAt: string | null;
   assignee?: { id: string; fullName: string };
   project?: { id: string; projectNumber: string; name: string };
   createdAt: string;
