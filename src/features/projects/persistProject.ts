@@ -8,7 +8,7 @@ import { usersApi } from '@/lib/api/users';
 import { normalizeTeamMember } from '@/features/team/teamViewModel';
 import { indianMobileError } from '@/lib/validation/indianMobile';
 import { loadProjectTasks, persistProjectTasks } from './persistProjectTasks';
-import { persistProjectShoots, toShootEvent } from '@/features/shoots/persistShoots';
+import { assertProjectShootTimes, persistProjectShoots, toShootEvent } from '@/features/shoots/persistShoots';
 import { shootsApi } from '@/lib/api/shoots';
 import type { BackendProjectStatus } from '@/lib/api/projects';
 
@@ -54,6 +54,10 @@ async function ensureClientId(project: Project): Promise<string> {
 }
 
 export async function persistStudioProject(project: Project, team: TeamMember[] = []): Promise<Project> {
+  // Do this before client/project creation. The database enforces the same
+  // invariant; checking here avoids a partial Project create followed by a
+  // generic 422 from POST /shoots.
+  assertProjectShootTimes(project.shoots || []);
   let roster = team;
   if (!roster.length) {
     try {

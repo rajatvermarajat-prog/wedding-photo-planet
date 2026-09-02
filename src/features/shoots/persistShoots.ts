@@ -59,6 +59,24 @@ function toIsoDateTime(date: string, time?: string): string | undefined {
   return `${date}T${String(hour).padStart(2, '0')}:${match[2]}:00.000Z`;
 }
 
+/**
+ * The Shoot table correctly rejects an end timestamp that is not after the
+ * start timestamp. Validate the Project form's existing time fields before
+ * any project write starts, so a bad shoot cannot leave a newly-created
+ * project only partially persisted.
+ */
+export function assertProjectShootTimes(shoots: ShootEvent[]) {
+  for (const shoot of shoots) {
+    const date = firstIsoDate(shoot.date);
+    if (!date) continue;
+    const startTime = toIsoDateTime(date, shoot.startTime);
+    const endTime = toIsoDateTime(date, shoot.endTime);
+    if (startTime && endTime && new Date(endTime).getTime() <= new Date(startTime).getTime()) {
+      throw new Error(`End time must be later than start time for shoot \"${shoot.title?.trim() || 'Shoot'}\".`);
+    }
+  }
+}
+
 function fromIsoDateTime(value?: string | null): string | undefined {
   if (!value) return undefined;
   const date = new Date(value);
