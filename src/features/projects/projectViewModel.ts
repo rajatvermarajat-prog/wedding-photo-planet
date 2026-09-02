@@ -24,6 +24,40 @@ const emptyPipeline = {
   delivery: { rawHandoverDone:false, teaserLinkSent:false, fullFilmSent:false, reelsSent:false, highResPhotosSent:false, albumPrintedAndDelivered:false },
 };
 
+type ProjectMetadata = {
+  customDetails?: string;
+  quotationLink?: string;
+  weddingFunctionDates?: string;
+  videoPipeline?: Project['videoPipeline'];
+  photoPipeline?: Project['photoPipeline'];
+  dataBackup?: Project['dataBackup'];
+  deliveryStatus?: Project['deliveryStatus'];
+};
+
+function readMetadata(value?: string | null): ProjectMetadata {
+  if (!value) return {};
+  try {
+    const parsed = JSON.parse(value);
+    return parsed && typeof parsed === 'object' ? parsed : { customDetails: value };
+  } catch {
+    return { customDetails: value };
+  }
+}
+
+function writeMetadata(project: Project): string | undefined {
+  const metadata: ProjectMetadata = {
+    ...readMetadata(project.otherClientDetails),
+    customDetails: project.primaryServiceType === 'Other' ? project.otherClientDetails?.trim() || undefined : undefined,
+    quotationLink: project.quotationLink?.trim() || undefined,
+    weddingFunctionDates: project.weddingFunctionDates?.trim() || undefined,
+    videoPipeline: project.videoPipeline,
+    photoPipeline: project.photoPipeline,
+    dataBackup: project.dataBackup,
+    deliveryStatus: project.deliveryStatus,
+  };
+  return Object.values(metadata).some((value) => value !== undefined) ? JSON.stringify(metadata) : undefined;
+}
+
 export function isPersistedProjectId(id?: string) {
   return !!id && UUID_RE.test(id);
 }
@@ -46,14 +80,7 @@ export function toBackendProjectType(service?: string): BackendProjectType {
 /** Maps only API-provided values; unavailable legacy workflow sections stay empty. */
 export function normalizeProject(dto: any): Project {
   const budget = Number(dto.totalQuotation) || 0;
-  let parsedMeta: { dataBackup?: any; deliveryStatus?: any } = {};
-  if (dto.otherClientDetails) {
-    try {
-      parsedMeta = JSON.parse(dto.otherClientDetails);
-    } catch {
-      parsedMeta = {};
-    }
-  }
+  const parsedMeta = readMetadata(dto.otherClientDetails);
 
   const payments = (dto.payments || []).map((p: any) => ({
     id: p.id,
@@ -76,8 +103,9 @@ export function normalizeProject(dto: any): Project {
     venueLocation: [dto.venueName, dto.venueCity].filter(Boolean).join(', '),
     primaryServiceType: dto.customServiceType ? 'Other' : (legacyService[dto.type as keyof typeof legacyService] || 'Wedding'),
     customServiceType: dto.customServiceType || undefined,
-    otherClientDetails: dto.otherClientDetails || undefined,
-    weddingFunctionDates: dto.weddingDate?.slice(0, 10) ?? '',
+    otherClientDetails: parsedMeta.customDetails || undefined,
+    quotationLink: parsedMeta.quotationLink || undefined,
+    weddingFunctionDates: parsedMeta.weddingFunctionDates || dto.weddingDate?.slice(0, 10) || '',
     finalDeliveryDeadline: dto.deliveryDueDate?.slice(0, 10) ?? '',
     totalBudget: budget,
     advanceReceived: received,
@@ -85,8 +113,8 @@ export function normalizeProject(dto: any): Project {
     specialNotesMusicPreferences: dto.notes ?? '',
     status: legacyStatus[dto.status as keyof typeof legacyStatus] || 'running',
     createdAt: dto.createdAt,
-    videoPipeline: { ...emptyPipeline.video },
-    photoPipeline: { ...emptyPipeline.photo },
+    videoPipeline: parsedMeta.videoPipeline || { ...emptyPipeline.video },
+    photoPipeline: parsedMeta.photoPipeline || { ...emptyPipeline.photo },
     shoots: (dto.shoots || []).map((s: any) => ({
       id: s.id,
       title: s.title || s.name || 'Shoot',
@@ -135,7 +163,7 @@ export function toCreateProjectInput(project: Project, clientId: string): Create
     venueCity: venue.venueCity,
     totalQuotation: Number.isFinite(project.totalBudget) ? String(project.totalBudget) : undefined,
     customServiceType: project.primaryServiceType === 'Other' ? project.customServiceType : undefined,
-    otherClientDetails: project.primaryServiceType === 'Other' ? project.otherClientDetails : undefined,
+    otherClientDetails: writeMetadata(project),
     notes: project.specialNotesMusicPreferences || undefined,
   };
 }
@@ -150,6 +178,8 @@ export function toUpdateProjectInput(project: Project): UpdateProjectInput {
     venueName: input.venueName,
     venueCity: input.venueCity,
     totalQuotation: input.totalQuotation,
+    customServiceType: input.customServiceType,
+    otherClientDetails: input.otherClientDetails,
     notes: input.notes,
   };
 }

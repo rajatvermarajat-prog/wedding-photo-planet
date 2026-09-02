@@ -42,6 +42,14 @@ function toShootStatus(status?: ShootEvent['status']): BackendShootStatus {
 
 function toIsoDateTime(date: string, time?: string): string | undefined {
   if (!time?.trim()) return undefined;
+  const twentyFourHour = time.trim().match(/^(\d{1,2}):(\d{2})$/);
+  if (twentyFourHour) {
+    const hour = Number(twentyFourHour[1]);
+    const minute = Number(twentyFourHour[2]);
+    if (hour <= 23 && minute <= 59) {
+      return `${date}T${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}:00.000Z`;
+    }
+  }
   const match = time.trim().toUpperCase().match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/);
   if (!match) return undefined;
   let hour = Number(match[1]);
@@ -76,18 +84,24 @@ function mainCrew(rows: CrewMemberAssignment[]) {
 }
 
 function crewRows(shoot: ShootEvent): CrewMemberAssignment[] {
-  const rows = [...(shoot.crewAssignments || [])];
+  let customRows = [...(shoot.crewAssignments || [])];
+  const coreRows: CrewMemberAssignment[] = [];
+  // The original modal stores its four core choices in dedicated fields and
+  // additional members in crewAssignments. Adapt that unchanged shape here
+  // before calling the API, so replacing a core member removes the old DB row.
   ([
     ['Photographer', shoot.leadPhotographer],
     ['Cinematographer', shoot.cinematographer],
     ['Drone Operator', shoot.droneOperator],
     ['Assistant', shoot.assistant],
   ] as const).forEach(([role, name]) => {
+    const matching = customRows.filter((row) => row.role.trim().toLowerCase() === role.toLowerCase());
+    customRows = customRows.filter((row) => row.role.trim().toLowerCase() !== role.toLowerCase());
     if (!name?.trim()) return;
-    if (rows.some((row) => row.name.trim().toLowerCase() === name.trim().toLowerCase())) return;
-    rows.push({ id: `named-${role}`, name: name.trim(), role });
+    const existing = matching.find((row) => row.name.trim().toLowerCase() === name.trim().toLowerCase());
+    coreRows.push(existing || { id: `named-${role}`, name: name.trim(), role });
   });
-  return rows.filter((row) => row.name?.trim());
+  return [...coreRows, ...customRows].filter((row) => row.name?.trim());
 }
 
 function memberId(crew: CrewMemberAssignment, team: TeamMember[]) {
@@ -182,19 +196,29 @@ export function attachShoots(projects: Project[], shoots: BackendShoot[]): Proje
 async function syncAssignments(shootId: string, shoot: ShootEvent, previous: ShootEvent | undefined, team: TeamMember[]) {
   const next = crewRows(shoot);
   const prev = previous ? crewRows(previous) : [];
-  const keep = new Set(next.map((row) => row.id).filter((id) => isPersistedProjectId(id)));
+  const nextById = new Map(next.map((row) => [row.id, row]));
+  const replacementIds = new Set<string>();
 
   for (const row of prev) {
-    if (!isPersistedProjectId(row.id) || keep.has(row.id)) continue;
+    if (!isPersistedProjectId(row.id)) continue;
+    const replacement = nextById.get(row.id);
+    const previousMemberId = memberId(row, team);
+    const nextMemberId = replacement ? memberId(replacement, team) : undefined;
+    // The assignment API intentionally never changes its userId.  When an
+    // existing slot is given to a different employee, remove its owned row
+    // and create the new employee assignment below; do not touch User records.
+    const changedMember = Boolean(replacement && previousMemberId && nextMemberId && previousMemberId !== nextMemberId);
+    if (replacement && !changedMember) continue;
     try {
       await shootsApi.removeAssignment(shootId, row.id);
+      if (replacement && changedMember) replacementIds.add(row.id);
     } catch (error) {
       if (!(error instanceof ApiError) || error.status !== 403) throw error;
     }
   }
 
   for (const row of next) {
-    if (isPersistedProjectId(row.id)) continue;
+    if (isPersistedProjectId(row.id) && !replacementIds.has(row.id)) continue;
     const userId = memberId(row, team);
     if (!userId) continue;
     try {

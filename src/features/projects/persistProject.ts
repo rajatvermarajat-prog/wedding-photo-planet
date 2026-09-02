@@ -10,6 +10,15 @@ import { indianMobileError } from '@/lib/validation/indianMobile';
 import { loadProjectTasks, persistProjectTasks } from './persistProjectTasks';
 import { persistProjectShoots, toShootEvent } from '@/features/shoots/persistShoots';
 import { shootsApi } from '@/lib/api/shoots';
+import type { BackendProjectStatus } from '@/lib/api/projects';
+
+function backendStatus(status: Project['status']): BackendProjectStatus {
+  return status === 'completed' ? 'COMPLETED'
+    : status === 'ready_to_deliver' ? 'DELIVERY'
+    : status === 'pending' ? 'CANCELLED'
+    : status === 'running' ? 'CONFIRMED'
+    : 'LEAD';
+}
 
 function digits(value: string) {
   return value.replace(/\D/g, '');
@@ -61,6 +70,19 @@ export async function persistStudioProject(project: Project, team: TeamMember[] 
     ]);
     const dto = await projectsApi.update(project.id, toUpdateProjectInput(project));
     const base = { ...project, id: dto.id, name: dto.name, clientId: dto.client?.id ?? project.clientId };
+    if (base.clientId) {
+      await clientsApi.update(base.clientId, {
+        displayName: project.clientWeddingTitle.trim(),
+        primaryPhone: project.clientContactMobile.trim(),
+      });
+    }
+    const targetStatus = backendStatus(project.status);
+    if (dto.status !== targetStatus) await projectsApi.changeStatus(base.id, { status: targetStatus });
+    // Both existing endpoints merge into the same metadata column. Run them
+    // in order so neither can overwrite custom-service details or quotation
+    // metadata read by the other request.
+    await projectsApi.updateDataBackup(base.id, project.dataBackup);
+    await projectsApi.updateDeliveries(base.id, project.deliveryStatus);
     const [tasks, shoots] = await Promise.all([
       persistProjectTasks(base.id, project.tasks || [], previousTasks, roster),
       persistProjectShoots(base, { ...base, shoots: previousShoots }, roster),
@@ -73,6 +95,10 @@ export async function persistStudioProject(project: Project, team: TeamMember[] 
   // The caller needs the client id to record the booking advance against the
   // new project, so hand it back rather than making it look it up again.
   const base = { ...project, id: dto.id, name: dto.name, clientId: dto.client?.id ?? clientId };
+  const targetStatus = backendStatus(project.status);
+  if (dto.status !== targetStatus) await projectsApi.changeStatus(base.id, { status: targetStatus });
+  await projectsApi.updateDataBackup(base.id, project.dataBackup);
+  await projectsApi.updateDeliveries(base.id, project.deliveryStatus);
   const [tasks, shoots] = await Promise.all([
     persistProjectTasks(base.id, project.tasks || [], [], roster),
     persistProjectShoots(base, undefined, roster),
