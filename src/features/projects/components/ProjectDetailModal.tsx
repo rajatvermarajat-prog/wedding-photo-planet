@@ -1388,15 +1388,6 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
             </button>
           )}
           <button
-            onClick={() => setActiveTab('tasks')}
-            className={`min-h-9 px-3.5 py-2 font-bold border-b-2 uppercase tracking-wider text-[11px] transition whitespace-nowrap shrink-0 flex items-center gap-1.5 rounded-t-md ${
-              activeTab === 'tasks' ? 'border-indigo-600 text-indigo-600 bg-white shadow-2xs font-extrabold' : 'border-transparent text-slate-500 hover:text-slate-800 hover:bg-slate-200/50'
-            }`}
-          >
-            <CheckSquare className="w-3.5 h-3.5" />
-            Tasks ({taskList.length})
-          </button>
-          <button
             onClick={() => setActiveTab('shoots')}
             className={`min-h-9 px-3.5 py-2 font-bold border-b-2 uppercase tracking-wider text-[11px] transition whitespace-nowrap shrink-0 flex items-center gap-1.5 rounded-t-md ${
               activeTab === 'shoots' ? 'border-indigo-600 text-indigo-600 bg-white shadow-2xs font-extrabold' : 'border-transparent text-slate-500 hover:text-slate-800 hover:bg-slate-200/50'
@@ -1413,6 +1404,15 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
           >
             <HardDrive className="w-3.5 h-3.5" />
             RAW Data
+          </button>
+          <button
+            onClick={() => setActiveTab('tasks')}
+            className={`min-h-9 px-3.5 py-2 font-bold border-b-2 uppercase tracking-wider text-[11px] transition whitespace-nowrap shrink-0 flex items-center gap-1.5 rounded-t-md ${
+              activeTab === 'tasks' ? 'border-indigo-600 text-indigo-600 bg-white shadow-2xs font-extrabold' : 'border-transparent text-slate-500 hover:text-slate-800 hover:bg-slate-200/50'
+            }`}
+          >
+            <CheckSquare className="w-3.5 h-3.5" />
+            Tasks ({taskList.length})
           </button>
           {canViewPayments && (
             <button
