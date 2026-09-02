@@ -153,21 +153,50 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
     setVaultLoading(true);
     try {
       const assets = await clientAssetsApi.getProjectClientAssets(project.id);
-      const docs = await Promise.all(assets.map(async (asset) => ({
+      // Deliberately no `fileUrl` here. Download URLs are signed for
+      // SIGNED_URL_TTL_SECONDS (15 minutes); minting them when the list loads
+      // meant a project left open longer than that handed the browser links the
+      // storage route then rejects. They are minted at the moment of use below.
+      const docs = assets.map((asset) => ({
         id: asset.id,
         name: asset.metadata?.title || asset.originalName,
         category: asset.metadata?.category || 'Client asset',
-        fileUrl: await clientAssetsApi.getProjectClientAssetDownloadUrl(project.id, asset.id),
+        fileUrl: '',
         fileType: asset.mimeType.includes('pdf') ? 'pdf' : asset.mimeType.startsWith('image/') ? 'image' : 'doc',
         uploadDate: asset.createdAt.slice(0, 10),
         fileSize: `${(asset.sizeBytes / 1024 / 1024).toFixed(2)} MB`,
-      } as ClientVaultDocument)));
+      } as ClientVaultDocument));
       setVaultDocs(docs);
     } catch (error) { showToast(error instanceof Error ? error.message : 'Unable to load client assets.', { variant: 'error' }); }
     finally { setVaultLoading(false); }
   };
 
   useEffect(() => { void refreshClientAssets(); }, [project.id]);
+
+  /** Opens a client asset with a URL signed right now. */
+  const openAsset = async (assetId: string) => {
+    // Opened synchronously so the popup blocker still sees the click; the
+    // location is filled in once the fresh signed URL comes back.
+    const tab = window.open('', '_blank');
+    if (tab) tab.opener = null;
+    try {
+      const url = await clientAssetsApi.getProjectClientAssetDownloadUrl(project.id, assetId);
+      if (tab) tab.location.href = url;
+      else window.location.href = url;
+    } catch (error) {
+      tab?.close();
+      showToast(error instanceof Error ? error.message : 'Unable to open this file.', { variant: 'error' });
+    }
+  };
+
+  /** Same, for the inline image preview. */
+  const previewAsset = async (assetId: string) => {
+    try {
+      setSelectedImage(await clientAssetsApi.getProjectClientAssetDownloadUrl(project.id, assetId));
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Unable to open this image.', { variant: 'error' });
+    }
+  };
 
   const handleVaultFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []); e.currentTarget.value = '';
@@ -2014,15 +2043,14 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
                           </div>
 
                           <div className="flex items-center gap-1 shrink-0">
-                            <a
-                              href={doc.fileUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
+                            <button
+                              type="button"
+                              onClick={() => void openAsset(doc.id)}
                               className="p-1.5 bg-white hover:bg-indigo-50 border border-slate-200 rounded-lg text-indigo-600 transition"
                               title="View / Open File"
                             >
                               <Eye className="w-3.5 h-3.5" />
-                            </a>
+                            </button>
                             <button
                               onClick={() => handleDeleteVaultDoc(doc.id)}
                               className="p-1.5 bg-white hover:bg-red-50 border border-slate-200 rounded-lg text-red-500 transition"
@@ -2211,20 +2239,19 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
                           <div className="flex items-center gap-2">
                             {doc.fileType === 'image' ? (
                               <button
-                                onClick={() => setSelectedImage(doc.fileUrl)}
+                                onClick={() => void previewAsset(doc.id)}
                                 className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-[11px] rounded-md transition flex items-center gap-1"
                               >
                                 <Eye className="w-3.5 h-3.5 text-indigo-600" /> View
                               </button>
                             ) : null}
-                            <a
-                              href={doc.fileUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
+                            <button
+                              type="button"
+                              onClick={() => void openAsset(doc.id)}
                               className="px-3 py-1 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-[11px] rounded-md transition flex items-center gap-1 shadow-2xs"
                             >
                               <ExternalLink className="w-3.5 h-3.5" /> Open / Download
-                            </a>
+                            </button>
                           </div>
                         </div>
                       </div>
