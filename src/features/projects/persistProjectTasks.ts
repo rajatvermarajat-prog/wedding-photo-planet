@@ -90,13 +90,15 @@ export async function persistProjectTasks(
     const assigneeId = assigneeIdFor(row, team);
 
     if (!isPersistedProjectId(row.id)) {
-      await tasksApi.create({
+      const created = await tasksApi.create({
         title,
         projectId,
         quantity: row.quantity || 1,
         unit: row.unit || undefined,
+        description: row.notes || undefined,
         ...(assigneeId ? { assigneeId } : {}),
       });
+      if (statusOf(row) !== 'TODO') await tasksApi.changeStatus(created.id, statusOf(row));
       continue;
     }
 
@@ -105,9 +107,10 @@ export async function persistProjectTasks(
       !before ||
       before.taskName !== title ||
       (before.quantity || 1) !== (row.quantity || 1) ||
-      (before.unit || '') !== (row.unit || '');
+      (before.unit || '') !== (row.unit || '') ||
+      (before.notes || '') !== (row.notes || '');
     if (fieldsChanged) {
-      await tasksApi.update(row.id, { title, quantity: row.quantity || 1, unit: row.unit || undefined });
+      await tasksApi.update(row.id, { title, quantity: row.quantity || 1, unit: row.unit || undefined, description: row.notes || undefined });
     }
     if (before && before.status !== row.status) {
       await tasksApi.changeStatus(row.id, statusOf(row));

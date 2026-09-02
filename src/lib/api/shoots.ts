@@ -57,6 +57,8 @@ export interface CreateShootInput {
 export interface UpdateShootInput {
   title?: string;
   shootDate?: string;
+  startTime?: string;
+  endTime?: string;
   location?: string;
   notes?: string;
   status?: BackendShootStatus;

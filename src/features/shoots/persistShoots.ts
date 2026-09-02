@@ -40,6 +40,26 @@ function toShootStatus(status?: ShootEvent['status']): BackendShootStatus {
   return 'SCHEDULED';
 }
 
+function toIsoDateTime(date: string, time?: string): string | undefined {
+  if (!time?.trim()) return undefined;
+  const match = time.trim().toUpperCase().match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/);
+  if (!match) return undefined;
+  let hour = Number(match[1]);
+  if (hour < 1 || hour > 12 || Number(match[2]) > 59) return undefined;
+  if (match[3] === 'PM' && hour !== 12) hour += 12;
+  if (match[3] === 'AM' && hour === 12) hour = 0;
+  return `${date}T${String(hour).padStart(2, '0')}:${match[2]}:00.000Z`;
+}
+
+function fromIsoDateTime(value?: string | null): string | undefined {
+  if (!value) return undefined;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return undefined;
+  const hours = date.getUTCHours();
+  const suffix = hours >= 12 ? 'PM' : 'AM';
+  return `${String(hours % 12 || 12).padStart(2, '0')}:${String(date.getUTCMinutes()).padStart(2, '0')} ${suffix}`;
+}
+
 function fromShootStatus(status: BackendShoot['status']): ShootEvent['status'] {
   if (status === 'COMPLETED') return 'completed';
   if (status === 'CANCELLED') return 'cancelled';
@@ -118,7 +138,9 @@ export function toShootEvent(dto: BackendShoot): ShootEvent {
     id: dto.id,
     title: dto.title,
     date,
-    time: '',
+    time: fromIsoDateTime(dto.startTime) || '',
+    startTime: fromIsoDateTime(dto.startTime),
+    endTime: fromIsoDateTime(dto.endTime),
     venue: dto.location || dto.city || '',
     location: dto.location || '',
     leadPhotographer: photographer,
@@ -253,6 +275,8 @@ export async function persistProjectShoots(
     const payload = {
       title: shoot.title?.trim() || 'Shoot',
       shootDate: date,
+      startTime: toIsoDateTime(date, shoot.startTime),
+      endTime: toIsoDateTime(date, shoot.endTime),
       location: shoot.venue || shoot.location || undefined,
       notes: shoot.notes || undefined,
     };
