@@ -78,10 +78,11 @@ export async function persistStudioProject(project: Project, team: TeamMember[] 
     }
     const targetStatus = backendStatus(project.status);
     if (dto.status !== targetStatus) await projectsApi.changeStatus(base.id, { status: targetStatus });
-    await Promise.all([
-      projectsApi.updateDataBackup(base.id, project.dataBackup),
-      projectsApi.updateDeliveries(base.id, project.deliveryStatus),
-    ]);
+    // Both existing endpoints merge into the same metadata column. Run them
+    // in order so neither can overwrite custom-service details or quotation
+    // metadata read by the other request.
+    await projectsApi.updateDataBackup(base.id, project.dataBackup);
+    await projectsApi.updateDeliveries(base.id, project.deliveryStatus);
     const [tasks, shoots] = await Promise.all([
       persistProjectTasks(base.id, project.tasks || [], previousTasks, roster),
       persistProjectShoots(base, { ...base, shoots: previousShoots }, roster),
@@ -96,10 +97,8 @@ export async function persistStudioProject(project: Project, team: TeamMember[] 
   const base = { ...project, id: dto.id, name: dto.name, clientId: dto.client?.id ?? clientId };
   const targetStatus = backendStatus(project.status);
   if (dto.status !== targetStatus) await projectsApi.changeStatus(base.id, { status: targetStatus });
-  await Promise.all([
-    projectsApi.updateDataBackup(base.id, project.dataBackup),
-    projectsApi.updateDeliveries(base.id, project.deliveryStatus),
-  ]);
+  await projectsApi.updateDataBackup(base.id, project.dataBackup);
+  await projectsApi.updateDeliveries(base.id, project.deliveryStatus);
   const [tasks, shoots] = await Promise.all([
     persistProjectTasks(base.id, project.tasks || [], [], roster),
     persistProjectShoots(base, undefined, roster),
