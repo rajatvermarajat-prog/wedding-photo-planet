@@ -123,6 +123,8 @@ export interface ProjectTask {
   assignedToId?: string;
   status: EditingStatus; // 'not_started' | 'in_progress' | 'client_review' | 'revision' | 'completed'
   notes?: string;
+  category?: string;
+  completedAt?: string;
 }
 
 export interface Project {

@@ -38,6 +38,8 @@ export function toProjectTask(dto: BackendTask): ProjectTask {
     assignedToId: dto.assigneeId ?? undefined,
     status: FROM_BACKEND[dto.status] ?? 'not_started',
     notes: dto.description ?? undefined,
+    category: dto.category,
+    completedAt: dto.completedAt ?? undefined,
   };
 }
 

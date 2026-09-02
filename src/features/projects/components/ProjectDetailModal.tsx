@@ -3764,84 +3764,32 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
           {/* DELIVERIES TAB */}
           {activeTab === 'deliveries' && (
             <div className="space-y-4">
-              <div className="flex items-center justify-between">
+              <div>
                 <div>
-                  <h4 className="text-sm font-bold text-slate-900 uppercase tracking-tight">Deliveries & Client Handover Checklist</h4>
-                  <p className="text-xs text-slate-500">Mark deliverables handed over to client</p>
+                  <h4 className="text-sm font-bold text-slate-900 uppercase tracking-tight">Completed Deliveries</h4>
+                  <p className="text-xs text-slate-500">Completed project tasks are shown automatically from the saved task records.</p>
                 </div>
-                {canMutateDeliveries && (
-                  <button
-                    type="button"
-                    disabled={isSavingDeliveries}
-                    onClick={() => handleSaveDeliveries()}
-                    className="inline-flex items-center gap-2 px-3 py-1.5 bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-white text-xs font-bold rounded-lg transition"
-                  >
-                    <Save className="w-3.5 h-3.5" />
-                    <span>{isSavingDeliveries ? 'Saving...' : 'Save Delivery Status'}</span>
-                  </button>
-                )}
               </div>
 
               <div className="p-3.5 rounded-xl bg-white border border-slate-200 space-y-2 text-xs shadow-xs">
-                <div className="flex items-center justify-between p-2 rounded bg-slate-50">
-                  <span className="font-medium text-slate-800">RAW Data Hard Drive Handover</span>
-                  <input
-                    type="checkbox"
-                    disabled={!canMutateDeliveries}
-                    checked={deliveryStatusState.rawHandoverDone}
-                    onChange={(e) => setDeliveryStatusState((prev) => ({ ...prev, rawHandoverDone: e.target.checked }))}
-                  />
-                </div>
-
-                <div className="flex items-center justify-between p-2 rounded bg-slate-50">
-                  <span className="font-medium text-slate-800">Teaser Video Link Sent</span>
-                  <input
-                    type="checkbox"
-                    disabled={!canMutateDeliveries}
-                    checked={deliveryStatusState.teaserLinkSent}
-                    onChange={(e) => setDeliveryStatusState((prev) => ({ ...prev, teaserLinkSent: e.target.checked }))}
-                  />
-                </div>
-
-                <div className="flex items-center justify-between p-2 rounded bg-slate-50">
-                  <span className="font-medium text-slate-800">Full Wedding Film & Long Videos Handed Over</span>
-                  <input
-                    type="checkbox"
-                    disabled={!canMutateDeliveries}
-                    checked={deliveryStatusState.fullFilmSent}
-                    onChange={(e) => setDeliveryStatusState((prev) => ({ ...prev, fullFilmSent: e.target.checked }))}
-                  />
-                </div>
-
-                <div className="flex items-center justify-between p-2 rounded bg-slate-50">
-                  <span className="font-medium text-slate-800">Instagram Reels & Shorts Folder</span>
-                  <input
-                    type="checkbox"
-                    disabled={!canMutateDeliveries}
-                    checked={deliveryStatusState.reelsSent}
-                    onChange={(e) => setDeliveryStatusState((prev) => ({ ...prev, reelsSent: e.target.checked }))}
-                  />
-                </div>
-
-                <div className="flex items-center justify-between p-2 rounded bg-slate-50">
-                  <span className="font-medium text-slate-800">High-Res Photo Gallery Delivered</span>
-                  <input
-                    type="checkbox"
-                    disabled={!canMutateDeliveries}
-                    checked={deliveryStatusState.highResPhotosSent}
-                    onChange={(e) => setDeliveryStatusState((prev) => ({ ...prev, highResPhotosSent: e.target.checked }))}
-                  />
-                </div>
-
-                <div className="flex items-center justify-between p-2 rounded bg-slate-50">
-                  <span className="font-medium text-slate-800">Printed Wedding Albums Handed Over</span>
-                  <input
-                    type="checkbox"
-                    disabled={!canMutateDeliveries}
-                    checked={deliveryStatusState.albumPrintedAndDelivered}
-                    onChange={(e) => setDeliveryStatusState((prev) => ({ ...prev, albumPrintedAndDelivered: e.target.checked }))}
-                  />
-                </div>
+                {taskList.filter((task) => task.status === 'completed').length === 0 ? (
+                  <div className="p-8 text-center bg-slate-50 rounded-lg border border-dashed border-slate-200">
+                    <FileCheck className="w-8 h-8 mx-auto text-slate-300 mb-2" />
+                    <p className="font-medium text-slate-500">No completed task deliveries yet.</p>
+                    <p className="mt-1 text-[11px] text-slate-400">Complete a project task to show it here.</p>
+                  </div>
+                ) : taskList.filter((task) => task.status === 'completed').map((task) => (
+                  <div key={task.id} className="flex items-center justify-between gap-3 p-2.5 rounded bg-emerald-50 border border-emerald-100">
+                    <div className="min-w-0 flex items-center gap-2">
+                      <FileCheck className="w-4 h-4 shrink-0 text-emerald-600" />
+                      <div className="min-w-0">
+                        <p className="font-medium text-slate-800 truncate">{task.taskName}</p>
+                        <p className="text-[10px] text-slate-500">{(task.category || 'OTHER').replace(/_/g, ' ')}{task.completedAt ? ` · Completed ${formatDateDDMMYYYY(task.completedAt)}` : ''}</p>
+                      </div>
+                    </div>
+                    <span className="shrink-0 text-[10px] font-bold uppercase text-emerald-700">Completed</span>
+                  </div>
+                ))}
               </div>
             </div>
           )}
