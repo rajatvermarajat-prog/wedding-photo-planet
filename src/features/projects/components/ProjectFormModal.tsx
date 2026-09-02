@@ -110,9 +110,7 @@ export const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
     'Reception',
   ];
 
-  const initialService = existingProject?.primaryServiceType === 'Other'
-    ? 'Complete Wedding Services'
-    : (existingProject?.primaryServiceType || 'Complete Wedding Services');
+  const initialService = existingProject?.primaryServiceType || 'Complete Wedding Services';
   const isStandardService = STANDARD_SERVICES.includes(initialService);
 
   const [selectedService, setSelectedService] = useState<string>(
@@ -764,8 +762,26 @@ export const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
                   <option value="Haldi & Mehendi">Haldi & Mehendi</option>
                   <option value="Sangeet">Sangeet</option>
                   <option value="Reception">Reception</option>
+                  <option value="Other">Other — add a custom service</option>
                 </select>
               </div>
+
+              {selectedService === 'Other' && (
+                <div className="md:col-span-2">
+                  <label className="mb-1 block text-[10px] font-bold uppercase text-slate-500">
+                    Custom Service / Function Name <span className="text-rose-600">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={customServiceType}
+                    onChange={(event) => setCustomServiceType(event.target.value)}
+                    placeholder="e.g. Anniversary, Corporate Event, Birthday, Baby Shower"
+                    className="w-full rounded border border-slate-200 bg-white px-3 py-1.5 text-slate-800 transition placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                    required
+                  />
+                  <p className="mt-1 text-[11px] text-slate-500">Enter the exact service or function name for this project.</p>
+                </div>
+              )}
 
               <div className="md:col-span-2">
                 <label className="mb-1 block text-[10px] font-bold uppercase text-slate-500">
