@@ -446,7 +446,23 @@ export default function App() {
   };
 
   const handleUpdateProject = (updatedProject: Project) => {
+    const previousProject = projects.find((project) => project.id === updatedProject.id);
     setProjects((prev) => prev.map((p) => (p.id === updatedProject.id ? updatedProject : p)));
+    // Preserve the existing UI's immediate update/close behavior.  When that
+    // update came from the established shoot UI, mirror its unchanged payload
+    // through the existing Shoot API and replace it with the server result.
+    if (
+      !previousProject ||
+      !isPersistedProjectId(updatedProject.id) ||
+      JSON.stringify(previousProject.shoots || []) === JSON.stringify(updatedProject.shoots || [])
+    ) return;
+    void persistProjectShoots(updatedProject, previousProject, team)
+      .then((persisted) => {
+        setProjects((prev) => prev.map((project) => project.id === persisted.id ? persisted : project));
+      })
+      .catch((error: unknown) => {
+        window.alert(apiErrorMessage(error, 'Unable to save shoot changes.'));
+      });
   };
 
   const dataHandoverTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);

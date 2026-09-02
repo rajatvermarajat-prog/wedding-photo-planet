@@ -43,6 +43,7 @@ import {
   UserCheck,
   Upload,
   Eye,
+  Briefcase,
   Maximize2,
   Paperclip,
   Folder,
@@ -1335,7 +1336,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
               </div>
             </div>
             <h2 className="mt-3 truncate text-2xl font-black tracking-tight text-slate-900 sm:text-3xl">{project.clientWeddingTitle}</h2>
-            <div className="mt-2 flex flex-wrap items-center gap-x-5 gap-y-2 text-sm font-semibold text-slate-600"><span className="flex items-center gap-2"><Phone className="size-4 text-[#9b4865]" />{project.clientContactMobile || 'Contact not added'}</span><span className="flex items-center gap-2"><MapPin className="size-4 text-[#9b4865]" />{project.venueLocation || 'Venue not added'}</span></div>
+            <div className="mt-2 flex flex-wrap items-center gap-x-5 gap-y-2 text-sm font-semibold text-slate-600"><span className="flex items-center gap-2"><Phone className="size-4 text-[#9b4865]" />{project.clientContactMobile || 'Contact not added'}</span><span className="flex items-center gap-2"><MapPin className="size-4 text-[#9b4865]" />{project.venueLocation || 'Venue not added'}</span>{project.primaryServiceType === 'Other' && project.customServiceType && <span className="flex items-center gap-2"><Briefcase className="size-4 text-[#9b4865]" />{project.customServiceType}</span>}{project.quotationLink && <a href={project.quotationLink} target="_blank" rel="noreferrer" className="flex items-center gap-2 text-[#8f3655] hover:underline"><Link2 className="size-4" />Quotation</a>}</div>
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
@@ -1777,7 +1778,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs bg-slate-50 p-3 rounded-xl border border-slate-200/80">
                     <div>
                       <span className="text-slate-500 block font-bold text-[10px] uppercase">Wedding Function Date(s)</span>
-                      <span className="text-slate-900 font-extrabold text-xs">{formatDateDDMMYYYY(project.weddingFunctionDates) || 'Not set'}</span>
+                      <span className="text-slate-900 font-extrabold text-xs">{project.weddingFunctionDates.split(',').map((date) => formatDateDDMMYYYY(date.trim()) || date.trim()).filter(Boolean).join(', ') || 'Not set'}</span>
                     </div>
 
                     <div>
@@ -2063,6 +2064,19 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
                       ))}
                     </div>
                   )}
+                </div>
+              )}
+
+              {/* Project Notes */}
+              {project.primaryServiceType === 'Other' && project.otherClientDetails && (
+                <div className="p-4 rounded-xl bg-white border border-slate-200 space-y-1.5 shadow-xs">
+                  <h4 className="text-xs font-bold text-indigo-600 uppercase tracking-wider flex items-center gap-1.5">
+                    <Briefcase className="w-3.5 h-3.5" />
+                    Other Service Details
+                  </h4>
+                  <p className="text-xs text-slate-700 leading-relaxed bg-slate-50 p-3 rounded border border-slate-200 whitespace-pre-wrap">
+                    {project.otherClientDetails}
+                  </p>
                 </div>
               )}
 
