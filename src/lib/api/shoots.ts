@@ -22,8 +22,8 @@ export interface BackendShootAssignment {
   dataSizeGb?: string | number | null;
   storageReference?: string | null;
   notes?: string | null;
-  user?: { id: string; fullName: string } | null;
-  freelancer?: { id: string; fullName: string; code?: string } | null;
+  user?: { id: string; fullName: string; phone?: string | null } | null;
+  freelancer?: { id: string; fullName: string; code?: string; phone?: string | null } | null;
 }
 
 export interface BackendShoot {
@@ -48,6 +48,8 @@ export interface CreateShootInput {
   projectId: string;
   title: string;
   shootDate: string;
+  startTime?: string;
+  endTime?: string;
   location?: string;
   city?: string;
   notes?: string;
@@ -68,6 +70,7 @@ export interface UpdateShootInput {
 }
 
 export interface UpdateAssignmentInput {
+  role?: BackendCrewRole;
   dataReceived?: boolean;
   dataSizeGb?: string | number;
   storageReference?: string;
