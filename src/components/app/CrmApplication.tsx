@@ -34,7 +34,8 @@ import { normalizeTeamMember } from '@/features/team/teamViewModel';
 import { normalizeAttendance } from '@/features/attendance/attendanceViewModel';
 import { ApiError } from '@/lib/api/client';
 import { rbacApi } from '@/lib/api/rbac';
-import { isPersistedProjectId, normalizeProject } from '@/features/projects/projectViewModel';
+import { isPersistedProjectId, normalizeProject, toBackendProjectStatus } from '@/features/projects/projectViewModel';
+import { projectsApi } from '@/lib/api/projects';
 import { persistStudioProject } from '@/features/projects/persistProject';
 import { attachShoots, persistProjectShoots, persistShootDataHandover } from '@/features/shoots/persistShoots';
 import { shootsApi } from '@/lib/api/shoots';
@@ -133,6 +134,7 @@ export default function App() {
   const secondaryReady = useDeferredLoad(Boolean(currentUser)) || !isDashboard;
 
   const [projects, setProjects] = useState<Project[]>([]);
+  const hydratedProjectData = useRef<unknown>(null);
   const projectQuery = useProjects(
     { page: 1, limit: 100 },
     Boolean(currentUser) && secondaryReady,
@@ -140,6 +142,8 @@ export default function App() {
 
   useEffect(() => {
     if (!currentUser || projectQuery.loading || projectQuery.error) return;
+    if (hydratedProjectData.current === projectQuery.data) return;
+    hydratedProjectData.current = projectQuery.data;
     const mapped = projectQuery.data.map(normalizeProject);
     setProjects(mapped);
     void shootsApi.list({ page: 1, limit: 100, sortBy: 'createdAt', sortOrder: 'asc' })
@@ -448,6 +452,22 @@ export default function App() {
   const handleUpdateProject = (updatedProject: Project) => {
     const previousProject = projects.find((project) => project.id === updatedProject.id);
     setProjects((prev) => prev.map((p) => (p.id === updatedProject.id ? updatedProject : p)));
+    const statusChanged = previousProject && (
+      previousProject.status !== updatedProject.status || previousProject.isUrgent !== updatedProject.isUrgent
+    );
+    if (statusChanged && isPersistedProjectId(updatedProject.id)) {
+      void (async () => {
+        let dto = await projectsApi.update(updatedProject.id, { isUrgent: Boolean(updatedProject.isUrgent) });
+        const targetStatus = toBackendProjectStatus(updatedProject.status);
+        if (updatedProject.status !== 'urgent' && dto.status !== targetStatus) {
+          dto = await projectsApi.changeStatus(updatedProject.id, { status: targetStatus });
+        }
+        const confirmed = normalizeProject(dto);
+        setProjects((prev) => prev.map((project) => project.id === updatedProject.id
+          ? { ...updatedProject, ...confirmed, shoots: updatedProject.shoots, tasks: updatedProject.tasks, payments: updatedProject.payments }
+          : project));
+      })().catch((error: unknown) => window.alert(apiErrorMessage(error, 'Unable to save project status.')));
+    }
     // Preserve the existing UI's immediate update/close behavior.  When that
     // update came from the established shoot UI, mirror its unchanged payload
     // through the existing Shoot API and replace it with the server result.

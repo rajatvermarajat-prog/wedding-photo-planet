@@ -207,7 +207,8 @@ export function normalizeProject(dto: any): Project {
     advanceReceived: received,
     balanceDue: Math.max(0, budget - received),
     specialNotesMusicPreferences: dto.notes ?? '',
-    status: legacyStatus[dto.status as keyof typeof legacyStatus] || 'running',
+    status: dto.isUrgent ? 'urgent' : (legacyStatus[dto.status as keyof typeof legacyStatus] || 'running'),
+    isUrgent: Boolean(dto.isUrgent),
     createdAt: dto.createdAt,
     videoPipeline: parsedMeta.videoPipeline || { ...emptyPipeline.video },
     photoPipeline: parsedMeta.photoPipeline || { ...emptyPipeline.photo },
@@ -218,6 +219,7 @@ export function normalizeProject(dto: any): Project {
       time: s.startTime?.slice(11, 16) || '',
       venue: s.venueName || s.venue || '',
       notes: s.notes || '',
+      plannedRoleSlots: s.plannedRoleSlots || undefined,
       status: s.status === 'COMPLETED' ? 'completed' : s.status === 'CANCELLED' ? 'cancelled' : 'scheduled',
       crewAssignments: (s.assignments || []).map((a: any) => ({
         id: a.id,
@@ -264,6 +266,7 @@ function projectCoreInput(project: Project) {
     customServiceType: project.primaryServiceType === 'Other' ? project.customServiceType : undefined,
     otherClientDetails: writeMetadata(project),
     notes: project.specialNotesMusicPreferences || undefined,
+    isUrgent: Boolean(project.isUrgent),
   };
 }
 
@@ -299,7 +302,12 @@ export function toCreateProjectInput(project: Project, team: TeamMember[] = []):
         startTime: toIsoDateTime(shootDate, shoot.startTime || shoot.time),
         endTime: toIsoDateTime(shootDate, shoot.endTime),
         location: shoot.venue || shoot.location || undefined,
-        notes: shoot.notes || undefined,
+      notes: shoot.notes || undefined,
+      plannedRoleSlots: Object.entries((shoot.crewAssignments || []).filter((crew) => !crew.name?.trim()).reduce<Record<string, number>>((counts, crew) => {
+        const role = crew.role?.trim();
+        if (role) counts[role] = (counts[role] || 0) + 1;
+        return counts;
+      }, {})).map(([role, requiredCount]) => ({ role, requiredCount })),
         status: toBackendShootStatus(shoot.status),
         shootType: 'PHOTO_AND_VIDEO' as const,
         ...(crewAssignments.length ? { crewAssignments } : {}),

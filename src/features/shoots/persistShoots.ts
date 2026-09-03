@@ -122,6 +122,14 @@ function crewRows(shoot: ShootEvent): CrewMemberAssignment[] {
   return [...coreRows, ...customRows].filter((row) => row.name?.trim());
 }
 
+function plannedRoleSlots(shoot: ShootEvent) {
+  return Object.entries((shoot.crewAssignments || []).filter((row) => !row.name?.trim()).reduce<Record<string, number>>((counts, row) => {
+    const role = row.role?.trim();
+    if (role) counts[role] = (counts[role] || 0) + 1;
+    return counts;
+  }, {})).map(([role, requiredCount]) => ({ role, requiredCount }));
+}
+
 function memberId(crew: CrewMemberAssignment, team: TeamMember[]) {
   if (crew.userId && isPersistedProjectId(crew.userId)) return crew.userId;
   if (isPersistedProjectId(crew.id) && team.some((row) => row.id === crew.id)) return crew.id;
@@ -131,6 +139,9 @@ function memberId(crew: CrewMemberAssignment, team: TeamMember[]) {
 
 function assertCrewMembersResolvable(shoot: ShootEvent, team: TeamMember[]) {
   for (const row of crewRows(shoot)) {
+    // Empty role rows are planning slots, not crew assignments. They persist
+    // separately as plannedRoleSlots and must never require a team member.
+    if (!row.name?.trim()) continue;
     if (!memberId(row, team)) {
       throw new Error(`${row.name} is not an active team member. Select a crew member from the Team list before saving the shoot plan.`);
     }
@@ -172,6 +183,9 @@ export function toShootEvent(dto: BackendShoot): ShootEvent {
     hardDriveName: row.storageReference || '',
     backupInHD: row.notes || '',
   }));
+  const planned = Array.isArray(dto.plannedRoleSlots) ? dto.plannedRoleSlots.flatMap((slot, index) =>
+    Array.from({ length: slot.requiredCount || 0 }, (_, count) => ({ id: `slot-${slot.role}-${index}-${count}`, name: '', role: slot.role })),
+  ) : [];
   const photographer = crew.find((row) => /photo/i.test(row.role))?.name;
   const cinematographer = crew.find((row) => /cinema|video/i.test(row.role))?.name;
   const drone = crew.find((row) => /drone/i.test(row.role))?.name;
@@ -190,7 +204,8 @@ export function toShootEvent(dto: BackendShoot): ShootEvent {
     cinematographer,
     droneOperator: drone,
     assistant,
-    crewAssignments: crew,
+    crewAssignments: [...crew, ...planned],
+    plannedRoleSlots: dto.plannedRoleSlots || undefined,
     status: fromShootStatus(dto.status),
     notes: dto.notes || undefined,
     dataReceivedAt: dto.dataReceivedAt || undefined,
@@ -334,6 +349,7 @@ export async function persistProjectShoots(
       endTime: toIsoDateTime(date, shoot.endTime),
       location: shoot.venue || shoot.location || undefined,
       notes: shoot.notes || undefined,
+      plannedRoleSlots: plannedRoleSlots(shoot),
     };
     let shootId = shoot.id;
     if (!isPersistedProjectId(shootId)) {
