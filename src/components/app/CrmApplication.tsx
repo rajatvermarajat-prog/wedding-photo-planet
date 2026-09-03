@@ -449,7 +449,11 @@ export default function App() {
     });
   };
 
-  const handleUpdateProject = (updatedProject: Project) => {
+  const handleUpdateProject = (
+    updatedProject: Project,
+    options: { persistShoots?: boolean; forcePersistShoots?: boolean } = {},
+  ) => {
+    const { persistShoots = true, forcePersistShoots = false } = options;
     const previousProject = projects.find((project) => project.id === updatedProject.id);
     setProjects((prev) => prev.map((p) => (p.id === updatedProject.id ? updatedProject : p)));
     const statusChanged = previousProject && (
@@ -472,9 +476,10 @@ export default function App() {
     // update came from the established shoot UI, mirror its unchanged payload
     // through the existing Shoot API and replace it with the server result.
     if (
+      !persistShoots ||
       !previousProject ||
       !isPersistedProjectId(updatedProject.id) ||
-      JSON.stringify(previousProject.shoots || []) === JSON.stringify(updatedProject.shoots || [])
+      (!forcePersistShoots && JSON.stringify(previousProject.shoots || []) === JSON.stringify(updatedProject.shoots || []))
     ) return;
     void persistProjectShoots(updatedProject, previousProject, team)
       .then((persisted) => {

@@ -9,7 +9,7 @@ interface RoleColumnCrewManagerProps {
   activeTeamMembers: TeamMember[];
   onAddRoleQuantity: (role: string, quantity: number) => void;
   onRemoveRoleColumn: (role: string) => void;
-  onUpdateMember: (crewId: string, field: string, value: string) => void;
+  onUpdateMember: (crewId: string, updates: Partial<CrewMemberAssignment>) => void;
   onRemoveMember: (crewId: string) => void;
 }
 
@@ -353,14 +353,14 @@ export const RoleColumnCrewManager: React.FC<RoleColumnCrewManagerProps> = ({
                                   value={crew.name || ''}
                                   onChange={(e) => {
                                     const val = e.target.value;
-                                    onUpdateMember(crew.id, 'name', val);
                                     const matched = activeTeamMembers.find(
                                       (m) => m.name.toLowerCase() === val.trim().toLowerCase()
                                     );
-                                    onUpdateMember(crew.id, 'userId', matched?.id || '');
-                                    if (matched?.phone) {
-                                      onUpdateMember(crew.id, 'mobile', matched.phone);
-                                    }
+                                    onUpdateMember(crew.id, {
+                                      name: val,
+                                      userId: matched?.id || '',
+                                      ...(matched?.phone ? { mobile: matched.phone } : {}),
+                                    });
                                   }}
                                   className="flex-1 min-w-0 bg-white border border-slate-200 rounded px-2 py-1 text-xs font-bold text-slate-900 focus:ring-2 focus:ring-indigo-500 outline-none truncate"
                                 />
@@ -382,7 +382,7 @@ export const RoleColumnCrewManager: React.FC<RoleColumnCrewManagerProps> = ({
                                 pattern="[6-9][0-9]{9}"
                                 placeholder="Mobile / Contact No."
                                 value={crew.mobile || ''}
-                                onChange={(e) => onUpdateMember(crew.id, 'mobile', nextIndianMobileValue(e.target.value, crew.mobile || ''))}
+                                onChange={(e) => onUpdateMember(crew.id, { mobile: nextIndianMobileValue(e.target.value, crew.mobile || '') })}
                                 className="w-full bg-white border border-slate-200 rounded px-2 py-1 text-[11px] text-slate-700 focus:ring-1 focus:ring-indigo-500 outline-none"
                               />
                             </div>
