@@ -358,8 +358,8 @@ export const RoleColumnCrewManager: React.FC<RoleColumnCrewManagerProps> = ({
                                       (m) => m.name.toLowerCase() === val.trim().toLowerCase()
                                     );
                                     onUpdateMember(crew.id, 'userId', matched?.id || '');
-                                    if (matched && matched.mobile) {
-                                      onUpdateMember(crew.id, 'mobile', matched.mobile);
+                                    if (matched?.phone) {
+                                      onUpdateMember(crew.id, 'mobile', matched.phone);
                                     }
                                   }}
                                   className="flex-1 min-w-0 bg-white border border-slate-200 rounded px-2 py-1 text-xs font-bold text-slate-900 focus:ring-2 focus:ring-indigo-500 outline-none truncate"

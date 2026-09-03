@@ -313,12 +313,16 @@ export const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
   };
 
   const handleUpdateCrewByCrewId = (shootIndex: number, crewId: string, field: string, value: string) => {
-    const updated = [...shoots];
-    const currentCrew = (updated[shootIndex].crewAssignments || []).map((c) =>
-      c.id === crewId ? { ...c, [field]: value } : c
-    );
-    updated[shootIndex] = syncShootCrewRoles({ ...updated[shootIndex], crewAssignments: currentCrew });
-    setShoots(updated);
+    // A name change may also set userId and mobile in the same React event.
+    // Deriving from the captured `shoots` array caused each later update to
+    // replace the previous one, leaving this controlled input visually frozen.
+    setShoots((current) => current.map((shoot, index) => {
+      if (index !== shootIndex) return shoot;
+      const crewAssignments = (shoot.crewAssignments || []).map((crew) =>
+        crew.id === crewId ? { ...crew, [field]: value } : crew,
+      );
+      return syncShootCrewRoles({ ...shoot, crewAssignments });
+    }));
   };
 
   const handleRemoveCrewByCrewId = (shootIndex: number, crewId: string) => {
