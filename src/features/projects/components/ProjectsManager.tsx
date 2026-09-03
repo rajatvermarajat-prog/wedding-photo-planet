@@ -348,13 +348,7 @@ export const ProjectsManager: React.FC<ProjectsManagerProps> = ({
                     {/* Quick Interactive Auto-Tracked Status Badge */}
                     <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
                       <select
-                        value={
-                          displayStatus === 'completed'
-                            ? 'completed'
-                            : displayStatus === 'ready_to_deliver'
-                            ? 'ready_to_deliver'
-                            : 'running'
-                        }
+                        value={displayStatus}
                         onChange={(e) => {
                           e.stopPropagation();
                           if (onUpdateProject) {
