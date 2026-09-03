@@ -103,6 +103,8 @@ const storageValue = (gb: number | undefined, unit: StorageUnit) => {
   return Number(value.toFixed(6)).toString();
 };
 const storageToGB = (value: string, unit: StorageUnit) => Number(value || 0) * storageUnitFactor[unit];
+const SCHEDULE_DATE_MIN = `${new Date().getFullYear() - 1}-01-01`;
+const SCHEDULE_DATE_MAX = `${new Date().getFullYear() + 10}-12-31`;
 
 export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
   project,
@@ -2528,6 +2530,8 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
                       <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Function Date</label>
                       <input
                         type="date"
+                        min={SCHEDULE_DATE_MIN}
+                        max={SCHEDULE_DATE_MAX}
                         value={shootDate}
                         onChange={(e) => setShootDate(e.target.value)}
                         className="w-full bg-white border border-slate-200 rounded p-1.5 text-slate-800"
@@ -3932,9 +3936,9 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
                 <label className="font-bold text-slate-700 block mb-1">Contact Mobile Number</label>
                 <input
                   type="tel"
-                  inputMode="numeric"
-                  maxLength={10}
-                  pattern="[6-9][0-9]{9}"
+                  inputMode="tel"
+                  maxLength={20}
+                  pattern="\\+?[0-9 ()-]{7,20}"
                   value={editingCrewData.mobile}
                   onChange={(e) => setEditingCrewData({ ...editingCrewData, mobile: nextIndianMobileValue(e.target.value, editingCrewData.mobile) })}
                   placeholder="9876543210"

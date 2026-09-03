@@ -9,6 +9,9 @@ import { useTeam } from '@/hooks/useTeam';
 import { CLIENT_ASSET_ACCEPT, CLIENT_ASSET_MAX_BYTES, clientAssetsApi, type ProjectClientAsset, uploadProjectClientAsset } from '@/lib/api/clientAssets';
 import { paymentsApi, toPaymentMethod, type PaymentMethod } from '@/lib/api/payments';
 import { indianMobileError, nextIndianMobileValue } from '@/lib/validation/indianMobile';
+
+const SCHEDULE_DATE_MIN = `${new Date().getFullYear() - 1}-01-01`;
+const SCHEDULE_DATE_MAX = `${new Date().getFullYear() + 10}-12-31`;
 import { normalizeTeamMember } from '@/features/team/teamViewModel';
 import { ArrowLeft, ArrowRight, X, Save, IndianRupee, Phone, MapPin, Music, Link2, Calendar, Sparkles, Plus, Trash2, Camera, CheckSquare, UserCheck, Folder, Upload, FileText, Eye, Paperclip, Users, UserPlus, Clock3 } from 'lucide-react';
 import { isPersistedProjectId } from '@/features/projects/projectViewModel';
@@ -710,10 +713,10 @@ export const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
                 </label>
                 <input
                   type="tel"
-                  inputMode="numeric"
-                  maxLength={10}
-                  pattern="[6-9][0-9]{9}"
-                  placeholder="9876543210"
+                  inputMode="tel"
+                  maxLength={20}
+                  pattern="\\+?[0-9 ()-]{7,20}"
+                  placeholder="+1 415 555 0132"
                   value={clientContactMobile}
                   onChange={(e) => setClientContactMobile(nextIndianMobileValue(e.target.value, clientContactMobile))}
                   className="w-full bg-white border border-slate-200 rounded px-3 py-1.5 text-slate-800 focus:outline-none focus:ring-1 focus:ring-indigo-500 transition"
@@ -856,6 +859,8 @@ export const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
                             <label className="block text-[9px] font-bold text-slate-500 uppercase mb-0.5">Function Date</label>
                             <input
                               type="date"
+                              min={SCHEDULE_DATE_MIN}
+                              max={SCHEDULE_DATE_MAX}
                               value={shoot.date}
                               onChange={(e) => handleShootChange(index, 'date', e.target.value)}
                               className="w-full bg-white border border-slate-200 rounded px-2 py-1 text-xs text-slate-800"
@@ -917,6 +922,8 @@ export const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
                 </label>
                 <input
                   type="date"
+                  min={SCHEDULE_DATE_MIN}
+                  max={SCHEDULE_DATE_MAX}
                   value={finalDeliveryDeadline}
                   onChange={(e) => setFinalDeliveryDeadline(e.target.value)}
                   className="w-full bg-white border border-slate-200 rounded px-3 py-1.5 text-slate-800 focus:outline-none focus:ring-1 focus:ring-indigo-500 transition"
