@@ -8,10 +8,18 @@ interface DataManagementProps {
   onSelectProject?: (project: Project) => void;
 }
 
+type StorageUnit = 'KB' | 'GB' | 'TB';
+const storageUnitFactor: Record<StorageUnit, number> = { KB: 1 / 1_000_000, GB: 1, TB: 1_000 };
+const storageValue = (gb: number | undefined, unit: StorageUnit) => !gb ? '' : Number((gb / storageUnitFactor[unit]).toFixed(6)).toString();
+const storageToGB = (value: string, unit: StorageUnit) => Number(value || 0) * storageUnitFactor[unit];
+
 export const DataManagement: React.FC<DataManagementProps> = ({ projects = [], onUpdateProject, onSelectProject }) => {
   const [expandedProjectId, setExpandedProjectId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [backupFilter, setBackupFilter] = useState<'all' | 'data_received' | 'pending_data' | 'backup_pending' | 'cloud_synced'>('all');
+  const [storageUnits, setStorageUnits] = useState<Record<string, StorageUnit>>({});
+  const unitFor = (key: string): StorageUnit => storageUnits[key] || 'GB';
+  const setUnitFor = (key: string, unit: StorageUnit) => setStorageUnits((current) => ({ ...current, [key]: unit }));
 
   const totalGB = (projects || []).reduce((acc, p) => {
     const backup: Partial<Project['dataBackup']> = p.dataBackup || {};
@@ -428,9 +436,9 @@ export const DataManagement: React.FC<DataManagementProps> = ({ projects = [], o
                                                 <th className="p-2">Role & Team Member</th>
                                                 <th className="p-2 text-center">Data Received</th>
                                                 <th className="p-2 min-w-[140px]">Primary copy drive</th>
-                                                <th className="p-2 w-28">Data Size (GB)</th>
+                                                <th className="p-2 w-40">Data Size</th>
                                                 <th className="p-2 min-w-[140px]">Mirror backup drive</th>
-                                                <th className="p-2 w-28">Mirror Size (GB)</th>
+                                                <th className="p-2 w-40">Mirror Size</th>
                                               </tr>
                                             </thead>
                                             <tbody className="divide-y divide-slate-100">
@@ -468,12 +476,21 @@ export const DataManagement: React.FC<DataManagementProps> = ({ projects = [], o
                                                     <div className="flex items-center gap-1">
                                                       <input
                                                         type="number"
+                                                        min="0"
+                                                        step="any"
                                                         placeholder="e.g. 250"
-                                                        value={c.dataSizeGB || ''}
-                                                        onChange={(e) => handleUpdateCrewData(p.id, s.id, c.id, 'dataSizeGB', Number(e.target.value))}
+                                                        value={storageValue(c.dataSizeGB, unitFor(`data-${p.id}-${s.id}-${c.id}`))}
+                                                        onChange={(e) => handleUpdateCrewData(p.id, s.id, c.id, 'dataSizeGB', storageToGB(e.target.value, unitFor(`data-${p.id}-${s.id}-${c.id}`)))}
                                                         className="w-16 bg-slate-50 border border-slate-200 rounded px-1.5 py-0.5 text-xs font-bold focus:bg-white outline-none"
                                                       />
-                                                      <span className="text-[10px] text-slate-500 font-bold">GB</span>
+                                                      <select
+                                                        aria-label={`${c.name || 'Team member'} data size unit`}
+                                                        value={unitFor(`data-${p.id}-${s.id}-${c.id}`)}
+                                                        onChange={(e) => setUnitFor(`data-${p.id}-${s.id}-${c.id}`, e.target.value as StorageUnit)}
+                                                        className="w-[64px] shrink-0 rounded border border-slate-200 bg-white px-1.5 py-1 text-[10px] font-bold text-slate-600 outline-none"
+                                                      >
+                                                        <option value="KB">KB</option><option value="GB">GB</option><option value="TB">TB</option>
+                                                      </select>
                                                     </div>
                                                   </td>
                                                   <td className="p-2">
@@ -489,12 +506,21 @@ export const DataManagement: React.FC<DataManagementProps> = ({ projects = [], o
                                                     <div className="flex items-center gap-1">
                                                       <input
                                                         type="number"
+                                                        min="0"
+                                                        step="any"
                                                         placeholder="e.g. 250"
-                                                        value={c.backupDataSizeGB ?? c.dataSizeGB ?? ''}
-                                                        onChange={(e) => handleUpdateCrewData(p.id, s.id, c.id, 'backupDataSizeGB', Number(e.target.value))}
+                                                        value={storageValue(c.backupDataSizeGB ?? c.dataSizeGB, unitFor(`backup-${p.id}-${s.id}-${c.id}`))}
+                                                        onChange={(e) => handleUpdateCrewData(p.id, s.id, c.id, 'backupDataSizeGB', storageToGB(e.target.value, unitFor(`backup-${p.id}-${s.id}-${c.id}`)))}
                                                         className="w-16 bg-slate-50 border border-slate-200 rounded px-1.5 py-0.5 text-xs font-bold focus:bg-white outline-none"
                                                       />
-                                                      <span className="text-[10px] text-slate-500 font-bold">GB</span>
+                                                      <select
+                                                        aria-label={`${c.name || 'Team member'} mirror size unit`}
+                                                        value={unitFor(`backup-${p.id}-${s.id}-${c.id}`)}
+                                                        onChange={(e) => setUnitFor(`backup-${p.id}-${s.id}-${c.id}`, e.target.value as StorageUnit)}
+                                                        className="w-[64px] shrink-0 rounded border border-slate-200 bg-white px-1.5 py-1 text-[10px] font-bold text-slate-600 outline-none"
+                                                      >
+                                                        <option value="KB">KB</option><option value="GB">GB</option><option value="TB">TB</option>
+                                                      </select>
                                                     </div>
                                                   </td>
                                                 </tr>

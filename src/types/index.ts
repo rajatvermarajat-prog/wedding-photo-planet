@@ -64,7 +64,7 @@ export interface ShootEvent {
   droneOperator?: string;
   assistant?: string;
   crewAssignments?: CrewMemberAssignment[];
-  plannedRoleSlots?: Array<{ role: string; requiredCount: number }>;
+  plannedRoleSlots?: Array<{ role: string; requiredCount: number; name?: string; mobile?: string; dataReceived?: boolean; dataSizeGb?: string | number; copyInHD?: string; backupInHD?: string }>;
   equipmentChecklist?: string[];
   status: 'scheduled' | 'completed' | 'cancelled';
   notes?: string;
