@@ -117,9 +117,9 @@ function isEmployeeAttendanceUser(user: { role?: string; roles?: string[] } | nu
 }
 
 export default function App() {
-  // Native date controls allow some browsers to type an arbitrarily long year
-  // segment. Guard every native date input centrally (including modal fields)
-  // while preserving the browser's built-in picker and form UI.
+  // Guard completed native dates centrally, while allowing users to replace
+  // the year segment manually. Validating every `input` event reset the value
+  // midway through typing (for example, after entering only the first digit).
   useEffect(() => {
     const lastValid = new WeakMap<HTMLInputElement, string>();
     const applyBounds = (input: HTMLInputElement) => {
@@ -149,11 +149,9 @@ export default function App() {
     document.querySelectorAll<HTMLInputElement>('input[type="date"]').forEach(applyBounds);
     const observer = new MutationObserver(() => document.querySelectorAll<HTMLInputElement>('input[type="date"]').forEach(applyBounds));
     observer.observe(document.body, { childList: true, subtree: true });
-    document.addEventListener('input', validateDate, true);
     document.addEventListener('change', validateDate, true);
     return () => {
       observer.disconnect();
-      document.removeEventListener('input', validateDate, true);
       document.removeEventListener('change', validateDate, true);
     };
   }, []);
