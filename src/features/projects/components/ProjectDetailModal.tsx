@@ -69,7 +69,7 @@ interface ProjectDetailModalProps {
   project: Project | null;
   variant?: 'modal' | 'page';
   onClose: () => void;
-  onUpdateProject: (updated: Project, options?: { persistShoots?: boolean; forcePersistShoots?: boolean }) => void;
+  onUpdateProject: (updated: Project, options?: { persistShoots?: boolean; forcePersistShoots?: boolean; dataHandover?: { shootId: string; crewId: string } }) => void;
   onGenerateInvoice: (project: Project) => void;
   onDeleteProject?: (projectId: string) => void;
   team?: TeamMember[];
@@ -91,6 +91,18 @@ const idempotencyKey = () =>
   typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
     ? crypto.randomUUID()
     : `payment-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
+type StorageUnit = 'KB' | 'GB' | 'TB';
+
+// Storage amounts are persisted in GB so existing data and all progress calculations
+// remain compatible. The selected unit only changes how the value is entered/displayed.
+const storageUnitFactor: Record<StorageUnit, number> = { KB: 1 / 1_000_000, GB: 1, TB: 1_000 };
+const storageValue = (gb: number | undefined, unit: StorageUnit) => {
+  if (!gb) return '';
+  const value = gb / storageUnitFactor[unit];
+  return Number(value.toFixed(6)).toString();
+};
+const storageToGB = (value: string, unit: StorageUnit) => Number(value || 0) * storageUnitFactor[unit];
 
 export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
   project,
@@ -135,6 +147,9 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
   const activeTeamMembers = mergeAssignees(team, teamQuery.data.map(normalizeTeamMember));
 
   const [activeTab, setActiveTab] = useState<'overview' | 'vault' | 'tasks' | 'shoots' | 'data' | 'payments' | 'deliveries'>('overview');
+  const [storageUnits, setStorageUnits] = useState<Record<string, StorageUnit>>({});
+  const unitFor = (key: string): StorageUnit => storageUnits[key] || 'GB';
+  const setUnitFor = (key: string, unit: StorageUnit) => setStorageUnits((current) => ({ ...current, [key]: unit }));
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showStatusMenu, setShowStatusMenu] = useState(false);
 
@@ -1000,7 +1015,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
         hardDrive1: updatedHD1,
         hardDrive2: updatedHD2,
       },
-    }, { persistShoots });
+    }, persistShoots ? { dataHandover: { shootId, crewId } } : { persistShoots: false });
   };
 
   const handleDeleteShootEvent = (shootId: string) => {
@@ -1078,12 +1093,14 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
 
   const handleSaveEditedCrewData = () => {
     if (!editingCrewData) return;
-    handleUpdateCrewInExistingShoot(editingCrewData.shootId, editingCrewData.crewId, 'role', editingCrewData.role);
-    handleUpdateCrewInExistingShoot(editingCrewData.shootId, editingCrewData.crewId, 'name', editingCrewData.name);
-    handleUpdateCrewInExistingShoot(editingCrewData.shootId, editingCrewData.crewId, 'mobile', editingCrewData.mobile);
-    handleUpdateCrewInExistingShoot(editingCrewData.shootId, editingCrewData.crewId, 'dataSizeGB', editingCrewData.dataSizeGB);
-    handleUpdateCrewInExistingShoot(editingCrewData.shootId, editingCrewData.crewId, 'copyInHD', editingCrewData.copyInHD);
-    handleUpdateCrewInExistingShoot(editingCrewData.shootId, editingCrewData.crewId, 'backupInHD', editingCrewData.backupInHD);
+    handleUpdateCrewInExistingShoot(editingCrewData.shootId, editingCrewData.crewId, {
+      role: editingCrewData.role,
+      name: editingCrewData.name,
+      mobile: editingCrewData.mobile,
+      dataSizeGB: editingCrewData.dataSizeGB,
+      copyInHD: editingCrewData.copyInHD,
+      backupInHD: editingCrewData.backupInHD,
+    });
     setEditingCrewData(null);
   };
 
@@ -1321,8 +1338,9 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
               <div className="relative">
                 {canChangeStatus ? (
                   <>
-                    <button type="button" onClick={() => setShowStatusMenu((open) => !open)} aria-expanded={showStatusMenu} className={`flex min-w-44 items-center justify-between gap-3 rounded-xl border px-3 py-2 text-sm font-black ${displayStatus === 'ready_to_deliver' ? 'border-emerald-300 bg-emerald-50 text-emerald-800' : displayStatus === 'completed' ? 'border-purple-300 bg-purple-50 text-purple-800' : displayStatus === 'urgent' ? 'border-red-300 bg-red-50 text-red-800' : 'border-rose-300 bg-rose-50 text-rose-800'}`}><span className="flex items-center gap-2">{displayStatus === 'ready_to_deliver' ? <Truck className="size-4"/> : displayStatus === 'completed' ? <CheckCircle2 className="size-4"/> : <Clock className="size-4"/>}{displayStatus === 'ready_to_deliver' ? 'Delivered' : displayStatus === 'completed' ? 'Completed' : displayStatus === 'urgent' ? 'Urgent' : 'Running'}</span><ChevronDown className={`size-4 transition ${showStatusMenu ? 'rotate-180' : ''}`}/></button>
+                    <button type="button" onClick={() => setShowStatusMenu((open) => !open)} aria-expanded={showStatusMenu} className={`flex min-w-44 items-center justify-between gap-3 rounded-xl border px-3 py-2 text-sm font-black ${displayStatus === 'ready_to_deliver' ? 'border-emerald-300 bg-emerald-50 text-emerald-800' : displayStatus === 'completed' ? 'border-purple-300 bg-purple-50 text-purple-800' : displayStatus === 'urgent' ? 'border-red-300 bg-red-50 text-red-800' : 'border-rose-300 bg-rose-50 text-rose-800'}`}><span className="flex items-center gap-2">{displayStatus === 'ready_to_deliver' ? <Truck className="size-4"/> : displayStatus === 'completed' ? <CheckCircle2 className="size-4"/> : <Clock className="size-4"/>}{displayStatus === 'new_project' ? 'Upcoming' : displayStatus === 'ready_to_deliver' ? 'Delivered' : displayStatus === 'completed' ? 'Completed' : displayStatus === 'urgent' ? 'Urgent' : 'Running'}</span><ChevronDown className={`size-4 transition ${showStatusMenu ? 'rotate-180' : ''}`}/></button>
                     {showStatusMenu && <div className="absolute left-0 top-full z-40 mt-2 w-56 overflow-hidden rounded-2xl border border-[#ded5cf] bg-white p-1.5 shadow-2xl">{[
+                      { value: 'new_project', label: 'Upcoming', note: 'Ready for planning', icon: Clock, tone: 'text-indigo-700' },
                       { value: 'running', label: 'Running', note: 'Work is in progress', icon: Clock, tone: 'text-rose-700' },
                       { value: 'urgent', label: 'Urgent', note: 'Needs immediate attention', icon: Clock, tone: 'text-red-700' },
                       { value: 'completed', label: 'Completed', note: 'All project work finished', icon: CheckCircle2, tone: 'text-purple-700' },
@@ -3073,12 +3091,21 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
                       <div className="relative">
                         <input
                           type="number"
-                          value={currentBackup.totalDataSizeGB || ''}
-                          onChange={(e) => handleUpdateDataBackup({ totalDataSizeGB: Number(e.target.value) })}
-                          className="w-full bg-white border border-slate-200 rounded-lg p-2 pr-10 text-slate-900 font-black text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+                          min="0"
+                          step="any"
+                          value={storageValue(currentBackup.totalDataSizeGB, unitFor('project-total'))}
+                          onChange={(e) => handleUpdateDataBackup({ totalDataSizeGB: storageToGB(e.target.value, unitFor('project-total')) })}
+                          className="w-full bg-white border border-slate-200 rounded-lg p-2 pr-14 text-slate-900 font-black text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
                           placeholder={grandTotalAllDataGB > 0 ? `${grandTotalAllDataGB}` : "e.g. 1250"}
                         />
-                        <span className="absolute right-3 top-2.5 text-xs font-bold text-slate-400">GB</span>
+                        <select
+                          aria-label="Total data size unit"
+                          value={unitFor('project-total')}
+                          onChange={(e) => setUnitFor('project-total', e.target.value as StorageUnit)}
+                          className="absolute right-1.5 top-1.5 h-8 w-[64px] rounded border border-slate-200 bg-white px-2 text-[11px] font-black text-slate-600 outline-none"
+                        >
+                          <option value="KB">KB</option><option value="GB">GB</option><option value="TB">TB</option>
+                        </select>
                       </div>
                       <div className="flex items-center justify-between text-[10px]">
                         <span className="text-slate-500 font-medium">All Events Total:</span>
@@ -3229,7 +3256,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
                                   title="Add team member slot to this event"
                                 >
                                   <Plus className="w-3 h-3 text-indigo-600" />
-                                  <span className="hidden sm:inline">+ Member</span>
+                                  <span className="hidden sm:inline">Member</span>
                                 </button>
 
                                 <button
@@ -3384,7 +3411,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
                                   <tr>
                                     <th className="p-2">Role & Team Member Name</th>
                                     <th className="p-2 text-center">Data Received</th>
-                                    <th className="p-2 w-28">Data Size (GB)</th>
+                                    <th className="p-2 w-36">Data Size</th>
                                     <th className="p-2 min-w-[140px]">💾 Copy In HD</th>
                                     <th className="p-2 min-w-[140px]">🛡️ Backup In HD</th>
                                     <th className="p-2 text-center w-20">Actions</th>
@@ -3436,12 +3463,21 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
                                       <div className="flex items-center gap-1">
                                         <input
                                           type="number"
+                                          min="0"
+                                          step="any"
                                           placeholder="e.g. 250"
-                                          value={c.dataSizeGB || ''}
-                                          onChange={(e) => handleUpdateCrewInExistingShoot(s.id, c.id, 'dataSizeGB', Number(e.target.value))}
+                                          value={storageValue(c.dataSizeGB, unitFor(`crew-${s.id}-${c.id}`))}
+                                          onChange={(e) => handleUpdateCrewInExistingShoot(s.id, c.id, 'dataSizeGB', storageToGB(e.target.value, unitFor(`crew-${s.id}-${c.id}`)))}
                                           className="w-18 bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs font-bold text-slate-900 focus:bg-white outline-none"
                                         />
-                                        <span className="text-[10px] text-slate-500 font-bold">GB</span>
+                                        <select
+                                          aria-label={`${c.name || 'Team member'} data size unit`}
+                                          value={unitFor(`crew-${s.id}-${c.id}`)}
+                                          onChange={(e) => setUnitFor(`crew-${s.id}-${c.id}`, e.target.value as StorageUnit)}
+                                          className="w-[64px] shrink-0 rounded border border-slate-200 bg-white px-1.5 py-1 text-[10px] font-bold text-slate-600 outline-none"
+                                        >
+                                          <option value="KB">KB</option><option value="GB">GB</option><option value="TB">TB</option>
+                                        </select>
                                       </div>
                                     </td>
 
@@ -3908,13 +3944,25 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
 
               <div className="grid grid-cols-3 gap-2">
                 <div>
-                  <label className="font-bold text-slate-700 block mb-1">Data Size (GB)</label>
-                  <input
-                    type="number"
-                    value={editingCrewData.dataSizeGB || ''}
-                    onChange={(e) => setEditingCrewData({ ...editingCrewData, dataSizeGB: Number(e.target.value) })}
-                    className="w-full bg-slate-50 border border-slate-300 rounded-lg p-2 font-bold text-slate-900"
-                  />
+                  <label className="font-bold text-slate-700 block mb-1">Data Size</label>
+                  <div className="flex gap-1">
+                    <input
+                      type="number"
+                      min="0"
+                      step="any"
+                      value={storageValue(editingCrewData.dataSizeGB, unitFor(`edit-crew-${editingCrewData.crewId}`))}
+                      onChange={(e) => setEditingCrewData({ ...editingCrewData, dataSizeGB: storageToGB(e.target.value, unitFor(`edit-crew-${editingCrewData.crewId}`)) })}
+                      className="min-w-0 flex-1 bg-slate-50 border border-slate-300 rounded-lg p-2 font-bold text-slate-900"
+                    />
+                    <select
+                      aria-label="Data size unit"
+                      value={unitFor(`edit-crew-${editingCrewData.crewId}`)}
+                      onChange={(e) => setUnitFor(`edit-crew-${editingCrewData.crewId}`, e.target.value as StorageUnit)}
+                      className="w-12 bg-slate-50 border border-slate-300 rounded-lg px-1 text-xs font-bold text-slate-700"
+                    >
+                      <option value="KB">KB</option><option value="GB">GB</option><option value="TB">TB</option>
+                    </select>
+                  </div>
                 </div>
                 <div>
                   <label className="font-bold text-slate-700 block mb-1">Copy In HD</label>

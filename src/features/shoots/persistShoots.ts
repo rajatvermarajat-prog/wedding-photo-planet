@@ -126,7 +126,16 @@ export function toPlannedRoleSlots(shoot: ShootEvent, team: TeamMember[]) {
   return (shoot.crewAssignments || []).flatMap((row) => {
     const role = row.role?.trim();
     if (!role || memberId(row, team)) return [];
-    return [{ role, requiredCount: 1, ...(row.name?.trim() ? { name: row.name.trim() } : {}), ...(row.mobile?.trim() ? { mobile: row.mobile.trim() } : {}) }];
+    return [{
+      role,
+      requiredCount: 1,
+      ...(row.name?.trim() ? { name: row.name.trim() } : {}),
+      ...(row.mobile?.trim() ? { mobile: row.mobile.trim() } : {}),
+      ...(row.dataReceived ? { dataReceived: true } : {}),
+      ...(row.dataSizeGB ? { dataSizeGb: String(row.dataSizeGB) } : {}),
+      ...((row.copyInHD || row.hardDriveName)?.trim() ? { copyInHD: (row.copyInHD || row.hardDriveName || '').trim() } : {}),
+      ...(row.backupInHD?.trim() ? { backupInHD: row.backupInHD.trim() } : {}),
+    }];
   });
 }
 
@@ -173,7 +182,17 @@ export function toShootEvent(dto: BackendShoot): ShootEvent {
     backupInHD: row.notes || '',
   }));
   const planned = Array.isArray(dto.plannedRoleSlots) ? dto.plannedRoleSlots.flatMap((slot, index) =>
-    Array.from({ length: slot.requiredCount || 0 }, (_, count) => ({ id: `slot-${slot.role}-${index}-${count}`, name: slot.name || '', mobile: slot.mobile || '', role: slot.role })),
+    Array.from({ length: slot.requiredCount || 0 }, (_, count) => ({
+      id: `slot-${slot.role}-${index}-${count}`,
+      name: slot.name || '',
+      mobile: slot.mobile || '',
+      role: slot.role,
+      dataReceived: !!slot.dataReceived,
+      dataSizeGB: num(slot.dataSizeGb),
+      copyInHD: slot.copyInHD || '',
+      hardDriveName: slot.copyInHD || '',
+      backupInHD: slot.backupInHD || '',
+    })),
   ) : [];
   const photographer = crew.find((row) => /photo/i.test(row.role))?.name;
   const cinematographer = crew.find((row) => /cinema|video/i.test(row.role))?.name;
@@ -303,6 +322,43 @@ export async function persistShootDataHandover(project: Project): Promise<Projec
     nextShoots.push(shoot);
   }
   return reloadProjectShoots(project, nextShoots);
+}
+
+/** Persist one crew handover row. Used by the RAW Data editor so one row edit
+ * does not re-save every assignment in every shoot. */
+export async function persistSingleCrewDataHandover(project: Project, shootId: string, crewId: string): Promise<Project> {
+  if (!isPersistedProjectId(project.id) || !isPersistedProjectId(shootId)) return project;
+  const shoot = (project.shoots || []).find((row) => row.id === shootId);
+  const crew = shoot?.crewAssignments?.find((row) => row.id === crewId);
+  if (!shoot || !crew) return project;
+  // Planned/local slots have no assignment record yet.  They still need a
+  // single request (rather than being silently skipped), so save their shoot
+  // total until an assignment ID exists.
+  if (!isPersistedProjectId(crewId)) {
+    const totalGb = mainCrew(shoot.crewAssignments || []).reduce((sum, row) => sum + (row.dataSizeGB || 0), 0);
+    const plannedRoleSlots = (shoot.crewAssignments || [])
+      .filter((row) => !isPersistedProjectId(row.id))
+      .map((row) => ({
+        role: row.role || 'Team Member',
+        requiredCount: 1,
+        name: row.name || undefined,
+        mobile: row.mobile || undefined,
+        dataReceived: !!row.dataReceived,
+        dataSizeGb: String(row.dataSizeGB || 0),
+        copyInHD: (row.copyInHD || row.hardDriveName || '').slice(0, 160) || undefined,
+        backupInHD: (row.backupInHD || '').slice(0, 2000) || undefined,
+      }));
+    await shootsApi.update(shootId, { dataSizeGb: String(totalGb), plannedRoleSlots });
+    return project;
+  }
+  await shootsApi.updateAssignment(shootId, crewId, {
+    role: toCrewRole(crew.role || ''),
+    dataReceived: !!crew.dataReceived,
+    dataSizeGb: String(crew.dataSizeGB || 0),
+    storageReference: (crew.copyInHD || crew.hardDriveName || '').slice(0, 160),
+    notes: (crew.backupInHD || '').slice(0, 2000),
+  });
+  return project;
 }
 
 export async function persistProjectShoots(

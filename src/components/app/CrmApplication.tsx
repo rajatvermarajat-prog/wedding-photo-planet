@@ -37,7 +37,7 @@ import { rbacApi } from '@/lib/api/rbac';
 import { isPersistedProjectId, normalizeProject, toBackendProjectStatus } from '@/features/projects/projectViewModel';
 import { projectsApi } from '@/lib/api/projects';
 import { persistStudioProject } from '@/features/projects/persistProject';
-import { attachShoots, persistProjectShoots, persistShootDataHandover } from '@/features/shoots/persistShoots';
+import { attachShoots, persistProjectShoots, persistShootDataHandover, persistSingleCrewDataHandover } from '@/features/shoots/persistShoots';
 import { shootsApi } from '@/lib/api/shoots';
 import { paymentMethodLabel, paymentsApi } from '@/lib/api/payments';
 import { normalizeTask, taskCreateInput, taskStatusInput } from '@/features/tasks/taskViewModel';
@@ -451,9 +451,9 @@ export default function App() {
 
   const handleUpdateProject = (
     updatedProject: Project,
-    options: { persistShoots?: boolean; forcePersistShoots?: boolean } = {},
+    options: { persistShoots?: boolean; forcePersistShoots?: boolean; dataHandover?: { shootId: string; crewId: string } } = {},
   ) => {
-    const { persistShoots = true, forcePersistShoots = false } = options;
+    const { persistShoots = true, forcePersistShoots = false, dataHandover } = options;
     const previousProject = projects.find((project) => project.id === updatedProject.id);
     setProjects((prev) => prev.map((p) => (p.id === updatedProject.id ? updatedProject : p)));
     const statusChanged = previousProject && (
@@ -471,6 +471,16 @@ export default function App() {
           ? { ...updatedProject, ...confirmed, shoots: updatedProject.shoots, tasks: updatedProject.tasks, payments: updatedProject.payments }
           : project));
       })().catch((error: unknown) => window.alert(apiErrorMessage(error, 'Unable to save project status.')));
+    }
+    if (dataHandover) {
+      // Inputs update on every keystroke. Collapse a typing burst into one
+      // request for the final row value instead of syncing every crew row.
+      clearTimeout(dataRowHandoverTimer.current);
+      dataRowHandoverTimer.current = setTimeout(() => {
+        void persistSingleCrewDataHandover(updatedProject, dataHandover.shootId, dataHandover.crewId)
+          .catch((error: unknown) => window.alert(apiErrorMessage(error, 'Unable to save data handover.')));
+      }, 450);
+      return;
     }
     // Preserve the existing UI's immediate update/close behavior.  When that
     // update came from the established shoot UI, mirror its unchanged payload
@@ -491,6 +501,7 @@ export default function App() {
   };
 
   const dataHandoverTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const dataRowHandoverTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   const handleUpdateDataHandover = (updatedProject: Project) => {
     setProjects((prev) => prev.map((p) => (p.id === updatedProject.id ? updatedProject : p)));

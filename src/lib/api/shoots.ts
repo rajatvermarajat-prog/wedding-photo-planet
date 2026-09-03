@@ -1,7 +1,7 @@
 import { apiRequest, ApiMeta } from './client';
 
 export type BackendShootStatus = 'SCHEDULED' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED' | 'POSTPONED';
-export interface PlannedRoleSlot { role: string; requiredCount: number; name?: string; mobile?: string; }
+export interface PlannedRoleSlot { role: string; requiredCount: number; name?: string; mobile?: string; dataReceived?: boolean; dataSizeGb?: string | number; copyInHD?: string; backupInHD?: string; }
 export type BackendShootType = 'PHOTO' | 'VIDEO' | 'PHOTO_AND_VIDEO' | 'DRONE' | 'CANDID' | 'TRADITIONAL' | 'PRE_WEDDING' | 'OTHER';
 export type BackendCrewRole =
   | 'LEAD_PHOTOGRAPHER'
