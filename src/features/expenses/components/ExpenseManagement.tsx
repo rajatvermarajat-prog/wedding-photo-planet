@@ -41,10 +41,18 @@ const subcategories: Record<ExpenseCategory, string[]> = {
 const methods: ExpensePaymentMethod[] = ['Cash', 'UPI', 'Bank Transfer', 'Credit Card', 'Debit Card', 'Cheque', 'Other'];
 const money = (value: number) => `₹${Math.round(value).toLocaleString('en-IN')}`;
 const monthKey = (date: string) => date.slice(0, 7);
+const currentMonthKey = () => {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+};
+const todayKey = () => {
+  const now = new Date();
+  return `${currentMonthKey()}-${String(now.getDate()).padStart(2, '0')}`;
+};
 const projectTitle = (project?: Project) => project?.clientWeddingTitle || project?.projectName || project?.name || '—';
 
 const emptyExpense = (addedBy: string): Expense => ({
-  id: '', date: new Date().toISOString().slice(0, 10), category: 'Shoot', subcategory: 'Photographer payment', description: '', amount: 0, paidAmount: 0,
+  id: '', date: todayKey(), category: 'Shoot', subcategory: 'Photographer payment', description: '', amount: 0, paidAmount: 0,
   paymentMethod: 'UPI', paymentStatus: 'Pending', approvalStatus: 'Draft', addedBy, createdAt: '', updatedAt: '', payments: [],
 });
 
@@ -64,7 +72,8 @@ export function ExpenseManagement({ projects, freelancers, currentUser }: { proj
   const [search, setSearch] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<'All' | ExpenseCategory>('All');
   const [statusFilter, setStatusFilter] = useState<'All' | ExpensePaymentStatus>('All');
-  const [selectedMonth, setSelectedMonth] = useState('2026-08');
+  // Monthly Expenses must open on the actual current month, not a fixed demo month.
+  const [selectedMonth, setSelectedMonth] = useState(currentMonthKey);
   const [modal, setModal] = useState<'form' | 'detail' | 'delete' | null>(null);
   const [selected, setSelected] = useState<Expense | null>(null);
   const [draft, setDraft] = useState<Expense>(() => emptyExpense(currentUser.name));
@@ -74,7 +83,6 @@ export function ExpenseManagement({ projects, freelancers, currentUser }: { proj
   const visibleExpenses = useMemo(() => expenses.filter((expense) => {
     const scoped = categoryMap[section];
     if (scoped && !scoped.includes(expense.category)) return false;
-    if (section === 'monthly' && monthKey(expense.date) !== selectedMonth) return false;
     if (categoryFilter !== 'All' && expense.category !== categoryFilter) return false;
     if (statusFilter !== 'All' && expense.paymentStatus !== statusFilter) return false;
     const project = projects.find((item) => item.id === expense.projectId);
@@ -82,8 +90,7 @@ export function ExpenseManagement({ projects, freelancers, currentUser }: { proj
     return haystack.includes(search.toLowerCase());
   }), [expenses, section, selectedMonth, categoryFilter, statusFilter, search, projects]);
 
-  const nowMonth = '2026-08';
-  const year = '2026';
+  const nowMonth = currentMonthKey();
   const sum = (items: Expense[]) => items.reduce((total, item) => total + item.amount, 0);
   const monthExpenses = expenses.filter((item) => monthKey(item.date) === nowMonth);
   const lastMonthExpenses = expenses.filter((item) => monthKey(item.date) === '2026-07');
