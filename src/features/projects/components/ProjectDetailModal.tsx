@@ -16,7 +16,7 @@ import { firstIsoDate, isPersistedProjectId, toUpdateProjectInput } from '@/feat
 import { persistStudioProject } from '@/features/projects/persistProject';
 import { loadProjectTasks, persistProjectTasks } from '@/features/projects/persistProjectTasks';
 import { shootsApi } from '@/lib/api/shoots';
-import { toCrewRole } from '@/features/shoots/persistShoots';
+import { toCrewRole, toPlannedRoleSlots } from '@/features/shoots/persistShoots';
 import { nextIndianMobileValue } from '@/lib/validation/indianMobile';
 import { CLIENT_ASSET_ACCEPT, CLIENT_ASSET_MAX_BYTES, clientAssetsApi, uploadProjectClientAsset } from '@/lib/api/clientAssets';
 import { ApiProjectPayment, getProjectPaymentReceiptUrl, paymentMethodLabel, paymentsApi, toPaymentMethod, uploadProjectPaymentReceipt } from '@/lib/api/payments';
@@ -69,7 +69,7 @@ interface ProjectDetailModalProps {
   project: Project | null;
   variant?: 'modal' | 'page';
   onClose: () => void;
-  onUpdateProject: (updated: Project) => void;
+  onUpdateProject: (updated: Project, options?: { persistShoots?: boolean; forcePersistShoots?: boolean }) => void;
   onGenerateInvoice: (project: Project) => void;
   onDeleteProject?: (projectId: string) => void;
   team?: TeamMember[];
@@ -942,13 +942,14 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
     onUpdateProject({ ...project, shoots: updatedShoots });
   };
 
-  const handleUpdateCrewInExistingShoot = (shootId: string, crewId: string, field: string, value: any) => {
+  const handleUpdateCrewInExistingShoot = (shootId: string, crewId: string, updates: Partial<CrewMemberAssignment> | string, value?: any, persistShoots = true) => {
+    const crewUpdates = typeof updates === 'string' ? { [updates]: value } : updates;
     if (!canAssignShoot) return;
     const updatedShoots = project.shoots.map((s) => {
       if (s.id !== shootId) return s;
       const updatedCrew = (s.crewAssignments || []).map((c) => {
         if (c.id !== crewId) return c;
-        return { ...c, [field]: value };
+        return { ...c, ...crewUpdates };
       });
       return { ...s, crewAssignments: updatedCrew };
     });
@@ -982,12 +983,12 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
     };
 
     let updatedHD1 = backup.hardDrive1;
-    if (!updatedHD1 || updatedHD1 === 'Pending Shoot' || updatedHD1 === 'HD-1' || field === 'copyInHD') {
+    if (!updatedHD1 || updatedHD1 === 'Pending Shoot' || updatedHD1 === 'HD-1' || 'copyInHD' in crewUpdates) {
       if (crewCopyHDs) updatedHD1 = crewCopyHDs;
     }
 
     let updatedHD2 = backup.hardDrive2;
-    if (!updatedHD2 || updatedHD2 === 'Pending Shoot' || updatedHD2 === 'HD-2' || field === 'backupInHD') {
+    if (!updatedHD2 || updatedHD2 === 'Pending Shoot' || updatedHD2 === 'HD-2' || 'backupInHD' in crewUpdates) {
       if (crewBackupHDs) updatedHD2 = crewBackupHDs;
     }
 
@@ -999,7 +1000,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
         hardDrive1: updatedHD1,
         hardDrive2: updatedHD2,
       },
-    });
+    }, { persistShoots });
   };
 
   const handleDeleteShootEvent = (shootId: string) => {
@@ -1035,23 +1036,20 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
         status: editingEventData.status || s.status || 'scheduled',
       };
     });
-    const edited = updatedShoots.find((s) => s.id === editingEventData.shootId);
-    void (async () => {
-      try {
-        if (edited && isPersistedProjectId(edited.id)) {
-          await shootsApi.update(edited.id, {
-            title: edited.title,
-            ...(firstIsoDate(edited.date) ? { shootDate: firstIsoDate(edited.date) as string } : {}),
-            location: edited.venue || undefined,
-            status: edited.status === 'completed' ? 'COMPLETED' : edited.status === 'cancelled' ? 'CANCELLED' : 'SCHEDULED',
-          });
-        }
-        onUpdateProject({ ...project, shoots: updatedShoots });
-      } catch (error) {
-        showToast(error instanceof Error ? error.message : 'Failed to save the shoot.', { variant: 'error' });
-      }
-    })();
-    setEditingEventData(null);
+    const edited = updatedShoots.find((shoot) => shoot.id === editingEventData.shootId);
+    if (!edited || !isPersistedProjectId(edited.id)) return;
+    void shootsApi.update(edited.id, {
+      title: edited.title,
+      ...(firstIsoDate(edited.date) ? { shootDate: firstIsoDate(edited.date) as string } : {}),
+      location: edited.venue || undefined,
+      status: edited.status === 'completed' ? 'COMPLETED' : edited.status === 'cancelled' ? 'CANCELLED' : 'SCHEDULED',
+      plannedRoleSlots: toPlannedRoleSlots(edited, activeTeamMembers),
+    }).then(() => {
+      onUpdateProject({ ...project, shoots: updatedShoots }, { persistShoots: false });
+      setEditingEventData(null);
+    }).catch((error) => {
+      showToast(error instanceof Error ? error.message : 'Failed to save the shoot.', { variant: 'error' });
+    });
   };
 
   const handleAddCrewSlotToShoot = (shootId: string) => {
@@ -1157,7 +1155,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
         await projectsApi.updateDeliveries(project.id, deliveryStatusState);
       }
 
-      onUpdateProject(updatedProject);
+      onUpdateProject(updatedProject, { forcePersistShoots: true });
       setSaveSuccess(true);
       showToast('Project workflow saved successfully.');
       setTimeout(() => {
@@ -2555,9 +2553,9 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
                       activeTeamMembers={activeTeamMembers}
                       onAddRoleQuantity={(role, qty) => handleAddRoleQuantityToNewShoot(role, qty)}
                       onRemoveRoleColumn={(role) => handleRemoveRoleFromNewShoot(role)}
-                      onUpdateMember={(crewId, field, value) => {
+                      onUpdateMember={(crewId, updates) => {
                         setNewShootCrew((prev) =>
-                          prev.map((c) => (c.id === crewId ? { ...c, [field]: value } : c))
+                          prev.map((c) => (c.id === crewId ? { ...c, ...updates } : c))
                         );
                       }}
                       onRemoveMember={(crewId) => {
@@ -2803,16 +2801,15 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
                             )}
                           </div>
 
-                          {/* Role Column Crew Manager Component */}
                           {canAssignShoot && (
-                          <RoleColumnCrewManager
-                            crewAssignments={s.crewAssignments || []}
-                            activeTeamMembers={activeTeamMembers}
-                            onAddRoleQuantity={(role, qty) => handleAddRoleQuantityToShoot(s.id, role, qty)}
-                            onRemoveRoleColumn={(role) => handleRemoveRoleFromShoot(s.id, role)}
-                            onUpdateMember={(crewId, field, value) => handleUpdateCrewInExistingShoot(s.id, crewId, field, value)}
-                            onRemoveMember={(crewId) => handleRemoveCrewFromExistingShoot(s.id, crewId)}
-                          />
+                            <RoleColumnCrewManager
+                              crewAssignments={s.crewAssignments || []}
+                              activeTeamMembers={activeTeamMembers}
+                              onAddRoleQuantity={(role, qty) => handleAddRoleQuantityToShoot(s.id, role, qty)}
+                              onRemoveRoleColumn={(role) => handleRemoveRoleFromShoot(s.id, role)}
+                            onUpdateMember={(crewId, updates) => handleUpdateCrewInExistingShoot(s.id, crewId, updates, undefined, false)}
+                              onRemoveMember={(crewId) => handleRemoveCrewFromExistingShoot(s.id, crewId)}
+                            />
                           )}
 
                         </div>
@@ -3405,7 +3402,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
                                           type="text"
                                           list={`team-member-options-${c.id || idx}`}
                                           value={c.name || ''}
-                                          onChange={(e) => handleUpdateCrewInExistingShoot(s.id, c.id, 'name', e.target.value)}
+                                          onChange={(e) => handleUpdateCrewInExistingShoot(s.id, c.id, 'name', e.target.value, false)}
                                           placeholder="Enter or select name"
                                           className="bg-transparent hover:bg-slate-100 focus:bg-white border border-transparent focus:border-slate-300 rounded px-1.5 py-0.5 text-xs font-bold text-slate-900 w-full outline-none"
                                         />

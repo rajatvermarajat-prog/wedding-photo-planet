@@ -1,6 +1,7 @@
 import { apiRequest, ApiMeta } from './client';
 
 export type BackendShootStatus = 'SCHEDULED' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED' | 'POSTPONED';
+export interface PlannedRoleSlot { role: string; requiredCount: number; name?: string; mobile?: string; }
 export type BackendShootType = 'PHOTO' | 'VIDEO' | 'PHOTO_AND_VIDEO' | 'DRONE' | 'CANDID' | 'TRADITIONAL' | 'PRE_WEDDING' | 'OTHER';
 export type BackendCrewRole =
   | 'LEAD_PHOTOGRAPHER'
@@ -36,7 +37,7 @@ export interface BackendShoot {
   location?: string | null;
   city?: string | null;
   notes?: string | null;
-  plannedRoleSlots?: Array<{ role: string; requiredCount: number }> | null;
+  plannedRoleSlots?: PlannedRoleSlot[] | null;
   status: BackendShootStatus;
   dataSizeGb?: string | number | null;
   dataReceivedAt?: string | null;
@@ -54,7 +55,7 @@ export interface CreateShootInput {
   location?: string;
   city?: string;
   notes?: string;
-  plannedRoleSlots?: Array<{ role: string; requiredCount: number }>;
+  plannedRoleSlots?: PlannedRoleSlot[];
   shootType?: BackendShootType;
 }
 
@@ -65,7 +66,7 @@ export interface UpdateShootInput {
   endTime?: string;
   location?: string;
   notes?: string;
-  plannedRoleSlots?: Array<{ role: string; requiredCount: number }>;
+  plannedRoleSlots?: PlannedRoleSlot[];
   status?: BackendShootStatus;
   dataSizeGb?: string | number;
   dataReceivedAt?: string;

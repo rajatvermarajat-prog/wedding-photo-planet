@@ -287,15 +287,10 @@ export function toCreateProjectInput(project: Project, team: TeamMember[] = []):
   const shoots: NonNullable<CreateProjectInput['shoots']> = (project.shoots || []).flatMap((shoot) => {
       const shootDate = firstIsoDate(shoot.date);
       if (!shootDate) return [];
-      const crewAssignments = (shoot.crewAssignments || [])
-        .filter((crew) => crew.name?.trim())
-        .map((crew) => {
-          const userId = crewUserId(crew, team);
-          if (!userId) {
-            throw new Error(`${crew.name} is not an active team member. Select a crew member from the Team list before saving the shoot plan.`);
-          }
-          return { userId, role: toBackendCrewRole(crew.role || '') };
-        });
+      const crewAssignments = (shoot.crewAssignments || []).flatMap((crew) => {
+        const userId = crewUserId(crew, team);
+        return userId ? [{ userId, role: toBackendCrewRole(crew.role || '') }] : [];
+      });
       return [{
         title: shoot.title?.trim() || 'Shoot',
         shootDate,
@@ -303,11 +298,11 @@ export function toCreateProjectInput(project: Project, team: TeamMember[] = []):
         endTime: toIsoDateTime(shootDate, shoot.endTime),
         location: shoot.venue || shoot.location || undefined,
       notes: shoot.notes || undefined,
-      plannedRoleSlots: Object.entries((shoot.crewAssignments || []).filter((crew) => !crew.name?.trim()).reduce<Record<string, number>>((counts, crew) => {
+      plannedRoleSlots: (shoot.crewAssignments || []).flatMap((crew) => {
         const role = crew.role?.trim();
-        if (role) counts[role] = (counts[role] || 0) + 1;
-        return counts;
-      }, {})).map(([role, requiredCount]) => ({ role, requiredCount })),
+        if (!role || crewUserId(crew, team)) return [];
+        return [{ role, requiredCount: 1, ...(crew.name?.trim() ? { name: crew.name.trim() } : {}), ...(crew.mobile?.trim() ? { mobile: crew.mobile.trim() } : {}) }];
+      }),
         status: toBackendShootStatus(shoot.status),
         shootType: 'PHOTO_AND_VIDEO' as const,
         ...(crewAssignments.length ? { crewAssignments } : {}),
