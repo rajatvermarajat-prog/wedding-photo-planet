@@ -64,6 +64,7 @@ export interface ShootEvent {
   droneOperator?: string;
   assistant?: string;
   crewAssignments?: CrewMemberAssignment[];
+  plannedRoleSlots?: Array<{ role: string; requiredCount: number }>;
   equipmentChecklist?: string[];
   status: 'scheduled' | 'completed' | 'cancelled';
   notes?: string;
@@ -152,6 +153,7 @@ export interface Project {
   
   // Workflow fields
   status: ProjectStatus;
+  isUrgent?: boolean;
   createdAt: string;
   
   // Extended Wedding Photography & Videography Management

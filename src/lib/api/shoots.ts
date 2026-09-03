@@ -36,6 +36,7 @@ export interface BackendShoot {
   location?: string | null;
   city?: string | null;
   notes?: string | null;
+  plannedRoleSlots?: Array<{ role: string; requiredCount: number }> | null;
   status: BackendShootStatus;
   dataSizeGb?: string | number | null;
   dataReceivedAt?: string | null;
@@ -53,6 +54,7 @@ export interface CreateShootInput {
   location?: string;
   city?: string;
   notes?: string;
+  plannedRoleSlots?: Array<{ role: string; requiredCount: number }>;
   shootType?: BackendShootType;
 }
 
@@ -63,6 +65,7 @@ export interface UpdateShootInput {
   endTime?: string;
   location?: string;
   notes?: string;
+  plannedRoleSlots?: Array<{ role: string; requiredCount: number }>;
   status?: BackendShootStatus;
   dataSizeGb?: string | number;
   dataReceivedAt?: string;
