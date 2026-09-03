@@ -37,7 +37,7 @@ import { rbacApi } from '@/lib/api/rbac';
 import { isPersistedProjectId, normalizeProject, toBackendProjectStatus } from '@/features/projects/projectViewModel';
 import { projectsApi } from '@/lib/api/projects';
 import { persistStudioProject } from '@/features/projects/persistProject';
-import { attachShoots, persistProjectShoots, persistShootDataHandover, persistSingleCrewDataHandover } from '@/features/shoots/persistShoots';
+import { attachShoots, persistProjectShoots, persistSingleCrewDataHandover } from '@/features/shoots/persistShoots';
 import { shootsApi } from '@/lib/api/shoots';
 import { paymentMethodLabel, paymentsApi } from '@/lib/api/payments';
 import { normalizeTask, taskCreateInput, taskStatusInput } from '@/features/tasks/taskViewModel';
@@ -509,8 +509,10 @@ export default function App() {
     if (!hasAnyPermission(currentUser, accessRoles, ['data.view', 'DATA_MANAGEMENT_VIEW'])) return;
     clearTimeout(dataHandoverTimer.current);
     dataHandoverTimer.current = setTimeout(() => {
-      void persistShootDataHandover(updatedProject)
-        .then((next) => setProjects((prev) => prev.map((p) => (p.id === next.id ? next : p))))
+      // Data Management's Save Changes is intentionally a single project-level
+      // request. Do not fan out to every shoot/assignment from this screen.
+      void projectsApi.updateDataBackup(updatedProject.id, updatedProject.dataBackup || {})
+        .then(() => setProjects((prev) => prev.map((p) => (p.id === updatedProject.id ? updatedProject : p))))
         .catch((error: unknown) => {
           window.alert(apiErrorMessage(error, 'Unable to save data handover.'));
         });
@@ -1082,7 +1084,6 @@ export default function App() {
               <DataManagement
                 projects={projects}
                 onUpdateProject={handleUpdateDataHandover}
-                onSelectProject={(project) => handleSelectProject(project)}
               />
             ) : (
               <AccessDenied />

@@ -1,11 +1,11 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Project } from '@/types';
-import { HardDrive, Cloud, ChevronDown, ChevronRight, CheckCircle2, Clock, ExternalLink, Database, Search, SlidersHorizontal, Upload, ShieldCheck, AlertTriangle, MapPin, CalendarDays, BarChart3 } from 'lucide-react';
+import { HardDrive, Cloud, ChevronDown, ChevronRight, CheckCircle2, Clock, Database, Search, SlidersHorizontal, Upload, ShieldCheck, AlertTriangle, MapPin, CalendarDays, BarChart3 } from 'lucide-react';
+import { settingsApi } from '@/lib/api/settings';
 
 interface DataManagementProps {
   projects: Project[];
   onUpdateProject: (updated: Project) => void;
-  onSelectProject?: (project: Project) => void;
 }
 
 type StorageUnit = 'KB' | 'GB' | 'TB';
@@ -13,11 +13,14 @@ const storageUnitFactor: Record<StorageUnit, number> = { KB: 1 / 1_000_000, GB: 
 const storageValue = (gb: number | undefined, unit: StorageUnit) => !gb ? '' : Number((gb / storageUnitFactor[unit]).toFixed(6)).toString();
 const storageToGB = (value: string, unit: StorageUnit) => Number(value || 0) * storageUnitFactor[unit];
 
-export const DataManagement: React.FC<DataManagementProps> = ({ projects = [], onUpdateProject, onSelectProject }) => {
+export const DataManagement: React.FC<DataManagementProps> = ({ projects = [], onUpdateProject }) => {
   const [expandedProjectId, setExpandedProjectId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [backupFilter, setBackupFilter] = useState<'all' | 'data_received' | 'pending_data' | 'backup_pending' | 'cloud_synced'>('all');
   const [storageUnits, setStorageUnits] = useState<Record<string, StorageUnit>>({});
+  const [draftProjects, setDraftProjects] = useState<Record<string, Project>>({});
+  const [totalStorageGb, setTotalStorageGb] = useState<number | null>(null);
+  const [storageInput, setStorageInput] = useState('');
   const unitFor = (key: string): StorageUnit => storageUnits[key] || 'GB';
   const setUnitFor = (key: string, unit: StorageUnit) => setStorageUnits((current) => ({ ...current, [key]: unit }));
 
@@ -30,6 +33,28 @@ export const DataManagement: React.FC<DataManagementProps> = ({ projects = [], o
     return acc + (backup.totalDataSizeGB || projectShootsGB);
   }, 0);
   const totalTB = (totalGB / 1000).toFixed(2);
+  const availableStorageGb = totalStorageGb === null ? null : Math.max(0, totalStorageGb - totalGB);
+
+  useEffect(() => {
+    let active = true;
+    void settingsApi.list().then((settings) => {
+      const value = settings.find((setting) => setting.key === 'storage.total-gb.v1')?.value;
+      const gb = typeof value === 'number' ? value : Number(value);
+      if (active && Number.isFinite(gb) && gb >= 0) {
+        setTotalStorageGb(gb);
+        setStorageInput(String(gb >= 1000 ? gb / 1000 : gb));
+      }
+    }).catch(() => undefined);
+    return () => { active = false; };
+  }, []);
+
+  const saveStorageCapacity = () => {
+    const value = Number(storageInput);
+    if (!Number.isFinite(value) || value < 0) return;
+    const totalGb = value * 1000;
+    void settingsApi.upsert('storage.total-gb.v1', totalGb, 'Total RAW storage capacity across all studio drives (GB)')
+      .then(() => setTotalStorageGb(totalGb));
+  };
 
   // Logical workflow statistics
   const dataReceivedCount = (projects || []).filter(p => p.dataBackup?.offloadedFromCards || p.dataBackup?.hardDrive1Done).length;
@@ -54,7 +79,7 @@ export const DataManagement: React.FC<DataManagementProps> = ({ projects = [], o
   }), [projects, searchQuery, backupFilter]);
 
   const handleUpdateCrewData = (projectId: string, shootId: string, crewId: string, field: string, value: any) => {
-    const project = projects.find((p) => p.id === projectId);
+    const project = draftProjects[projectId] || projects.find((p) => p.id === projectId);
     if (!project) return;
 
     const updatedShoots = (project.shoots || []).map((s) => {
@@ -104,7 +129,7 @@ export const DataManagement: React.FC<DataManagementProps> = ({ projects = [], o
       if (crewBackupHDs) updatedHD2 = crewBackupHDs;
     }
 
-    onUpdateProject({
+    setDraftProjects((current) => ({ ...current, [projectId]: {
       ...project,
       shoots: updatedShoots,
       dataBackup: {
@@ -112,11 +137,11 @@ export const DataManagement: React.FC<DataManagementProps> = ({ projects = [], o
         hardDrive1: updatedHD1,
         hardDrive2: updatedHD2,
       },
-    });
+    }}));
   };
 
   const handleUpdateBackup = (projectId: string, updates: Partial<Project['dataBackup']>) => {
-    const project = projects.find((item) => item.id === projectId);
+    const project = draftProjects[projectId] || projects.find((item) => item.id === projectId);
     if (!project) return;
     const fallback = { offloadedFromCards: false, hardDrive1: 'Primary drive', hardDrive1Done: false, hardDrive2: 'Mirror drive', hardDrive2Done: false, cloudBackupDone: false, totalDataSizeGB: 0, rawCleanupStatus: 'not_cleaned' as const };
     const received = Boolean(updates.hardDrive1Done || updates.offloadedFromCards);
@@ -126,7 +151,33 @@ export const DataManagement: React.FC<DataManagementProps> = ({ projects = [], o
           crewAssignments: (shoot.crewAssignments || []).map((crew) => ({ ...crew, dataReceived: true })),
         }))
       : project.shoots;
-    onUpdateProject({ ...project, shoots, dataBackup: { ...(project.dataBackup || fallback), ...updates } });
+    setDraftProjects((current) => ({ ...current, [projectId]: { ...project, shoots, dataBackup: { ...(project.dataBackup || fallback), ...updates } } }));
+  };
+
+  const saveDraftChanges = (projectId?: string) => {
+    const entries = projectId
+      ? (draftProjects[projectId] ? [[projectId, draftProjects[projectId]] as const] : [])
+      : Object.entries(draftProjects);
+    entries.forEach(([, project]) => {
+      const crewDataByShoot = Object.fromEntries((project.shoots || []).map((shoot) => [
+        shoot.id,
+        Object.fromEntries((shoot.crewAssignments || []).map((crew) => [crew.id, {
+          dataReceived: !!crew.dataReceived,
+          dataSizeGB: crew.dataSizeGB || 0,
+          backupDataSizeGB: crew.backupDataSizeGB || 0,
+          copyInHD: crew.copyInHD || '',
+          backupInHD: crew.backupInHD || '',
+          hardDriveName: crew.hardDriveName || '',
+        }])),
+      ]));
+      onUpdateProject({ ...project, dataBackup: { ...project.dataBackup, crewDataByShoot } });
+    });
+    setDraftProjects((current) => {
+      if (!projectId) return {};
+      const next = { ...current };
+      delete next[projectId];
+      return next;
+    });
   };
 
   return (
@@ -134,12 +185,13 @@ export const DataManagement: React.FC<DataManagementProps> = ({ projects = [], o
       
       <section className="relative overflow-hidden rounded-3xl border border-[#ddc89c]/35 bg-[radial-gradient(circle_at_88%_8%,rgba(221,200,156,.2),transparent_30%),linear-gradient(125deg,#704758,#55333f_50%,#38262d)] p-5 text-white shadow-xl sm:p-7"><div className="absolute -bottom-20 -right-10 size-64 rounded-full border-[34px] border-white/[.04]" /><div className="relative flex flex-col justify-between gap-5 xl:flex-row xl:items-center"><div className="max-w-3xl"><span className="flex w-fit items-center gap-1.5 rounded-full border border-white/20 bg-white/10 px-3 py-1 text-xs font-extrabold uppercase tracking-[.14em] text-[#f0dce3]"><ShieldCheck className="size-4 text-emerald-300" />Storage control centre</span><h1 className="mt-3 flex items-center gap-3 text-2xl font-black tracking-tight sm:text-3xl"><span className="grid size-11 place-items-center rounded-2xl bg-white/10"><Database className="size-6 text-[#f1c8d5]" /></span>Data Management</h1><p className="mt-2 text-sm font-medium leading-relaxed text-[#eadfe2] sm:text-base">Track every RAW-data handover from memory card to primary drive, mirror drive, and cloud backup.</p></div><div className="rounded-2xl border border-white/20 bg-black/10 px-4 py-3 text-sm"><p className="text-[10px] font-black uppercase tracking-[.14em] text-rose-200">Studio storage</p><p className="mt-1 flex items-baseline gap-1 text-2xl font-black">{totalTB}<span className="text-sm text-[#eadfe2]">TB</span></p><p className="text-xs font-medium text-[#eadfe2]">{totalGB.toLocaleString()} GB logged</p></div></div></section>
 
-      <section className="grid grid-cols-2 gap-3 sm:grid-cols-5">{[
+      <section className="grid grid-cols-2 gap-3 sm:grid-cols-6">{[
         { label: 'All Shoots / Projects', value: `${projects.length}`, hint: `${totalTB} TB (${totalGB.toLocaleString()} GB)`, icon: Database, tone: 'text-slate-700 bg-white border-[#e2d9d3]', key: 'all' },
         { label: 'Data Received', value: `${dataReceivedCount}`, hint: 'Cards offloaded & HD-1', icon: Upload, tone: 'text-indigo-800 bg-indigo-50 border-indigo-200', key: 'data_received' },
         { label: 'Pending Data', value: `${pendingDataCount}`, hint: 'Awaiting card offload', icon: AlertTriangle, tone: 'text-[#8f3655] bg-rose-50 border-rose-200', key: 'pending_data' },
         { label: 'Backup Pending', value: `${backupPendingCount}`, hint: 'Needs HD-2 mirror copy', icon: Clock, tone: 'text-amber-800 bg-amber-50 border-amber-200', key: 'backup_pending' },
         { label: 'Cloud Synced', value: `${cloudDoneCount}`, hint: 'Off-site backup complete', icon: Cloud, tone: 'text-emerald-800 bg-emerald-50 border-emerald-200', key: 'cloud_synced' },
+        { label: 'Available Space', value: availableStorageGb === null ? '—' : `${(availableStorageGb / 1000).toFixed(2)} TB`, hint: availableStorageGb === null ? 'Set total capacity below' : `${availableStorageGb.toLocaleString()} GB remaining`, icon: HardDrive, tone: 'text-cyan-800 bg-cyan-50 border-cyan-200', key: 'available_space' },
       ].map(({ label, value, hint, icon: Icon, tone, key }) => (
         <button
           key={label}
@@ -159,6 +211,13 @@ export const DataManagement: React.FC<DataManagementProps> = ({ projects = [], o
           </div>
         </button>
       ))}</section>
+
+      <section className="flex flex-wrap items-end gap-2 rounded-2xl border border-[#e2d9d3] bg-white p-3 shadow-[0_8px_24px_rgba(48,44,46,.05)]">
+        <label className="text-xs font-extrabold text-slate-700">Total Storage Capacity (TB)
+          <input type="number" min="0" step="0.01" value={storageInput} onChange={(event) => setStorageInput(event.target.value)} placeholder="e.g. 5" className="mt-1 block w-40 rounded-lg border border-slate-200 bg-slate-50 px-2 py-1.5 font-bold text-slate-900 outline-none focus:bg-white" />
+        </label>
+        <button type="button" onClick={saveStorageCapacity} className="rounded-lg bg-[#8f3655] px-3 py-2 text-xs font-black text-white hover:bg-[#713048]">Save Capacity</button>
+      </section>
 
       <section className="rounded-2xl border border-[#e2d9d3] bg-white p-4 shadow-[0_8px_24px_rgba(48,44,46,.05)] sm:p-5">
         <div className="flex flex-wrap items-start justify-between gap-3">
@@ -195,7 +254,7 @@ export const DataManagement: React.FC<DataManagementProps> = ({ projects = [], o
         </div>
       </section>
 
-      <section className="rounded-2xl border border-[#e2d9d3] bg-white p-3 shadow-[0_8px_24px_rgba(48,44,46,.05)] sm:p-4"><div className="mb-3 flex items-center gap-2 text-sm font-extrabold text-slate-700"><SlidersHorizontal className="size-4 text-[#8f3655]" />Find project data</div><div className="grid grid-cols-1 gap-3 sm:grid-cols-2"><label className="relative"><Search className="absolute left-3 top-1/2 size-5 -translate-y-1/2 text-[#9b4865]" /><input value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} placeholder="Search client or project…" className="w-full rounded-xl border border-[#ded5cf] bg-[#fbfaf8] py-2.5 pl-10 pr-3 text-sm font-semibold text-slate-900 outline-none placeholder:text-slate-400 focus:border-[#9b4865] focus:ring-4 focus:ring-rose-100" /></label><label className="relative"><ShieldCheck className="pointer-events-none absolute left-3 top-1/2 size-5 -translate-y-1/2 text-[#9b4865]" /><select value={backupFilter} onChange={(event) => setBackupFilter(event.target.value as typeof backupFilter)} className="w-full appearance-none rounded-xl border border-[#ded5cf] bg-[#fbfaf8] py-2.5 pl-10 pr-3 text-sm font-bold text-slate-700 outline-none focus:border-[#9b4865] focus:ring-4 focus:ring-rose-100"><option value="all">All Shoots / Projects ({projects.length})</option><option value="data_received">Data Received ({dataReceivedCount})</option><option value="pending_data">Pending Data ({pendingDataCount})</option><option value="backup_pending">Backup Pending ({backupPendingCount})</option><option value="cloud_synced">Cloud Synced ({cloudDoneCount})</option></select></label></div></section>
+      <section className="rounded-2xl border border-[#e2d9d3] bg-white p-3 shadow-[0_8px_24px_rgba(48,44,46,.05)] sm:p-4"><div className="mb-3 flex items-center gap-2 text-sm font-extrabold text-slate-700"><SlidersHorizontal className="size-4 text-[#8f3655]" />Find project data</div><p className="mb-3 text-xs font-medium text-slate-500">Edits are kept locally. Use the Save Changes button in each project log to send them to the server.</p><div className="grid grid-cols-1 gap-3 sm:grid-cols-2"><label className="relative"><Search className="absolute left-3 top-1/2 size-5 -translate-y-1/2 text-[#9b4865]" /><input value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} placeholder="Search client or project…" className="w-full rounded-xl border border-[#ded5cf] bg-[#fbfaf8] py-2.5 pl-10 pr-3 text-sm font-semibold text-slate-900 outline-none placeholder:text-slate-400 focus:border-[#9b4865] focus:ring-4 focus:ring-rose-100" /></label><label className="relative"><ShieldCheck className="pointer-events-none absolute left-3 top-1/2 size-5 -translate-y-1/2 text-[#9b4865]" /><select value={backupFilter} onChange={(event) => setBackupFilter(event.target.value as typeof backupFilter)} className="w-full appearance-none rounded-xl border border-[#ded5cf] bg-[#fbfaf8] py-2.5 pl-10 pr-3 text-sm font-bold text-slate-700 outline-none focus:border-[#9b4865] focus:ring-4 focus:ring-rose-100"><option value="all">All Shoots / Projects ({projects.length})</option><option value="data_received">Data Received ({dataReceivedCount})</option><option value="pending_data">Pending Data ({pendingDataCount})</option><option value="backup_pending">Backup Pending ({backupPendingCount})</option><option value="cloud_synced">Cloud Synced ({cloudDoneCount})</option></select></label></div></section>
 
       {/* Projects Storage Table */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
@@ -212,12 +271,14 @@ export const DataManagement: React.FC<DataManagementProps> = ({ projects = [], o
                 <th className="px-5 py-4">Primary copy drive</th>
                 <th className="px-5 py-4">Mirror backup drive</th>
                 <th className="px-5 py-4">RAW data size</th>
+                <th className="px-5 py-4">Available space</th>
                 <th className="px-5 py-4">Crew handover status</th>
                 <th className="px-5 py-4">Handover progress</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {visibleProjects.map((p) => {
+              {visibleProjects.map((sourceProject) => {
+                const p = draftProjects[sourceProject.id] || sourceProject;
                 const isExpanded = expandedProjectId === p.id;
                 const backup = p.dataBackup || {
                   offloadedFromCards: false,
@@ -264,6 +325,12 @@ export const DataManagement: React.FC<DataManagementProps> = ({ projects = [], o
                   const mainCrew = (s.crewAssignments || []).filter((c) => !c?.role?.toLowerCase().includes('assistant'));
                   return acc + mainCrew.filter((c) => c?.dataReceived).length;
                 }, 0);
+                const projectShootsGB = (p.shoots || []).reduce((sum, shoot) =>
+                  sum + (shoot.crewAssignments || [])
+                    .filter((crew) => !crew?.role?.toLowerCase().includes('assistant'))
+                    .reduce((crewSum, crew) => crewSum + (crew?.dataSizeGB || 0), 0), 0);
+                const projectUsedGB = backup.totalDataSizeGB || projectShootsGB;
+                const projectAvailableGB = totalStorageGb === null ? null : Math.max(0, totalStorageGb - projectUsedGB);
 
                 return (
                   <React.Fragment key={p.id}>
@@ -276,18 +343,8 @@ export const DataManagement: React.FC<DataManagementProps> = ({ projects = [], o
                             <ChevronRight className="w-4 h-4 text-slate-400 shrink-0" />
                           )}
                           <div>
-                            <span 
-                              onClick={(e) => {
-                                if (onSelectProject) {
-                                  e.stopPropagation();
-                                  onSelectProject(p);
-                                }
-                              }}
-                              className="flex items-center gap-1 text-base font-extrabold text-slate-900 transition hover:text-[#8f3655] hover:underline cursor-pointer group/link"
-                              title="Click to view full project details"
-                            >
+                            <span className="flex items-center gap-1 text-base font-extrabold text-slate-900">
                               <span>{p.clientWeddingTitle}</span>
-                              <ExternalLink className="w-3 h-3 text-slate-400 group-hover/link:text-indigo-600 opacity-0 group-hover/link:opacity-100 transition" />
                             </span>
                             <span className="mt-0.5 block text-xs font-medium text-slate-500">{p.primaryServiceType}</span>
                           </div>
@@ -310,14 +367,15 @@ export const DataManagement: React.FC<DataManagementProps> = ({ projects = [], o
 
                       {/* Size GB */}
                       <td className="px-5 py-4 font-mono text-base font-black text-[#8f3655]">
-                        {(() => {
-                          const projectShootsGB = (p.shoots || []).reduce((sAcc, s) => {
-                            const mainCrew = (s.crewAssignments || []).filter((c) => !c?.role?.toLowerCase().includes('assistant'));
-                            return sAcc + mainCrew.reduce((cAcc, c) => cAcc + (c?.dataSizeGB || 0), 0);
-                          }, 0);
-                          const val = backup.totalDataSizeGB || projectShootsGB;
-                          return val >= 1000 ? `${parseFloat((val / 1000).toFixed(2))} TB` : `${val} GB`;
-                        })()}
+                        <div>{projectUsedGB >= 1000 ? `${parseFloat((projectUsedGB / 1000).toFixed(2))} TB` : `${projectUsedGB} GB`}</div>
+                      </td>
+
+                      <td className="px-5 py-4">
+                        {projectAvailableGB === null ? (
+                          <span className="text-xs font-bold text-amber-700">Set capacity first</span>
+                        ) : (
+                          <div className="font-mono text-base font-black text-cyan-700">{(projectAvailableGB / 1000).toFixed(2)} TB<span className="ml-1 text-[10px] font-bold text-slate-500">free</span></div>
+                        )}
                       </td>
 
                       {/* Team Data Received Summary */}
@@ -360,16 +418,18 @@ export const DataManagement: React.FC<DataManagementProps> = ({ projects = [], o
                     {/* EXPANDED EVENT-WISE TEAM MEMBER DATA LEDGER */}
                     {isExpanded && (
                       <tr className="bg-slate-50/80">
-                        <td colSpan={6} className="p-4">
+                        <td colSpan={7} className="p-4">
                           <div className="space-y-5 rounded-2xl border border-[#e2d9d3] bg-white p-5 shadow-sm">
                             <div className="flex items-center justify-between border-b border-slate-100 pb-2">
                               <h4 className="flex items-center gap-2 text-sm font-black uppercase tracking-[.08em] text-slate-900">
                                 <HardDrive className="size-5 text-[#8f3655]" />
                                 <span>Events & Shooter Data Received Log — {p.clientWeddingTitle}</span>
                               </h4>
-                              <span className="text-xs font-bold text-slate-500">
-                                {p.shoots?.length || 0} Event(s) Configured
-                              </span>
+                              <div className="flex items-center gap-3">
+                                {projectAvailableGB !== null && <span className="rounded-full border border-cyan-200 bg-cyan-50 px-2.5 py-1 text-xs font-black text-cyan-800">Available Space: {(projectAvailableGB / 1000).toFixed(2)} TB</span>}
+                                <span className="text-xs font-bold text-slate-500">{p.shoots?.length || 0} Event(s) Configured</span>
+                                <button type="button" disabled={!draftProjects[p.id]} onClick={() => saveDraftChanges(p.id)} className="rounded-lg bg-[#8f3655] px-3 py-1.5 text-xs font-black text-white shadow-sm transition hover:bg-[#713048] disabled:cursor-not-allowed disabled:opacity-45">Save Changes</button>
+                              </div>
                             </div>
 
                             <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">

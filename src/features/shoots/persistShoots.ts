@@ -231,7 +231,15 @@ export function attachShoots(projects: Project[], shoots: BackendShoot[]): Proje
   return projects.map((project) => {
     // API is authoritative: an empty list must clear a previously deleted
     // shoot instead of retaining stale project-local data.
-    const nextShoots = byProject.get(project.id) || [];
+    const rawShoots = byProject.get(project.id) || [];
+    const savedCrewData = project.dataBackup?.crewDataByShoot || {};
+    const nextShoots = rawShoots.map((shoot) => ({
+      ...shoot,
+      crewAssignments: (shoot.crewAssignments || []).map((crew) => ({
+        ...crew,
+        ...(savedCrewData[shoot.id]?.[crew.id] || {}),
+      })),
+    }));
     return { ...project, shoots: nextShoots, dataBackup: backupFromShoots(nextShoots, project.dataBackup) };
   });
 }

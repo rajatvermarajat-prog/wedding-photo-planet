@@ -82,6 +82,7 @@ export interface DataBackup {
   cloudBackupLink?: string;
   totalDataSizeGB: number;
   rawCleanupStatus: 'not_cleaned' | 'raw_kept' | 'archived' | 'cleaned_up';
+  crewDataByShoot?: Record<string, Record<string, Pick<CrewMemberAssignment, 'dataReceived' | 'dataSizeGB' | 'backupDataSizeGB' | 'copyInHD' | 'backupInHD' | 'hardDriveName'>>>;
 }
 
 export interface ScheduledPayment {
