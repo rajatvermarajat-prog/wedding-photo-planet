@@ -16,7 +16,7 @@ import { firstIsoDate, isPersistedProjectId, toUpdateProjectInput } from '@/feat
 import { persistStudioProject } from '@/features/projects/persistProject';
 import { loadProjectTasks, persistProjectTasks } from '@/features/projects/persistProjectTasks';
 import { shootsApi } from '@/lib/api/shoots';
-import { toCrewRole, toPlannedRoleSlots } from '@/features/shoots/persistShoots';
+import { toCrewRole, toPlannedRoleSlots, toShootEvent } from '@/features/shoots/persistShoots';
 import { nextIndianMobileValue } from '@/lib/validation/indianMobile';
 import { CLIENT_ASSET_ACCEPT, CLIENT_ASSET_MAX_BYTES, clientAssetsApi, uploadProjectClientAsset } from '@/lib/api/clientAssets';
 import { ApiProjectPayment, getProjectPaymentReceiptUrl, paymentMethodLabel, paymentsApi, toPaymentMethod, uploadProjectPaymentReceipt } from '@/lib/api/payments';
@@ -154,6 +154,32 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
   const setUnitFor = (key: string, unit: StorageUnit) => setStorageUnits((current) => ({ ...current, [key]: unit }));
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showStatusMenu, setShowStatusMenu] = useState(false);
+
+  // The app-level shoot bootstrap is intentionally paginated.  A project can
+  // therefore have shoots outside its first page of global results.  Hydrate
+  // this workspace from the authoritative, project-scoped endpoint so its
+  // Shoots tab never depends on which global page happened to load first.
+  useEffect(() => {
+    if (!isPersistedProjectId(project.id)) return;
+    let active = true;
+    void shootsApi.list({
+      projectId: project.id,
+      page: 1,
+      limit: 100,
+      sortBy: 'createdAt',
+      sortOrder: 'asc',
+    }).then((result) => {
+      if (!active) return;
+      onUpdateProject({
+        ...project,
+        shoots: result.items.map(toShootEvent),
+      }, { persistShoots: false });
+    }).catch(() => undefined);
+    return () => { active = false; };
+    // Project ID is the data boundary.  Depending on `project` or the update
+    // callback would turn this hydration into a render/update request loop.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [project.id]);
 
   useEffect(() => {
     if (activeTab === 'vault' && !canEditProject) setActiveTab('overview');
@@ -1296,7 +1322,16 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
             }
           }
         }
-        onUpdateProject({ ...project, shoots: [...project.shoots, created] });
+        // Reload the project shoots after creation. This prevents the project
+        // panel and Shoot Management from retaining a temporary local row if
+        // the API has normalised the new shoot or its crew assignments.
+        if (isPersistedProjectId(project.id)) {
+          const refreshed = await shootsApi.list({ projectId: project.id, page: 1, limit: 100, sortBy: 'createdAt', sortOrder: 'asc' });
+          const { toShootEvent } = await import('@/features/shoots/persistShoots');
+          onUpdateProject({ ...project, shoots: refreshed.items.map(toShootEvent) }, { persistShoots: false });
+        } else {
+          onUpdateProject({ ...project, shoots: [...project.shoots, created] });
+        }
       } catch (error) {
         showToast(error instanceof Error ? error.message : 'Failed to create the shoot.', { variant: 'error' });
       }
