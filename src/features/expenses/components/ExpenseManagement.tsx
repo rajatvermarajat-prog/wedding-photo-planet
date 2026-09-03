@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { AlertTriangle, BarChart3, Banknote, BriefcaseBusiness, CalendarDays, Camera, Check, ChevronDown, ChevronRight, CircleDollarSign, Download, FileBarChart, Filter, IndianRupee, Laptop, MoreHorizontal, Pencil, Plus, Receipt, Repeat2, Search, Trash2, TrendingDown, TrendingUp, Truck, Users, WalletCards, X } from 'lucide-react';
@@ -9,12 +9,15 @@ import { useToast } from '@/components/common';
 import { usePermission } from '@/features/access';
 import { expenseService } from '../services/expenseService';
 import { Expense, ExpenseApprovalStatus, ExpenseCategory, ExpensePaymentMethod, ExpensePaymentStatus } from '../types';
+import { IncomeManagement } from '@/features/income';
+import { incomeService } from '@/features/income/services/incomeService';
 
-type Section = 'overview' | 'monthly' | 'shoots' | 'office' | 'freelancers' | 'travel' | 'equipment' | 'vendors' | 'other' | 'recurring' | 'reports';
+type Section = 'overview' | 'income' | 'monthly' | 'shoots' | 'office' | 'freelancers' | 'travel' | 'equipment' | 'vendors' | 'other' | 'recurring' | 'reports';
 type FreelancerOption = { id: string; name: string; role?: string };
 
 const sections: { id: Section; label: string; icon: React.ElementType }[] = [
   { id: 'overview', label: 'Expense Overview', icon: BarChart3 }, { id: 'monthly', label: 'Monthly Expenses', icon: CalendarDays },
+  { id: 'income', label: 'Income', icon: TrendingUp },
   { id: 'shoots', label: 'Shoot Expenses', icon: Camera }, { id: 'office', label: 'Office Expenses', icon: BriefcaseBusiness },
   { id: 'freelancers', label: 'Freelancer Expenses', icon: Users }, { id: 'travel', label: 'Travel & Cab', icon: Truck },
   { id: 'equipment', label: 'Equipment', icon: Laptop }, { id: 'vendors', label: 'Vendor Payments', icon: WalletCards },
@@ -23,7 +26,7 @@ const sections: { id: Section; label: string; icon: React.ElementType }[] = [
 ];
 
 const categoryMap: Record<Section, ExpenseCategory[] | null> = {
-  overview: null, monthly: null, shoots: ['Shoot'], office: ['Office', 'Software', 'Utilities'], freelancers: ['Freelancer'],
+  overview: null, income: null, monthly: null, shoots: ['Shoot'], office: ['Office', 'Software', 'Utilities'], freelancers: ['Freelancer'],
   travel: ['Travel', 'Cab'], equipment: ['Equipment'], vendors: ['Vendor'], other: ['Marketing', 'Miscellaneous', 'Other'], recurring: null, reports: null,
 };
 const categories: ExpenseCategory[] = ['Shoot', 'Freelancer', 'Office', 'Travel', 'Cab', 'Equipment', 'Vendor', 'Marketing', 'Software', 'Utilities', 'Miscellaneous', 'Other'];
@@ -50,6 +53,7 @@ const todayKey = () => {
   return `${currentMonthKey()}-${String(now.getDate()).padStart(2, '0')}`;
 };
 const projectTitle = (project?: Project) => project?.clientWeddingTitle || project?.projectName || project?.name || '—';
+const displayExpenseId = (expense: Expense) => expense.id.startsWith('EXP-') ? expense.id : `EXP-${expense.date.replaceAll('-', '')}-${expense.id.slice(-4).toUpperCase()}`;
 
 const emptyExpense = (addedBy: string): Expense => ({
   id: '', date: todayKey(), category: 'Shoot', subcategory: 'Photographer payment', description: '', amount: 0, paidAmount: 0,
@@ -65,7 +69,11 @@ export function ExpenseManagement({ projects, freelancers, currentUser }: { proj
   const canApprovePerm = can('EXPENSE_APPROVE') || can('finance.approve_expenses');
   const canExport = can('REPORT_EXPORT') || can('finance.export');
   const canMarkPaid = can('PAYMENT_CREATE') || can('finance.record_payment') || canEdit;
-  const [expenses, setExpenses] = useState<Expense[]>(() => expenseService.list());
+  const [expenses, setExpenses] = useState<Expense[]>([]);
+  const [categoryOptions, setCategoryOptions] = useState<Array<{id:string;name:string}>>([]);
+  const [expenseSummary, setExpenseSummary] = useState<{ month?: { total?: number }; year?: { total?: number } }>({});
+  const [profitLoss, setProfitLoss] = useState<{ month?: any; year?: any }>({});
+  const loadedRef = useRef(false);
   const [recurring] = useState(() => expenseService.recurring());
   const [budgets] = useState(() => expenseService.budgets());
   const [section, setSection] = useState<Section>('overview');
@@ -78,7 +86,13 @@ export function ExpenseManagement({ projects, freelancers, currentUser }: { proj
   const [selected, setSelected] = useState<Expense | null>(null);
   const [draft, setDraft] = useState<Expense>(() => emptyExpense(currentUser.name));
 
-  useEffect(() => expenseService.save(expenses), [expenses]);
+  useEffect(() => {
+    if (loadedRef.current) return;
+    loadedRef.current = true;
+    void Promise.all([expenseService.list(), expenseService.categories(), expenseService.summary(), incomeService.profitLoss('month'), incomeService.profitLoss('year')])
+      .then(([items, options, summary, month, year]) => { setExpenses(items); setCategoryOptions(options); setExpenseSummary(summary); setProfitLoss({ month, year }); })
+      .catch(() => toast.showToast('Unable to load expenses.'));
+  }, []);
 
   const visibleExpenses = useMemo(() => expenses.filter((expense) => {
     const scoped = categoryMap[section];
@@ -109,21 +123,19 @@ export function ExpenseManagement({ projects, freelancers, currentUser }: { proj
     setDraft(next); setSelected(null); setModal('form');
   };
   const openEdit = (expense: Expense) => { if (!canEdit) return; setDraft({ ...expense }); setSelected(expense); setModal('form'); };
-  const saveExpense = (event: React.FormEvent) => {
+  const saveExpense = async (event: React.FormEvent) => {
     event.preventDefault();
     if (selected ? !canEdit : !canCreate) return;
-    const timestamp = new Date().toISOString();
-    const paidAmount = Math.min(Number(draft.paidAmount) || 0, Number(draft.amount) || 0);
-    const paymentStatus: ExpensePaymentStatus = paidAmount >= draft.amount ? 'Paid' : paidAmount > 0 ? 'Partially Paid' : draft.paymentStatus;
-    if (selected) {
-      setExpenses((items) => items.map((item) => item.id === selected.id ? { ...draft, paidAmount, paymentStatus, updatedAt: timestamp } : item));
+    const categoryId = categoryOptions.find((item) => item.name === draft.category)?.id;
+    if (!categoryId) return toast.showToast('Select a valid expense category.');
+    try { if (selected) {
+      const updated = await expenseService.update(selected.id, draft, categoryId); setExpenses((items) => items.map((item) => item.id === selected.id ? updated : item));
       toast.showToast('Expense updated successfully.');
     } else {
-      const id = `EXP-${new Date().getFullYear()}-${String(Date.now()).slice(-6)}`;
-      setExpenses((items) => [{ ...draft, id, paidAmount, paymentStatus, approvalStatus: canApprovePerm ? 'Approved' : 'Submitted', createdAt: timestamp, updatedAt: timestamp }, ...items]);
+      const created = await expenseService.create(draft, categoryId); setExpenses((items) => [created, ...items]);
       toast.showToast('Expense submitted successfully.');
     }
-    setModal(null);
+    setModal(null); } catch { toast.showToast('Unable to save expense.'); }
   };
   const updateApproval = (expense: Expense, approvalStatus: ExpenseApprovalStatus) => {
     if (!canApprovePerm) return;
@@ -131,13 +143,12 @@ export function ExpenseManagement({ projects, freelancers, currentUser }: { proj
     setSelected((item) => item ? { ...item, approvalStatus } : item);
     toast.showToast(`Expense ${approvalStatus.toLowerCase()}.`);
   };
-  const markPaid = (expense: Expense) => {
+  const markPaid = async (expense: Expense) => {
     if (!canMarkPaid) return;
-    const payment = { id: `PAY-${Date.now()}`, amount: expense.amount - expense.paidAmount, date: new Date().toISOString().slice(0, 10), method: expense.paymentMethod };
-    const updated = { ...expense, paidAmount: expense.amount, paymentStatus: 'Paid' as const, approvalStatus: 'Paid' as const, payments: [...expense.payments, payment], updatedAt: new Date().toISOString() };
+    const updated = await expenseService.addPayment(expense.id, expense.amount-expense.paidAmount, expense.paymentMethod);
     setExpenses((items) => items.map((item) => item.id === expense.id ? updated : item)); setSelected(updated); toast.showToast('Expense marked as paid.');
   };
-  const remove = () => { if (!selected || !canDelete) return; setExpenses((items) => items.filter((item) => item.id !== selected.id)); setModal(null); setSelected(null); toast.showToast('Expense deleted.'); };
+  const remove = async () => { if (!selected || !canDelete) return; await expenseService.remove(selected.id); setExpenses((items) => items.filter((item) => item.id !== selected.id)); setModal(null); setSelected(null); toast.showToast('Expense deleted.'); };
   const exportPdf = (reportTitle = 'Expense Report') => {
     if (!canExport) return;
     const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
@@ -179,7 +190,7 @@ export function ExpenseManagement({ projects, freelancers, currentUser }: { proj
     <header className="overflow-hidden rounded-3xl border border-[#8f7368] bg-[linear-gradient(120deg,#74475a,#3e2b31)] px-5 py-6 text-white shadow-xl sm:px-8">
       <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
         <div><div className="mb-2 flex items-center gap-2 text-xs font-extrabold uppercase tracking-[.2em] text-rose-100"><CircleDollarSign className="h-5 w-5"/> Financial Control Center</div><h1 className="text-2xl font-black sm:text-3xl">Expense Management</h1><p className="mt-2 max-w-2xl text-sm text-rose-100">Track every rupee from project production to office operations, approvals and profitability.</p></div>
-        <div className="flex flex-wrap gap-2">{canExport && <button onClick={() => exportPdf()} className="flex items-center gap-2 rounded-xl border border-white/25 bg-white/10 px-4 py-2.5 text-xs font-bold hover:bg-white/20"><Download className="h-4 w-4"/> Export PDF</button>}{canCreate && <button onClick={() => openAdd()} className="flex items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-xs font-black text-[#5a2f3e] shadow-lg"><Plus className="h-4 w-4"/> Add Expense</button>}</div>
+        <div className="flex flex-wrap gap-2">{canExport && <button onClick={() => exportPdf()} className="flex items-center gap-2 rounded-xl border border-white/25 bg-white/10 px-4 py-2.5 text-xs font-bold hover:bg-white/20"><Download className="h-4 w-4"/> Export PDF</button>}<button onClick={() => setSection('income')} className="flex items-center gap-2 rounded-xl border border-white/25 bg-white/10 px-4 py-2.5 text-xs font-bold hover:bg-white/20"><TrendingUp className="h-4 w-4"/> Income</button>{canCreate && <button onClick={() => openAdd()} className="flex items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-xs font-black text-[#5a2f3e] shadow-lg"><Plus className="h-4 w-4"/> Add Expense</button>}</div>
       </div>
     </header>
 
@@ -187,24 +198,24 @@ export function ExpenseManagement({ projects, freelancers, currentUser }: { proj
       {sections.map(({ id, label, icon: Icon }) => <button key={id} onClick={() => setSection(id)} className={`flex shrink-0 items-center gap-2 rounded-xl px-3 py-2 text-xs font-bold transition ${section === id ? 'bg-[#5a2f3e] text-white shadow' : 'text-slate-600 hover:bg-slate-100'}`}><Icon className="h-4 w-4"/>{label}</button>)}
     </nav>
 
-    {section === 'overview' && <Overview expenses={expenses} projects={projects} monthExpenses={monthExpenses} thisMonth={thisMonth} lastMonth={lastMonth} trendPercent={trendPercent} pending={pending} recurringTotal={recurring.reduce((t, r) => t + r.amount, 0)} categoryTotal={categoryTotal} monthlyBudget={monthlyBudget} budgetPercent={budgetPercent} />}
-    {section === 'recurring' ? <RecurringView items={recurring} /> : section === 'reports' ? <ReportsView expenses={expenses} onExport={canExport ? exportPdf : undefined} /> : <>
+    {section === 'overview' && <><ProfitLossCard month={profitLoss.month} year={profitLoss.year}/><Overview expenses={expenses} projects={projects} monthExpenses={monthExpenses} thisMonth={thisMonth} summaryMonth={expenseSummary.month?.total} summaryYear={expenseSummary.year?.total} lastMonth={lastMonth} trendPercent={trendPercent} pending={pending} recurringTotal={recurring.reduce((t, r) => t + r.amount, 0)} categoryTotal={categoryTotal} monthlyBudget={monthlyBudget} budgetPercent={budgetPercent} /></>}
+    {section === 'income' ? <IncomeManagement /> : section === 'recurring' ? <RecurringView items={recurring} /> : section === 'reports' ? <ReportsView expenses={expenses} onExport={canExport ? exportPdf : undefined} /> : <>
       {section === 'shoots' && <Profitability projects={projects} expenses={expenses} />}
       {section === 'monthly' && <MonthlySummary expenses={expenses} selectedMonth={selectedMonth} setSelectedMonth={setSelectedMonth} />}
       {section !== 'overview' && <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"><div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between"><div><h2 className="text-lg font-black text-slate-900">{sections.find((item) => item.id === section)?.label}</h2><p className="text-xs text-slate-500">{visibleExpenses.length} records · {money(sum(visibleExpenses))} total</p></div><Filters search={search} setSearch={setSearch} category={categoryFilter} setCategory={setCategoryFilter} status={statusFilter} setStatus={setStatusFilter} />{canCreate && <button onClick={() => openAdd(categoryMap[section]?.[0])} className="flex shrink-0 items-center justify-center gap-2 rounded-xl bg-rose-700 px-4 py-2.5 text-xs font-bold text-white"><Plus className="h-4 w-4"/> Add Expense</button>}</div></div>}
       <ExpenseTable expenses={section === 'overview' ? expenses.slice(0, 6) : visibleExpenses} projects={projects} onView={(expense) => { setSelected(expense); setModal('detail'); }} onEdit={canEdit ? openEdit : undefined} />
     </>}
 
-    {(canCreate || canEdit) && modal === 'form' && <ExpenseForm draft={draft} setDraft={setDraft} projects={projects} freelancers={freelancers} editing={!!selected} onClose={() => setModal(null)} onSubmit={saveExpense} />}
+    {(canCreate || canEdit) && modal === 'form' && <ExpenseForm draft={draft} setDraft={setDraft} projects={projects} freelancers={freelancers} categoryOptions={categoryOptions} editing={!!selected} onClose={() => setModal(null)} onSubmit={saveExpense} />}
     {modal === 'detail' && selected && <ExpenseDetail expense={selected} project={projects.find((p) => p.id === selected.projectId)} canApprove={canApprovePerm} canEdit={canEdit} canDelete={canDelete} canMarkPaid={canMarkPaid} onClose={() => setModal(null)} onEdit={() => openEdit(selected)} onDelete={() => setModal('delete')} onApproval={updateApproval} onMarkPaid={markPaid} />}
     {canDelete && modal === 'delete' && selected && <div className="fixed inset-0 z-[70] grid place-items-center bg-slate-950/55 p-4 backdrop-blur-sm"><div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl"><div className="mb-4 grid h-12 w-12 place-items-center rounded-2xl bg-red-100 text-red-600"><Trash2/></div><h3 className="text-lg font-black">Delete {selected.id}?</h3><p className="mt-2 text-sm text-slate-500">This expense and its payment history will be removed.</p><div className="mt-6 flex justify-end gap-2"><button onClick={() => setModal('detail')} className="rounded-xl border px-4 py-2 text-sm font-bold">Cancel</button><button onClick={remove} className="rounded-xl bg-red-600 px-4 py-2 text-sm font-bold text-white">Delete Expense</button></div></div></div>}
   </div>;
 }
 
-function Overview({ expenses, projects, monthExpenses, thisMonth, lastMonth, trendPercent, pending, recurringTotal, categoryTotal, monthlyBudget, budgetPercent }: any) {
+function Overview({ expenses, projects, monthExpenses, thisMonth, summaryMonth, summaryYear, lastMonth, trendPercent, pending, recurringTotal, categoryTotal, monthlyBudget, budgetPercent }: any) {
   const yearTotal = expenses.filter((e: Expense) => e.date.startsWith('2026')).reduce((t: number, e: Expense) => t + e.amount, 0);
   const cards = [
-    ['This Month', thisMonth, `${trendPercent >= 0 ? '+' : ''}${trendPercent.toFixed(1)}% from last month`, IndianRupee], ['This Year', yearTotal, '2026 total spending', CalendarDays],
+    ['This Month', summaryMonth ?? thisMonth, `${trendPercent >= 0 ? '+' : ''}${trendPercent.toFixed(1)}% from last month`, IndianRupee], ['This Year', summaryYear ?? yearTotal, '2026 total spending', CalendarDays],
     ['Shoot Expenses', categoryTotal(['Shoot']), 'Production linked', Camera], ['Freelancer Payments', categoryTotal(['Freelancer']), 'Crew & post-production', Users],
     ['Travel & Cab', categoryTotal(['Travel','Cab']), 'Transport & stays', Truck], ['Equipment', categoryTotal(['Equipment']), 'Purchase, rental & repair', Laptop],
     ['Pending Payments', pending, 'Outstanding balance', AlertTriangle], ['Recurring', recurringTotal, 'Upcoming scheduled costs', Repeat2],
@@ -220,11 +231,13 @@ function Overview({ expenses, projects, monthExpenses, thisMonth, lastMonth, tre
   </>;
 }
 
+function ProfitLossCard({month,year}:{month?:any;year?:any}) { const Card=({label,data}:{label:string;data?:any})=>{const value=Number(data?.netProfit||0);return <div className="rounded-xl bg-white/10 p-3"><p className="text-xs font-bold text-rose-100">{label}</p><p className={`mt-1 text-xl font-black ${value>=0?'text-emerald-300':'text-red-300'}`}>{money(value)}</p><p className="text-[10px] text-rose-100">Income {money(Number(data?.totalIncome||0))} · Expense {money(Number(data?.totalExpense||0))}</p></div>}; return <section className="rounded-2xl border border-[#8f7368] bg-[linear-gradient(120deg,#74475a,#3e2b31)] p-5 text-white shadow-xl"><div className="mb-3 flex items-center gap-2"><TrendingUp className="h-5 w-5 text-emerald-300"/><h2 className="font-black">Profit / Loss</h2></div><div className="grid gap-3 sm:grid-cols-2"><Card label="This Month" data={month}/><Card label="This Year" data={year}/></div></section> }
+
 function TrendChart({ expenses }: { expenses: Expense[] }) { const months = ['Mar','Apr','May','Jun','Jul','Aug']; const keys = ['2026-03','2026-04','2026-05','2026-06','2026-07','2026-08']; const values = keys.map((key) => expenses.filter((e) => monthKey(e.date) === key).reduce((t,e) => t+e.amount,0)); const max=Math.max(...values,1); return <div className="flex h-44 items-end gap-3">{values.map((value,index)=><div key={keys[index]} className="flex h-full flex-1 flex-col justify-end gap-2"><span className="text-center text-[10px] font-bold text-slate-500">{value ? money(value) : '—'}</span><div className="min-h-1 rounded-t-lg bg-gradient-to-t from-[#5a2f3e] to-[#b99a5e]" style={{height:`${Math.max(4,(value/max)*120)}px`}}/><span className="text-center text-[10px] font-bold">{months[index]}</span></div>)}</div> }
 
 function Filters({search,setSearch,category,setCategory,status,setStatus}: any) { return <div className="flex flex-1 flex-wrap gap-2"><label className="relative min-w-48 flex-1"><Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400"/><input value={search} onChange={(e)=>setSearch(e.target.value)} placeholder="Search expense, shoot or vendor" className="w-full rounded-xl border border-slate-200 py-2 pl-9 pr-3 text-xs"/></label><select value={category} onChange={(e)=>setCategory(e.target.value)} className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold"><option>All</option>{categories.map(c=><option key={c}>{c}</option>)}</select><select value={status} onChange={(e)=>setStatus(e.target.value)} className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold"><option>All</option>{['Unpaid','Pending','Partially Paid','Paid','Overdue'].map(s=><option key={s}>{s}</option>)}</select></div> }
 
-function ExpenseTable({ expenses, projects, onView, onEdit }: { expenses: Expense[]; projects: Project[]; onView:(e:Expense)=>void; onEdit?:(e:Expense)=>void }) { return <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"><div className="overflow-x-auto"><table className="w-full min-w-[1050px] text-left text-xs"><thead className="bg-slate-50 text-[10px] uppercase tracking-wider text-slate-500"><tr>{['Expense ID','Date','Category / Description','Shoot / Project','Paid To','Method','Amount','Status','Added By','Actions'].map(h=><th key={h} className="px-4 py-3 font-black">{h}</th>)}</tr></thead><tbody className="divide-y divide-slate-100">{expenses.length===0?<tr><td colSpan={10} className="px-4 py-12 text-center text-sm text-slate-500">No expenses match these filters.</td></tr>:expenses.map(e=>{const p=projects.find(item=>item.id===e.projectId);return <tr key={e.id} onClick={()=>onView(e)} className="cursor-pointer hover:bg-rose-50/40"><td className="px-4 py-3 font-mono font-bold text-rose-700">{e.id}</td><td className="px-4 py-3 whitespace-nowrap">{new Date(`${e.date}T00:00`).toLocaleDateString('en-IN')}</td><td className="px-4 py-3"><span className="font-bold">{e.category} · {e.subcategory}</span><p className="mt-0.5 max-w-52 truncate text-slate-500">{e.description}</p></td><td className="px-4 py-3 max-w-44 truncate">{projectTitle(p)}</td><td className="px-4 py-3 font-semibold">{e.payee||e.vendor||'—'}</td><td className="px-4 py-3">{e.paymentMethod}</td><td className="px-4 py-3 font-black">{money(e.amount)}<p className="font-medium text-slate-400">Due {money(e.amount-e.paidAmount)}</p></td><td className="px-4 py-3"><StatusBadge status={e.paymentStatus}/><p className="mt-1 text-[10px] font-bold text-slate-400">{e.approvalStatus}</p></td><td className="px-4 py-3">{e.addedBy}</td><td className="px-4 py-3">{onEdit && <button onClick={(event)=>{event.stopPropagation();onEdit(e)}} className="rounded-lg border p-2 text-slate-500 hover:text-rose-700"><Pencil className="h-3.5 w-3.5"/></button>}</td></tr>})}</tbody></table></div></div> }
+function ExpenseTable({ expenses, projects, onView, onEdit }: { expenses: Expense[]; projects: Project[]; onView:(e:Expense)=>void; onEdit?:(e:Expense)=>void }) { return <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"><div className="overflow-x-auto"><table className="w-full min-w-[1050px] text-left text-xs"><thead className="bg-slate-50 text-[10px] uppercase tracking-wider text-slate-500"><tr>{['Expense ID','Date','Category / Description','Shoot / Project','Paid To','Method','Amount','Status','Added By','Actions'].map(h=><th key={h} className="px-4 py-3 font-black">{h}</th>)}</tr></thead><tbody className="divide-y divide-slate-100">{expenses.length===0?<tr><td colSpan={10} className="px-4 py-12 text-center text-sm text-slate-500">No expenses match these filters.</td></tr>:expenses.map(e=>{const p=projects.find(item=>item.id===e.projectId);return <tr key={e.id} onClick={()=>onView(e)} className="cursor-pointer hover:bg-rose-50/40"><td className="px-4 py-3 font-mono font-bold text-rose-700">{displayExpenseId(e)}</td><td className="px-4 py-3 whitespace-nowrap">{new Date(`${e.date}T00:00`).toLocaleDateString('en-IN')}</td><td className="px-4 py-3"><span className="font-bold">{e.category} · {e.subcategory}</span><p className="mt-0.5 max-w-52 truncate text-slate-500">{e.description}</p></td><td className="px-4 py-3 max-w-44 truncate">{projectTitle(p)}</td><td className="px-4 py-3 font-semibold">{e.payee||e.vendor||'—'}</td><td className="px-4 py-3">{e.paymentMethod}</td><td className="px-4 py-3 font-black">{money(e.amount)}<p className="font-medium text-slate-400">Due {money(e.amount-e.paidAmount)}</p></td><td className="px-4 py-3"><StatusBadge status={e.paymentStatus}/><p className="mt-1 text-[10px] font-bold text-slate-400">{e.approvalStatus}</p></td><td className="px-4 py-3">{e.addedBy}</td><td className="px-4 py-3">{onEdit && <button onClick={(event)=>{event.stopPropagation();onEdit(e)}} className="rounded-lg border p-2 text-slate-500 hover:text-rose-700"><Pencil className="h-3.5 w-3.5"/></button>}</td></tr>})}</tbody></table></div></div> }
 function StatusBadge({status}:{status:ExpensePaymentStatus}) { const cls=status==='Paid'?'bg-emerald-100 text-emerald-700':status==='Overdue'?'bg-red-100 text-red-700':status==='Partially Paid'?'bg-amber-100 text-amber-700':'bg-slate-100 text-slate-600'; return <span className={`inline-flex rounded-full px-2 py-1 text-[10px] font-black ${cls}`}>{status}</span> }
 
 function MonthlySummary({expenses,selectedMonth,setSelectedMonth}:any){const scoped=expenses.filter((e:Expense)=>monthKey(e.date)===selectedMonth);return <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><div className="mb-5 flex items-center justify-between"><div><h2 className="text-lg font-black">Monthly Summary</h2><p className="text-xs text-slate-500">Complete category-wise spending</p></div><input type="month" value={selectedMonth} onChange={(e)=>setSelectedMonth(e.target.value)} className="rounded-xl border px-3 py-2 text-sm font-bold"/></div><div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">{categories.map(c=>{const total=scoped.filter((e:Expense)=>e.category===c).reduce((t:number,e:Expense)=>t+e.amount,0);return <div key={c} className="flex justify-between rounded-xl bg-slate-50 p-3 text-xs"><span className="font-semibold">{c}</span><span className="font-black">{money(total)}</span></div>})}</div><div className="mt-4 flex justify-between rounded-xl bg-[#5a2f3e] p-4 text-white"><span className="font-bold">Total Monthly Expense</span><span className="text-lg font-black">{money(scoped.reduce((t:number,e:Expense)=>t+e.amount,0))}</span></div></section>}
@@ -237,7 +250,7 @@ function ReportsView({expenses,onExport}:any){const reports=['Monthly Expense Re
 
 const expenseField = 'w-full rounded-2xl border border-[#ded5cf] bg-[#fbfaf8] py-3 pl-11 pr-4 text-sm font-semibold text-slate-900 outline-none transition placeholder:font-medium placeholder:text-slate-400 focus:border-[#9b4865] focus:bg-white focus:ring-4 focus:ring-rose-100';
 
-function ExpenseForm({draft,setDraft,projects,freelancers,editing,onClose,onSubmit}:any){
+function ExpenseForm({draft,setDraft,projects,freelancers,categoryOptions,editing,onClose,onSubmit}:any){
   const conditional=draft.category;
   return <div className="fixed inset-0 z-[60] flex items-center justify-center bg-[#24171c]/75 p-3 backdrop-blur-sm sm:p-6">
     <div role="dialog" aria-modal="true" aria-labelledby="expense-form-title" className="max-h-[92vh] w-full max-w-3xl overflow-y-auto rounded-[2rem] border border-white/50 bg-white shadow-[0_30px_90px_rgba(26,13,19,.42)]">
@@ -252,7 +265,7 @@ function ExpenseForm({draft,setDraft,projects,freelancers,editing,onClose,onSubm
         <ExpenseFormSection number="01" title="Expense Details" description="Record the date, type and purpose of this expense.">
           <ExpenseField label="Expense Date *" icon={<CalendarDays className="size-5"/>}><input className={expenseField} required type="date" value={draft.date} onChange={e=>setDraft({...draft,date:e.target.value})}/></ExpenseField>
           <ExpenseField label="Amount (₹) *" icon={<IndianRupee className="size-5"/>}><input className={expenseField} required min="1" type="number" value={draft.amount||''} onChange={e=>setDraft({...draft,amount:Number(e.target.value)})} placeholder="25000"/></ExpenseField>
-          <ExpenseField label="Expense Category" icon={<Filter className="size-5"/>}><select className={`${expenseField} appearance-none pr-10`} value={draft.category} onChange={e=>{const c=e.target.value as ExpenseCategory;setDraft({...draft,category:c,subcategory:subcategories[c][0]})}}>{categories.map(c=><option key={c}>{c}</option>)}</select><ChevronDown className="pointer-events-none absolute right-3.5 top-1/2 size-5 -translate-y-1/2 text-slate-500"/></ExpenseField>
+          <ExpenseField label="Expense Category" icon={<Filter className="size-5"/>}><select className={`${expenseField} appearance-none pr-10`} value={draft.category} onChange={e=>{const c=e.target.value as ExpenseCategory;setDraft({...draft,category:c,subcategory:subcategories[c]?.[0]||'Other'})}}>{categoryOptions.map((c:any)=><option key={c.id}>{c.name}</option>)}</select><ChevronDown className="pointer-events-none absolute right-3.5 top-1/2 size-5 -translate-y-1/2 text-slate-500"/></ExpenseField>
           <ExpenseField label="Subcategory" icon={<ChevronRight className="size-5"/>}><select className={`${expenseField} appearance-none pr-10`} value={draft.subcategory} onChange={e=>setDraft({...draft,subcategory:e.target.value})}>{subcategories[draft.category as ExpenseCategory].map(s=><option key={s}>{s}</option>)}</select><ChevronDown className="pointer-events-none absolute right-3.5 top-1/2 size-5 -translate-y-1/2 text-slate-500"/></ExpenseField>
           <div className="sm:col-span-2"><ExpenseField label="Description *" icon={<Receipt className="size-5"/>}><input className={expenseField} required value={draft.description} onChange={e=>setDraft({...draft,description:e.target.value})} placeholder="What was this expense for?"/></ExpenseField></div>
         </ExpenseFormSection>

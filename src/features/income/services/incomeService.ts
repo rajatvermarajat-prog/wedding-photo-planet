@@ -1,0 +1,5 @@
+import { apiRequest } from '@/lib/api/client';
+export type IncomeCategory='CLIENT_PAYMENT'|'ADVANCE'|'ALBUM_SALES'|'REFERRAL'|'OTHER';
+export type Income={id:string;date:string;category:IncomeCategory;amount:number;projectId?:string;client?:string;source?:string;paymentMethod:string;notes?:string;createdAt:string;updatedAt:string};
+const normal=(x:any):Income=>({...x,date:String(x.date).slice(0,10),amount:Number(x.amount)});
+export const incomeService={getIncomes:async()=>((await apiRequest<any[]>('/incomes?limit=100')).data).map(normal),createIncome:async(data:Omit<Income,'id'|'createdAt'|'updatedAt'>)=>normal((await apiRequest<any>('/incomes',{method:'POST',body:JSON.stringify(data)})).data),updateIncome:async(id:string,data:Partial<Income>)=>normal((await apiRequest<any>(`/incomes/${id}`,{method:'PATCH',body:JSON.stringify(data)})).data),deleteIncome:async(id:string)=>{await apiRequest<void>(`/incomes/${id}`,{method:'DELETE'});},getIncomeSummary:async()=> (await apiRequest<any>('/incomes/summary')).data,profitLoss:async(period:'month'|'year')=>(await apiRequest<any>(`/finance/profit-loss?period=${period}`)).data};

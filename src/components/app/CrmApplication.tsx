@@ -186,8 +186,11 @@ export default function App() {
     hydratedProjectData.current = projectQuery.data;
     const mapped = projectQuery.data.map(normalizeProject);
     setProjects(mapped);
-    void shootsApi.list({ page: 1, limit: 100, sortBy: 'createdAt', sortOrder: 'asc' })
-      .then((result) => setProjects((current) => attachShoots(current, result.items)))
+    // Shoot Management groups the complete studio schedule by project.  Fetch
+    // every API page before attaching, otherwise projects whose shoots land on
+    // page 2+ disappear from that screen.
+    void shootsApi.listAll({ sortBy: 'createdAt', sortOrder: 'asc' })
+      .then((items) => setProjects((current) => attachShoots(current, items)))
       .catch(() => undefined);
     // Project financial summaries must be derived from the persisted finance
     // ledger, not the legacy project-local `advanceReceived` field.
@@ -746,41 +749,6 @@ export default function App() {
       );
     }
 
-    try {
-      const assignment = freelancerAssignments.find((a) => a.id === payment.assignmentId);
-      const expenses = expenseService.list();
-      if (expenses.some((e) => e.freelancerPaymentId === payment.id)) return;
-      const agreed = assignment?.totalAgreedAmount || payment.agreedAmount || payment.amountPaid;
-      const now = new Date().toISOString();
-      const expense: Expense = {
-        id: `EXP-FL-${payment.id}`,
-        date: payment.paymentDate,
-        category: 'Freelancer',
-        subcategory: assignment?.category || 'Freelancer payment',
-        description: `${payment.freelancerName} — ${assignment?.projectName || payment.projectName || 'Freelancer production cost'}`,
-        amount: agreed,
-        paidAmount: payment.amountPaid,
-        projectId: assignment?.projectId,
-        payee: payment.freelancerName,
-        freelancerId: payment.freelancerId,
-        freelancerPaymentId: payment.id,
-        role: assignment?.role || assignment?.subCategory,
-        workDate: assignment?.shootDate || payment.shootDate,
-        paymentMethod: (['Cash', 'UPI', 'Bank Transfer'].includes(payment.paymentMethod)
-          ? payment.paymentMethod
-          : 'Other') as Expense['paymentMethod'],
-        paymentStatus: payment.amountPaid >= agreed ? 'Paid' : payment.amountPaid > 0 ? 'Partially Paid' : 'Unpaid',
-        approvalStatus: 'Approved',
-        addedBy: payment.createdBy || 'Accounts Admin',
-        createdAt: now,
-        updatedAt: now,
-        notes: payment.notes,
-        payments: [{ id: `PAY-${payment.id}`, amount: payment.amountPaid, date: payment.paymentDate, method: (['Cash', 'UPI', 'Bank Transfer'].includes(payment.paymentMethod) ? payment.paymentMethod : 'Other') as Expense['paymentMethod'] }],
-      };
-      expenseService.save([expense, ...expenses]);
-    } catch {
-      /* expense module unavailable — freelancer ledger still saved */
-    }
   };
 
   const handleSaveFreelancerAttendance = (record: FreelancerAttendance) => {

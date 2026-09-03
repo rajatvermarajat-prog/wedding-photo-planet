@@ -101,6 +101,23 @@ export const shootsApi = {
     const response = await apiRequest<BackendShoot[]>(`/shoots${queryString(query)}`);
     return { items: Array.isArray(response.data) ? response.data : [], meta: response.meta };
   },
+  /**
+   * Load every page only for screens that need a complete cross-project
+   * schedule.  The API caps a page at 100 rows, so a single list call silently
+   * omitted projects once the studio crossed that threshold.
+   */
+  async listAll(query: Omit<{ page?: number; limit?: number; projectId?: string; sortBy?: 'shootDate' | 'createdAt'; sortOrder?: 'asc' | 'desc' }, 'page' | 'limit'> = {}): Promise<BackendShoot[]> {
+    const items: BackendShoot[] = [];
+    let page = 1;
+    let hasNext = true;
+    while (hasNext) {
+      const result = await shootsApi.list({ ...query, page, limit: 100 });
+      items.push(...result.items);
+      hasNext = Boolean(result.meta.pagination?.hasNext);
+      page += 1;
+    }
+    return items;
+  },
   async create(input: CreateShootInput): Promise<BackendShoot> {
     const { data } = await apiRequest<BackendShoot>('/shoots', { method: 'POST', body: JSON.stringify(input) });
     return data;

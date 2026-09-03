@@ -52,11 +52,22 @@ export async function persistStudioProject(project: Project, team: TeamMember[] 
     ]);
     return { ...base, tasks, shoots: shoots.shoots, dataBackup: shoots.dataBackup };
   }
-  const dto = await projectsApi.create(toCreateProjectInput(project, roster));
+  // Shoot rows are persisted explicitly after the project has a real UUID.
+  // This keeps the final Create action reliable without re-enabling any
+  // keystroke-driven saves in the edit flow.
+  const createInput = toCreateProjectInput(project, roster);
+  delete createInput.shoots;
+  const dto = await projectsApi.create(createInput);
   const created = normalizeProject(dto);
+  const persistedShoots = await persistProjectShoots(
+    { ...created, shoots: project.shoots || [] },
+    { ...created, shoots: [] },
+    roster,
+  );
   return {
     ...project,
     ...created,
+    shoots: persistedShoots.shoots || [],
     payments: project.payments,
     advanceReceived: project.advanceReceived,
     balanceDue: Math.max(0, created.totalBudget - project.advanceReceived),
