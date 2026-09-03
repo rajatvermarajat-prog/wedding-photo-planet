@@ -373,6 +373,9 @@ export const ProjectsManager: React.FC<ProjectsManagerProps> = ({
                         }`}
                         title="Auto-tracked from project tasks & work status"
                       >
+                        <option value="new_project" className="bg-white text-slate-900 font-bold">
+                          ◷ UPCOMING
+                        </option>
                         <option value="running" className="bg-white text-slate-900 font-bold">
                           🏃 RUNNING
                         </option>

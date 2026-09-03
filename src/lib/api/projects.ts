@@ -1,7 +1,7 @@
 import { apiRequest, ApiMeta } from './client';
 import type { BackendCrewRole, BackendShoot, BackendShootStatus, BackendShootType } from './shoots';
 import type { BackendTask, BackendTaskCategory, BackendTaskPriority, BackendTaskStatus } from './tasks';
-export type BackendProjectStatus='LEAD'|'CONFIRMED'|'PLANNING'|'SHOOTING'|'EDITING'|'DELIVERY'|'COMPLETED'|'CANCELLED';
+export type BackendProjectStatus='UPCOMING'|'LEAD'|'CONFIRMED'|'PLANNING'|'SHOOTING'|'EDITING'|'DELIVERY'|'COMPLETED'|'CANCELLED';
 export type BackendProjectType='ROKA'|'ENGAGEMENT'|'PRE_WEDDING'|'WEDDING'|'COMPLETE_WEDDING_SERVICES'|'HALDI_MEHENDI'|'SANGEET'|'RECEPTION'|'ANNIVERSARY'|'CORPORATE'|'OTHER';
 export interface ProjectClient { id:string; clientCode:string; displayName:string; primaryPhone:string; }
 export interface Project { id:string; projectNumber:string; name:string; type:BackendProjectType; status:BackendProjectStatus; isUrgent:boolean; weddingDate:string|null; deliveryDueDate:string|null; venueName:string|null; venueAddress:string|null; venueCity:string|null; totalQuotation:string; customServiceType:string|null; otherClientDetails:string|null; notes:string|null; client:ProjectClient; tasks?:BackendTask[]; shoots?:BackendShoot[]; createdAt:string; updatedAt:string; _count?:{events:number;shoots:number;tasks:number;deliveries:number}; }

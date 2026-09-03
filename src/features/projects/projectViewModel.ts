@@ -10,7 +10,7 @@ import type { CrewMemberAssignment, Project, ProjectTask, TeamMember } from '@/t
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-const legacyStatus: Record<ProjectDto['status'], Project['status']> = { LEAD:'new_project', CONFIRMED:'running', PLANNING:'running', SHOOTING:'running', EDITING:'running', DELIVERY:'ready_to_deliver', COMPLETED:'completed', CANCELLED:'pending' };
+const legacyStatus: Record<ProjectDto['status'], Project['status']> = { UPCOMING:'new_project', LEAD:'new_project', CONFIRMED:'running', PLANNING:'running', SHOOTING:'running', EDITING:'running', DELIVERY:'ready_to_deliver', COMPLETED:'completed', CANCELLED:'pending' };
 const legacyService: Record<ProjectDto['type'], string> = { ROKA:'Roka', ENGAGEMENT:'Engagement', PRE_WEDDING:'Pre Wedding', WEDDING:'Wedding', COMPLETE_WEDDING_SERVICES:'Complete Wedding Services', HALDI_MEHENDI:'Haldi & Mehendi', SANGEET:'Sangeet', RECEPTION:'Reception', ANNIVERSARY:'Other', CORPORATE:'Other', OTHER:'Other' };
 const typeByService: Record<string, BackendProjectType> = {
   Roka: 'ROKA',
@@ -103,7 +103,8 @@ export function toBackendProjectType(service?: string): BackendProjectType {
 }
 
 export function toBackendProjectStatus(status: Project['status']): BackendProjectStatus {
-  return status === 'completed' ? 'COMPLETED'
+  return status === 'new_project' ? 'UPCOMING'
+    : status === 'completed' ? 'COMPLETED'
     : status === 'ready_to_deliver' ? 'DELIVERY'
     : status === 'pending' ? 'CANCELLED'
     : status === 'running' ? 'CONFIRMED'
