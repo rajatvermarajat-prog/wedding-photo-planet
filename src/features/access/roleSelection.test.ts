@@ -4,7 +4,9 @@ import {
   assignableRoles,
   enabledPermissionKeys,
   filterRoles,
+  individualAccessRoles,
   rolePermissionPreview,
+  roleTemplates,
 } from './roleSelection';
 import { hasPermission } from './accessDomain';
 
@@ -73,7 +75,7 @@ describe('assignableRoles', () => {
     ]);
   });
 
-  it('keeps a personal role visible for its own employee', () => {
+  it('excludes personal roles even while editing their owner', () => {
     const withPersonal = [
       ...roles,
       role({ id: '5', name: 'Kirti — MANAGER', personalForUserId: 'user-kirti' }),
@@ -81,8 +83,29 @@ describe('assignableRoles', () => {
     expect(assignableRoles(withPersonal, 'user-kirti').map((r) => r.name)).toEqual([
       'MEMBER',
       'Sales Manager',
-      'Kirti — MANAGER',
     ]);
+  });
+});
+
+describe('role presentation', () => {
+  it('keeps one canonical row for case-only system-role duplicates and orders templates', () => {
+    const display = roleTemplates([
+      role({ id: '1', name: 'Admin', type: 'system' }),
+      role({ id: '2', name: 'ADMIN', type: 'system' }),
+      role({ id: '3', name: 'MEMBER', type: 'system' }),
+      role({ id: '4', name: 'Manager', type: 'system' }),
+      role({ id: '5', name: 'MANAGER', type: 'system' }),
+      role({ id: '6', name: 'Zebra' }),
+      role({ id: '7', name: 'Apple' }),
+      role({ id: '8', name: 'Kirti — MANAGER', personalForUserId: 'user-kirti' }),
+    ]);
+    expect(display.map((entry) => entry.name)).toEqual(['ADMIN', 'MANAGER', 'Apple', 'MEMBER', 'Zebra']);
+  });
+
+  it('keeps personal roles out of templates and in their own display list', () => {
+    const personal = role({ id: '5', name: 'Kirti — MANAGER', personalForUserId: 'user-kirti' });
+    expect(roleTemplates([...roles, personal])).not.toContain(personal);
+    expect(individualAccessRoles([...roles, personal])).toEqual([personal]);
   });
 });
 

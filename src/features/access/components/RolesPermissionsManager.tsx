@@ -13,6 +13,7 @@ import {
   Sparkles,
   Trash2,
   UserCog,
+  Users,
 } from 'lucide-react';
 import type { RoleMember } from '@/lib/api/rbac';
 import { TeamMember } from '@/types';
@@ -21,7 +22,7 @@ import { useToast } from '@/components/common';
 import { Badge, BTN_CREAM, BTN_GHOST, BTN_PRIMARY, CARD, EmptyState, FIELD, KpiCard, LABEL, Modal, ModalHero } from '@/features/team/components/TeamUiKit';
 import { AccessAuditEntry, AccessRole, AccessRoleStatus, AccessRoleType, PermissionGrant, PermissionModule, PermissionScope } from '../accessTypes';
 import { enabledCount, SCOPE_LABELS } from '../accessDomain';
-import { enabledPermissionKeys, filterRoles } from '../roleSelection';
+import { assignableRoles, enabledPermissionKeys, filterRoles, individualAccessRoles, roleTemplates } from '../roleSelection';
 
 interface Props {
   roles: AccessRole[];
@@ -72,6 +73,7 @@ interface Props {
 
 type TypeFilter = 'all' | AccessRoleType;
 type StatusFilter = 'all' | AccessRoleStatus;
+type RoleSection = 'templates' | 'individual';
 
 const FILTER_BTN = (active: boolean) =>
   `rounded-full border px-3 py-1.5 text-xs font-extrabold transition ${
@@ -113,6 +115,7 @@ export const RolesPermissionsManager: React.FC<Props> = ({
   const [query, setQuery] = useState('');
   const [typeFilter, setTypeFilter] = useState<TypeFilter>('all');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
+  const [roleSection, setRoleSection] = useState<RoleSection>('templates');
   const [editorRoleId, setEditorRoleId] = useState<string | null>(null);
   const [readOnly, setReadOnly] = useState(false);
   const [creating, setCreating] = useState(false);
@@ -192,9 +195,13 @@ export const RolesPermissionsManager: React.FC<Props> = ({
     }
   };
 
+  const sectionRoles = useMemo(
+    () => roleSection === 'templates' ? roleTemplates(roles) : individualAccessRoles(roles),
+    [roles, roleSection],
+  );
   const filtered = useMemo(
-    () => filterRoles(roles, { query, type: typeFilter, status: statusFilter }),
-    [roles, query, typeFilter, statusFilter],
+    () => filterRoles(sectionRoles, { query, type: typeFilter, status: statusFilter }),
+    [sectionRoles, query, typeFilter, statusFilter],
   );
 
   const editing = roles.find((r) => r.id === editorRoleId) || null;
@@ -323,7 +330,31 @@ export const RolesPermissionsManager: React.FC<Props> = ({
         <KpiCard label="People Mapped" value={team.length} hint="From team roster" icon={Eye} tone="stone" />
       </div>
 
-      <div className={`${CARD} space-y-3 p-4`}>
+      <div className={`${CARD} space-y-4 p-4`}>
+        <div className="grid gap-2 border-b border-[#eee7e2] pb-4 sm:grid-cols-2">
+          <button
+            type="button"
+            onClick={() => setRoleSection('templates')}
+            className={`rounded-2xl border p-3 text-left transition ${roleSection === 'templates' ? 'border-[#8f3655] bg-[#f9eef2] shadow-sm' : 'border-[#e6ddd7] bg-[#fbfaf8] hover:border-[#8f3655]/40'}`}
+          >
+            <span className="flex items-center justify-between gap-3">
+              <span className="text-sm font-extrabold text-slate-900">Role templates</span>
+              <span className="rounded-full bg-white px-2 py-0.5 text-xs font-black text-[#8f3655]">{roleTemplates(roles).length}</span>
+            </span>
+            <span className="mt-1 block text-xs font-medium text-slate-500">Shared access for a team or job role</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setRoleSection('individual')}
+            className={`rounded-2xl border p-3 text-left transition ${roleSection === 'individual' ? 'border-[#326e62] bg-[#eef8f5] shadow-sm' : 'border-[#e6ddd7] bg-[#fbfaf8] hover:border-[#326e62]/40'}`}
+          >
+            <span className="flex items-center justify-between gap-3">
+              <span className="flex items-center gap-2 text-sm font-extrabold text-slate-900"><UserCog className="size-4 text-[#326e62]" /> Individual access</span>
+              <span className="rounded-full bg-white px-2 py-0.5 text-xs font-black text-[#326e62]">{individualAccessRoles(roles).length}</span>
+            </span>
+            <span className="mt-1 block text-xs font-medium text-slate-500">One employee’s custom permission set</span>
+          </button>
+        </div>
         <div className="relative">
           <Search className="pointer-events-none absolute left-3 top-3 size-4 text-slate-400" />
           <input className={`${FIELD} pl-10`} value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search roles" />
@@ -341,13 +372,13 @@ export const RolesPermissionsManager: React.FC<Props> = ({
               {value === 'all' ? 'All' : value === 'active' ? 'Active' : 'Inactive'}
             </button>
           ))}
-          <span className="ml-auto text-xs font-bold text-slate-500">{filtered.length} of {roles.length} roles</span>
+          <span className="ml-auto text-xs font-bold text-slate-500">{filtered.length} of {sectionRoles.length} roles</span>
         </div>
       </div>
 
       {filtered.length === 0 ? (
         <div className={CARD}>
-          <EmptyState icon={ShieldCheck} title="No roles found" message="Create a custom role to get started." />
+          <EmptyState icon={ShieldCheck} title="No roles found" message={roleSection === 'individual' ? 'No employee-specific access roles have been created.' : 'Create a custom role to get started.'} />
         </div>
       ) : (
         <div className={`${CARD} overflow-hidden`}>
@@ -366,7 +397,13 @@ export const RolesPermissionsManager: React.FC<Props> = ({
               <tbody>
                 {filtered.map((role) => (
                   <React.Fragment key={role.id}>
-                  <tr className="border-t border-[#eee7e2]">
+                  <tr
+                    className={`border-t border-[#eee7e2] transition ${role.userCount > 0 ? 'cursor-pointer hover:bg-[#fff8fa]' : ''}`}
+                    onClick={() => {
+                      if (role.userCount > 0) toggleMembers(role);
+                    }}
+                    title={role.userCount > 0 ? 'Click anywhere on this row to show assigned people' : undefined}
+                  >
                     <td className="px-4 py-3">
                       <p className="font-extrabold text-slate-900">{role.name}</p>
                       <p className="text-xs font-medium text-slate-500">{role.description}</p>
@@ -389,7 +426,10 @@ export const RolesPermissionsManager: React.FC<Props> = ({
                     <td className="px-4 py-3 text-right">
                       <button
                         type="button"
-                        onClick={() => toggleMembers(role)}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          toggleMembers(role);
+                        }}
                         disabled={role.userCount === 0}
                         aria-expanded={expandedRoleId === role.id}
                         className="inline-flex items-center gap-1 font-extrabold text-[#8f3655] disabled:text-slate-400"
@@ -410,18 +450,18 @@ export const RolesPermissionsManager: React.FC<Props> = ({
                     <td className="px-4 py-3 text-xs font-semibold text-slate-500">{role.updatedAt}</td>
                     <td className="px-4 py-3">
                       <div className="flex justify-end gap-1">
-                        <button type="button" className={BTN_GHOST} onClick={() => openEditor(role, true)}><Eye className="size-3.5" /> View</button>
+                        <button type="button" className={BTN_GHOST} onClick={(event) => { event.stopPropagation(); openEditor(role, true); }}><Eye className="size-3.5" /> View</button>
                         {canEdit && (
-                          <button type="button" className={BTN_PRIMARY} onClick={() => openEditor(role)}><Pencil className="size-3.5" /> Edit</button>
+                          <button type="button" className={BTN_PRIMARY} onClick={(event) => { event.stopPropagation(); openEditor(role); }}><Pencil className="size-3.5" /> Edit</button>
                         )}
                         {role.type === 'custom' && capabilities.remove && (
-                          <button type="button" className={BTN_GHOST} onClick={() => setDeleting(role)}><Trash2 className="size-3.5 text-red-600" /></button>
+                          <button type="button" className={BTN_GHOST} onClick={(event) => { event.stopPropagation(); setDeleting(role); }}><Trash2 className="size-3.5 text-red-600" /></button>
                         )}
                       </div>
                     </td>
                   </tr>
                   {expandedRoleId === role.id && (
-                    <tr className="border-t border-[#eee7e2] bg-[#fbfaf8]">
+                    <tr className="border-t border-[#e6cbd5] bg-[#fff8fa]">
                       <td colSpan={6} className="px-4 py-4">
                         <RoleMemberList
                           role={role}
@@ -534,23 +574,29 @@ function RoleMemberList({
     return <p className="text-xs font-semibold text-slate-500">Nobody holds this role yet.</p>;
   }
 
-  const targets = roles.filter((option) => option.assignable && option.status === 'active');
+  const targets = assignableRoles(roles);
 
   return (
-    <div className="space-y-2">
-      <p className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500">
-        People on {role.name}
-      </p>
+    <div className="rounded-2xl border border-[#ead3dc] bg-[linear-gradient(115deg,#fff8fa,#fcfbf9)] p-4 shadow-[0_8px_24px_rgba(91,42,60,.05)]">
+      <div className="flex flex-col gap-2 border-b border-[#efdde4] pb-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <p className="flex items-center gap-1.5 text-[10px] font-extrabold uppercase tracking-wider text-[#8f3655]">
+            <Users className="size-3.5" /> Assigned people · shared role
+          </p>
+          <p className="mt-1 text-sm font-extrabold text-slate-900">People using {role.name}</p>
+        </div>
+        <span className="w-fit rounded-full border border-[#dfc1cb] bg-white px-2.5 py-1 text-[10px] font-extrabold text-[#8f3655]">{members.length} assigned</span>
+      </div>
       {canManage && (
-        <p className="text-[11px] font-medium text-slate-500">
-          Everyone here shares {role.name}’s permissions. To give one person different access, create
-          their own role from this one and edit it — their colleagues stay untouched.
+        <p className="mt-3 text-[11px] font-medium leading-relaxed text-slate-600">
+          Change a person to a reusable role template, or give them individual access. Individual access affects only that employee.
         </p>
       )}
+      <div className="mt-3 space-y-2">
       {members.map((member) => (
         <div
           key={member.id}
-          className="flex flex-col gap-2 rounded-2xl border border-[#eee7e2] bg-white p-3 sm:flex-row sm:items-center sm:justify-between"
+          className="flex flex-col gap-3 rounded-2xl border border-[#eee7e2] bg-white p-3 sm:flex-row sm:items-center sm:justify-between"
         >
           <div className="min-w-0">
             <p className="truncate text-sm font-extrabold text-slate-900">{member.fullName}</p>
@@ -566,23 +612,28 @@ function RoleMemberList({
             )}
           </div>
           {canManage && (
-            <div className="flex flex-wrap items-center gap-2">
-              <select
-                className={`${FIELD} !w-auto !py-1.5 text-xs`}
-                value={role.id}
-                disabled={busyUserId === member.id}
-                onChange={(e) => {
-                  if (e.target.value !== role.id) onMove(member.id, e.target.value);
-                }}
-                aria-label={`Move ${member.fullName} to another role`}
-              >
-                <option value={role.id}>Move to another role…</option>
-                {targets
-                  .filter((option) => option.id !== role.id)
-                  .map((option) => (
-                    <option key={option.id} value={option.id}>{option.name}</option>
-                  ))}
-              </select>
+            <div className="flex flex-wrap items-end gap-2">
+              <label className="grid gap-1 text-[10px] font-extrabold uppercase tracking-wide text-slate-500">
+                Change shared role
+                <select
+                  className={`${FIELD} !w-auto !py-1.5 normal-case tracking-normal text-xs`}
+                  value={role.id}
+                  disabled={busyUserId === member.id}
+                  onChange={(e) => {
+                    if (e.target.value !== role.id) onMove(member.id, e.target.value);
+                  }}
+                  aria-label={`Change ${member.fullName}'s shared role`}
+                >
+                  <option value={role.id}>Keep {role.name}</option>
+                  <optgroup label="Reusable role templates">
+                    {targets
+                      .filter((option) => option.id !== role.id)
+                      .map((option) => (
+                        <option key={option.id} value={option.id}>{option.name}</option>
+                      ))}
+                  </optgroup>
+                </select>
+              </label>
               <button
                 type="button"
                 className={BTN_PRIMARY}
@@ -590,12 +641,13 @@ function RoleMemberList({
                 onClick={() => onGivePersonalRole(member)}
               >
                 <UserCog className="size-3.5" />
-                {busyUserId === member.id ? 'Working…' : 'Give own permissions'}
+                {busyUserId === member.id ? 'Working…' : 'Create individual access'}
               </button>
             </div>
           )}
         </div>
       ))}
+      </div>
     </div>
   );
 }

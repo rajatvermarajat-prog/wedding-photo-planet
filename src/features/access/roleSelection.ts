@@ -11,6 +11,51 @@ export interface RoleFilter {
   status?: 'all' | AccessRoleStatus;
 }
 
+const SYSTEM_ROLE_PRIORITY: Record<string, number> = {
+  ADMIN: 0,
+  MANAGER: 1,
+};
+
+/** True for an employee-specific permission set, rather than a reusable role template. */
+export function isPersonalRole(role: Pick<AccessRole, 'personalForUserId'>): boolean {
+  return Boolean(role.personalForUserId);
+}
+
+/**
+ * Presentation-only cleanup for reusable roles. Older data can contain the
+ * same system role with different casing (for example ADMIN and Admin). Keep
+ * one row/option, preferring the canonical all-caps record when it exists.
+ */
+export function roleTemplates(roles: AccessRole[]): AccessRole[] {
+  const seenSystemNames = new Set<string>();
+  const canonicalFirst = [...roles].sort((a, b) => {
+    const aCanonical = a.type === 'system' && a.name === a.name.toUpperCase() ? 0 : 1;
+    const bCanonical = b.type === 'system' && b.name === b.name.toUpperCase() ? 0 : 1;
+    return aCanonical - bCanonical;
+  });
+
+  return canonicalFirst
+    .filter((role) => {
+      if (isPersonalRole(role)) return false;
+      if (role.type !== 'system') return true;
+      const key = role.name.trim().toLocaleUpperCase();
+      if (seenSystemNames.has(key)) return false;
+      seenSystemNames.add(key);
+      return true;
+    })
+    .sort((a, b) => {
+      const priority = (role: AccessRole) => SYSTEM_ROLE_PRIORITY[role.name.trim().toLocaleUpperCase()] ?? 2;
+      return priority(a) - priority(b) || a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
+    });
+}
+
+/** Personal roles, sorted consistently for the Individual Access view. */
+export function individualAccessRoles(roles: AccessRole[]): AccessRole[] {
+  return roles
+    .filter(isPersonalRole)
+    .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
+}
+
 export function filterRoles(roles: AccessRole[], filter: RoleFilter): AccessRole[] {
   const q = (filter.query ?? '').trim().toLowerCase();
   const type = filter.type ?? 'all';
@@ -27,15 +72,15 @@ export function filterRoles(roles: AccessRole[], filter: RoleFilter): AccessRole
  * Roles the signed-in actor may hand to an employee. `assignable` is computed
  * server-side; this only mirrors it so the UI does not offer a doomed choice.
  *
- * A personal role is one employee's own permission set, so it is offered only
- * while editing that employee — never in anyone else's list.
+ * Employee-specific permission sets are managed from Individual Access and do
+ * not belong in an employee's reusable-role selector.
  */
 export function assignableRoles(roles: AccessRole[], forUserId?: string): AccessRole[] {
-  return roles.filter(
+  void forUserId;
+  return roleTemplates(roles).filter(
     (role) =>
       role.assignable &&
-      role.status === 'active' &&
-      (!role.personalForUserId || role.personalForUserId === forUserId),
+      role.status === 'active',
   );
 }
 
