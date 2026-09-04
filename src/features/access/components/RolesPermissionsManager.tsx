@@ -22,7 +22,7 @@ import { useToast } from '@/components/common';
 import { Badge, BTN_CREAM, BTN_GHOST, BTN_PRIMARY, CARD, EmptyState, FIELD, KpiCard, LABEL, Modal, ModalHero } from '@/features/team/components/TeamUiKit';
 import { AccessAuditEntry, AccessRole, AccessRoleStatus, AccessRoleType, PermissionGrant, PermissionModule, PermissionScope } from '../accessTypes';
 import { enabledCount, SCOPE_LABELS } from '../accessDomain';
-import { assignableRoles, enabledPermissionKeys, filterRoles, individualAccessRoles, roleTemplates } from '../roleSelection';
+import { enabledPermissionKeys, filterRoles, individualAccessRoles, roleTemplates } from '../roleSelection';
 
 interface Props {
   roles: AccessRole[];
@@ -47,8 +47,6 @@ interface Props {
   onLoadAudit?: () => Promise<AccessAuditEntry[]>;
   /** Employees holding a role, loaded when the role row is expanded. */
   onLoadRoleUsers: (roleId: string) => Promise<RoleMember[]>;
-  /** Moves one employee onto a different existing role. */
-  onAssignUserRole: (userId: string, roleId: string) => Promise<void>;
   /**
    * Clones a role's permissions into a new personal role and moves the
    * employee onto it, so one person can differ from their colleagues without
@@ -107,7 +105,6 @@ export const RolesPermissionsManager: React.FC<Props> = ({
   onDeleteRole,
   onLoadAudit,
   onLoadRoleUsers,
-  onAssignUserRole,
   onCreatePersonalRole,
   capabilities,
 }) => {
@@ -148,19 +145,6 @@ export const RolesPermissionsManager: React.FC<Props> = ({
     }
     setExpandedRoleId(role.id);
     if (!members[role.id]) void loadMembers(role.id);
-  };
-
-  const moveUser = async (roleId: string, userId: string, nextRoleId: string) => {
-    setBusyUserId(userId);
-    try {
-      await onAssignUserRole(userId, nextRoleId);
-      await loadMembers(roleId);
-      showToast('Access role updated.');
-    } catch (error) {
-      showToast(error instanceof Error ? error.message : 'Unable to change the role.', { variant: 'error' });
-    } finally {
-      setBusyUserId(null);
-    }
   };
 
   const givePersonalRole = async (source: AccessRole, member: RoleMember) => {
@@ -468,9 +452,7 @@ export const RolesPermissionsManager: React.FC<Props> = ({
                           members={members[role.id]}
                           state={memberState}
                           busyUserId={busyUserId}
-                          roles={roles}
                           canManage={capabilities.create && canEdit}
-                          onMove={(userId, nextRoleId) => void moveUser(role.id, userId, nextRoleId)}
                           onGivePersonalRole={(member) => void givePersonalRole(role, member)}
                         />
                       </td>
@@ -550,18 +532,14 @@ function RoleMemberList({
   members,
   state,
   busyUserId,
-  roles,
   canManage,
-  onMove,
   onGivePersonalRole,
 }: {
   role: AccessRole;
   members?: RoleMember[];
   state: 'idle' | 'loading' | 'error';
   busyUserId: string | null;
-  roles: AccessRole[];
   canManage: boolean;
-  onMove: (userId: string, nextRoleId: string) => void;
   onGivePersonalRole: (member: RoleMember) => void;
 }) {
   if (state === 'loading' && !members) {
@@ -573,8 +551,6 @@ function RoleMemberList({
   if (!members || members.length === 0) {
     return <p className="text-xs font-semibold text-slate-500">Nobody holds this role yet.</p>;
   }
-
-  const targets = assignableRoles(roles);
 
   return (
     <div className="rounded-2xl border border-[#ead3dc] bg-[linear-gradient(115deg,#fff8fa,#fcfbf9)] p-4 shadow-[0_8px_24px_rgba(91,42,60,.05)]">
@@ -589,7 +565,7 @@ function RoleMemberList({
       </div>
       {canManage && (
         <p className="mt-3 text-[11px] font-medium leading-relaxed text-slate-600">
-          Change a person to a reusable role template, or give them individual access. Individual access affects only that employee.
+          Create individual access when one employee needs permissions different from this shared role. It affects only that employee.
         </p>
       )}
       <div className="mt-3 space-y-2">
@@ -613,27 +589,6 @@ function RoleMemberList({
           </div>
           {canManage && (
             <div className="flex flex-wrap items-end gap-2">
-              <label className="grid gap-1 text-[10px] font-extrabold uppercase tracking-wide text-slate-500">
-                Change shared role
-                <select
-                  className={`${FIELD} !w-auto !py-1.5 normal-case tracking-normal text-xs`}
-                  value={role.id}
-                  disabled={busyUserId === member.id}
-                  onChange={(e) => {
-                    if (e.target.value !== role.id) onMove(member.id, e.target.value);
-                  }}
-                  aria-label={`Change ${member.fullName}'s shared role`}
-                >
-                  <option value={role.id}>Keep {role.name}</option>
-                  <optgroup label="Reusable role templates">
-                    {targets
-                      .filter((option) => option.id !== role.id)
-                      .map((option) => (
-                        <option key={option.id} value={option.id}>{option.name}</option>
-                      ))}
-                  </optgroup>
-                </select>
-              </label>
               <button
                 type="button"
                 className={BTN_PRIMARY}

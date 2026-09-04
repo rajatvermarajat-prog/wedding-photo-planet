@@ -1211,10 +1211,6 @@ export default function App() {
                 onDeleteRole={async (id) => { await rbacApi.removeRole(id); await rbacQuery.refresh(); }}
                 onLoadAudit={canViewAudit ? loadRoleAudit : undefined}
                 onLoadRoleUsers={(roleId) => rbacApi.roleUsers(roleId)}
-                onAssignUserRole={async (userId, roleId) => {
-                  await teamMutations.setRoles(userId, [roleId]);
-                  await rbacQuery.refresh();
-                }}
                 onCreatePersonalRole={async ({ source, userId, userName }) => {
                   // Clone the source role's permissions into a personal role so
                   // this employee can diverge without affecting colleagues.
