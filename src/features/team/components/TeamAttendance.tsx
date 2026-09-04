@@ -404,8 +404,6 @@ export const TeamAttendance: React.FC<TeamAttendanceProps> = ({
         <KpiCard label="Present Today" value={kpis.presentToday} hint="Office, WFH or shoot" icon={CalendarCheck} tone="emerald" onClick={() => goTab('attendance')} />
         <KpiCard label="Absent Today" value={kpis.absentToday} hint="Not marked present" icon={FileText} tone="red" onClick={() => goTab('attendance')} />
         <KpiCard label="WFH Today" value={kpis.wfhToday} hint="Working from home" icon={Home} tone="blue" />
-        <KpiCard label="Freelancers" value={kpis.freelancers} hint="External crew on file" icon={CircleDollarSign} tone="rose" onClick={() => goTab('freelancers')} />
-        <KpiCard label="Pending Attendance" value={kpis.pendingAttendance} hint="Still unmarked today" icon={FileText} tone="amber" onClick={() => goTab('attendance')} />
       </section>
 
       <section className={`${CARD} p-3 sm:p-4`}>
