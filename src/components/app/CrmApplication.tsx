@@ -67,6 +67,7 @@ import { expenseService } from '@/features/expenses/services/expenseService';
 import type { Expense } from '@/features/expenses/types';
 import { ShieldAlert, ShieldCheck, ArrowRight } from 'lucide-react';
 import { ToastProvider } from '@/components/common';
+import { SettingsManager } from '@/features/settings/SettingsManager';
 
 const TAB_ROUTES: Record<TabType, string> = {
   dashboard: '/dashboard',
@@ -83,6 +84,7 @@ const TAB_ROUTES: Record<TabType, string> = {
   clients: '/clients',
   deliveries: '/deliveries',
   access: '/roles-permissions',
+  settings: '/settings',
 };
 
 const ROUTE_TABS = Object.fromEntries(
@@ -1242,6 +1244,20 @@ export default function App() {
                 <p className="text-sm text-slate-500 font-medium">Only users with Manage Roles permission can open this desk.</p>
               </div>
             )
+          )}
+
+          {activeTab === 'settings' && (
+            <SettingsManager viewer={{
+              id: currentUser.id || '',
+              fullName: currentUser.name || 'User',
+              email: currentUser.email || '',
+              permissions: currentUser.permissions || [],
+              organization: {
+                name: currentUser.organization?.name || 'Wedding Photo Planet',
+                timezone: currentUser.organization?.timezone || 'Asia/Kolkata',
+                currency: currentUser.organization?.currency || 'INR',
+              },
+            }} />
           )}
 
           {activeTab === 'clients' && (
