@@ -260,25 +260,11 @@ export const TeamAttendance: React.FC<TeamAttendanceProps> = ({
     setFormMember(null);
   };
 
-  /**
-   * Deactivate rather than delete: attendance history and past shoot
-   * assignments must stay readable for a member who has left.
-   */
   const handleToggleActive = (member: TeamMember) => {
-    if (!canEditMember && !canDeleteMember) return;
-    const isActive = (member.status || 'active') === 'active';
-    const updated: TeamMember = {
-      ...member,
-      status: isActive ? 'inactive' : 'active',
-      workStatus: isActive ? 'CLOCKED_OUT' : member.workStatus,
-    };
-    void onUpdateTeamMember(updated);
-    if (profileMember?.id === member.id) setProfileMember(updated);
-    showToast(
-      isActive
-        ? `${member.name} deactivated — their attendance and shoot history is preserved.`
-        : `${member.name} reactivated.`
-    );
+    if (!canDeleteMember || !onDeleteTeamMember) return;
+    onDeleteTeamMember(member.id);
+    setProfileMember(null);
+    showToast(`${member.name} deleted.`);
   };
 
   /** Upsert one attendance row without disturbing the rest of the ledger. */
