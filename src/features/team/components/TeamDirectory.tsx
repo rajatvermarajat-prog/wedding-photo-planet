@@ -143,7 +143,7 @@ function MemberActions({
     onMarkAttendance && { label: 'Mark attendance', icon: UserCheck, run: () => onMarkAttendance(member) },
     onAssignShoot && { label: 'Assign to shoot', icon: Camera, run: () => onAssignShoot(member) },
     onApplyLeave && { label: 'Apply leave', icon: CalendarPlus, run: () => onApplyLeave(member) },
-    onToggleActive && { label: isActive ? 'Deactivate member' : 'Reactivate member', icon: Power, run: () => onToggleActive(member), tone: isActive ? 'text-amber-700 hover:bg-amber-50' : 'text-emerald-700 hover:bg-emerald-50' },
+    onToggleActive && { label: isActive ? 'Delete member' : 'Reactivate member', icon: Power, run: () => onToggleActive(member), tone: isActive ? 'text-amber-700 hover:bg-amber-50' : 'text-emerald-700 hover:bg-emerald-50' },
   ].filter(Boolean) as Array<{ label: string; icon: typeof Users; run: () => void; tone?: string }>;
 
   const btn = 'inline-flex min-h-9 flex-1 cursor-pointer items-center justify-center gap-1 rounded-lg px-2.5 py-1.5 text-[11px] font-extrabold transition sm:flex-none';

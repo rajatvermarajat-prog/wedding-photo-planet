@@ -11,6 +11,8 @@ interface RoleColumnCrewManagerProps {
   onRemoveRoleColumn: (role: string) => void;
   onUpdateMember: (crewId: string, updates: Partial<CrewMemberAssignment>) => void;
   onRemoveMember: (crewId: string) => void;
+  /** Existing shoots stay read-only until their event Edit action is opened. */
+  readOnly?: boolean;
 }
 
 export const RoleColumnCrewManager: React.FC<RoleColumnCrewManagerProps> = ({
@@ -20,6 +22,7 @@ export const RoleColumnCrewManager: React.FC<RoleColumnCrewManagerProps> = ({
   onRemoveRoleColumn,
   onUpdateMember,
   onRemoveMember,
+  readOnly = false,
 }) => {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [selectedRole, setSelectedRole] = useState('Photographer');
@@ -130,6 +133,7 @@ export const RoleColumnCrewManager: React.FC<RoleColumnCrewManagerProps> = ({
         onCancel={() => setDeleteModalConfig((prev) => ({ ...prev, isOpen: false }))}
       />
 
+      <fieldset disabled={readOnly} className="min-w-0 border-0 p-0 disabled:opacity-60">
       {/* Primary "+ Add Role Column" Bar */}
       <div className="bg-white p-3 rounded-xl border border-indigo-100 shadow-2xs space-y-2.5">
         <div className={`flex flex-col sm:flex-row sm:items-center justify-between gap-2 ${!isCollapsed ? 'border-b border-slate-100 pb-2' : ''}`}>
@@ -409,6 +413,7 @@ export const RoleColumnCrewManager: React.FC<RoleColumnCrewManagerProps> = ({
           )}
         </>
       )}
+      </fieldset>
       {/* Datalist for team member name auto-complete */}
       <datalist id="datalist-active-team-members">
         {(activeTeamMembers || []).map((m) => (

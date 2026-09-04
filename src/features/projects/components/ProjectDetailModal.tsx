@@ -92,11 +92,11 @@ const idempotencyKey = () =>
     ? crypto.randomUUID()
     : `payment-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
-type StorageUnit = 'KB' | 'GB' | 'TB';
+type StorageUnit = 'MB' | 'GB' | 'TB';
 
 // Storage amounts are persisted in GB so existing data and all progress calculations
 // remain compatible. The selected unit only changes how the value is entered/displayed.
-const storageUnitFactor: Record<StorageUnit, number> = { KB: 1 / 1_000_000, GB: 1, TB: 1_000 };
+const storageUnitFactor: Record<StorageUnit, number> = { MB: 1 / 1_000, GB: 1, TB: 1_000 };
 const storageValue = (gb: number | undefined, unit: StorageUnit) => {
   if (!gb) return '';
   const value = gb / storageUnitFactor[unit];
@@ -219,16 +219,19 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
 
   /** Opens a client asset with a URL signed right now. */
   const openAsset = async (assetId: string) => {
-    // Opened synchronously so the popup blocker still sees the click; the
-    // location is filled in once the fresh signed URL comes back.
-    const tab = window.open('', '_blank');
-    if (tab) tab.opener = null;
     try {
       const url = await clientAssetsApi.getProjectClientAssetDownloadUrl(project.id, assetId);
-      if (tab) tab.location.href = url;
-      else window.location.href = url;
+      if (!url) throw new Error('The server did not return a download link.');
+      // Do not pre-open about:blank. Browsers otherwise leave a blank tab if
+      // the signed-url request is delayed or rejected.
+      const link = document.createElement('a');
+      link.href = url;
+      link.target = '_blank';
+      link.rel = 'noopener noreferrer';
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
     } catch (error) {
-      tab?.close();
       showToast(error instanceof Error ? error.message : 'Unable to open this file.', { variant: 'error' });
     }
   };
@@ -702,7 +705,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
   }, [project.id, canViewTasks]);
 
   const handleAddTask = () => {
-    if (!canAddTask) return;
+    if (!canAddTask || !isEditingTasks) return;
     const newTask: ProjectTask = {
       id: `task-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
       taskName: '',
@@ -723,7 +726,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
   };
 
   const handleRemoveTask = (index: number) => {
-    if (!canDeleteTask) return;
+    if (!canDeleteTask || !isEditingTasks) return;
     const task = taskList[index];
     setGenericDeleteModal({
       isOpen: true,
@@ -745,6 +748,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
   };
 
   const [isSavingTasks, setIsSavingTasks] = useState(false);
+  const [isEditingTasks, setIsEditingTasks] = useState(false);
   const [isSavingDataBackup, setIsSavingDataBackup] = useState(false);
   const [isSavingDeliveries, setIsSavingDeliveries] = useState(false);
   const [isSavingPipeline, setIsSavingPipeline] = useState(false);
@@ -777,6 +781,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
       updatedProject.status = autoWork.autoStatus;
       onUpdateProject(updatedProject);
       showToast('Tasks and assignments saved successfully.');
+      setIsEditingTasks(false);
     } catch (error) {
       showToast(error instanceof Error ? error.message : 'Failed to save tasks.', { variant: 'error' });
     } finally {
@@ -1090,6 +1095,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
     }).then(() => {
       onUpdateProject({ ...project, shoots: updatedShoots }, { persistShoots: false });
       setEditingEventData(null);
+      showToast('Shoot details and crew allocation saved successfully.');
     }).catch((error) => {
       showToast(error instanceof Error ? error.message : 'Failed to save the shoot.', { variant: 'error' });
     });
@@ -2342,7 +2348,12 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
                   <p className="text-xs text-slate-500">Track task breakdown, quantity created, assigned editors/team member, and status</p>
                 </div>
                 <div className="flex items-center gap-2">
-                  {canAddTask && (
+                  {!isEditingTasks && canEditTask && (
+                  <button type="button" onClick={() => setIsEditingTasks(true)} className="px-3 py-1.5 rounded bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs uppercase tracking-wider flex items-center gap-1 shadow-xs">
+                    <Pencil className="w-3.5 h-3.5" /> <span>Edit Tasks</span>
+                  </button>
+                  )}
+                  {isEditingTasks && canAddTask && (
                   <button
                     type="button"
                     onClick={handleAddTask}
@@ -2352,7 +2363,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
                     <span>Add Task</span>
                   </button>
                   )}
-                  {(canEditTask || canAddTask) && (
+                  {isEditingTasks && (canEditTask || canAddTask) && (
                   <button
                     type="button"
                     disabled={isSavingTasks}
@@ -2409,7 +2420,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
                             placeholder="e.g. Teaser / Reels / Album Design"
                             value={task.taskName}
                             onChange={(e) => handleTaskChange(index, 'taskName', e.target.value)}
-                            disabled={!canEditTask}
+                          disabled={!canEditTask || !isEditingTasks}
                             className="w-full bg-slate-50 border border-slate-200 rounded px-2.5 py-1.5 text-xs text-slate-800 font-medium"
                           />
                         </div>
@@ -2423,7 +2434,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
                               min="1"
                               value={task.quantity}
                               onChange={(e) => handleTaskChange(index, 'quantity', Number(e.target.value))}
-                              disabled={!canEditTask}
+                              disabled={!canEditTask || !isEditingTasks}
                               className="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1.5 text-xs text-slate-800 font-bold"
                             />
                             <input
@@ -2431,7 +2442,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
                               placeholder="Unit"
                               value={task.unit || ''}
                               onChange={(e) => handleTaskChange(index, 'unit', e.target.value)}
-                              disabled={!canEditTask}
+                              disabled={!canEditTask || !isEditingTasks}
                               className="w-16 bg-slate-50 border border-slate-200 rounded px-1.5 py-1.5 text-[10px] text-slate-600"
                             />
                           </div>
@@ -2450,7 +2461,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
                               <>
                                 <select
                                   value={selectValue}
-                                  disabled={!canEditTask}
+                                  disabled={!canEditTask || !isEditingTasks}
                                   onChange={(e) => {
                                     const val = e.target.value;
                                     const member = activeTeamMembers.find((row) => row.name === val);
@@ -2480,7 +2491,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
                                     placeholder="Freelancer name (optional)"
                                     value={task.assignedTo === FREELANCER_ASSIGNEE ? '' : task.assignedTo}
                                     onChange={(e) => handleTaskChange(index, 'assignedTo', e.target.value.trim() || FREELANCER_ASSIGNEE)}
-                                    disabled={!canEditTask}
+                                    disabled={!canEditTask || !isEditingTasks}
                                     className="w-full bg-amber-50 border border-amber-300 rounded px-2 py-1 text-xs text-slate-800 font-medium placeholder-slate-400"
                                   />
                                 )}
@@ -2494,7 +2505,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
                           <label className="block text-[9px] font-bold text-slate-500 uppercase mb-0.5">Status</label>
                           <select
                             value={task.status}
-                            disabled={!canEditTask}
+                            disabled={!canEditTask || !isEditingTasks}
                             onChange={(e) => handleTaskChange(index, 'status', e.target.value as EditingStatus)}
                             className="w-full bg-slate-50 border border-slate-200 rounded px-2.5 py-1.5 text-xs text-slate-800 font-bold"
                           >
@@ -2862,6 +2873,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
                             <RoleColumnCrewManager
                               crewAssignments={s.crewAssignments || []}
                               activeTeamMembers={activeTeamMembers}
+                              readOnly={editingEventData?.shootId !== s.id}
                               onAddRoleQuantity={(role, qty) => handleAddRoleQuantityToShoot(s.id, role, qty)}
                               onRemoveRoleColumn={(role) => handleRemoveRoleFromShoot(s.id, role)}
                             onUpdateMember={(crewId, updates) => handleUpdateCrewInExistingShoot(s.id, crewId, updates, undefined, false)}
@@ -3143,7 +3155,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
                           onChange={(e) => setUnitFor('project-total', e.target.value as StorageUnit)}
                           className="absolute right-1.5 top-1.5 h-8 w-[64px] rounded border border-slate-200 bg-white px-2 text-[11px] font-black text-slate-600 outline-none"
                         >
-                          <option value="KB">KB</option><option value="GB">GB</option><option value="TB">TB</option>
+                          <option value="MB">MB</option><option value="GB">GB</option><option value="TB">TB</option>
                         </select>
                       </div>
                       <div className="flex items-center justify-between text-[10px]">
@@ -3515,7 +3527,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
                                           onChange={(e) => setUnitFor(`crew-${s.id}-${c.id}`, e.target.value as StorageUnit)}
                                           className="w-[64px] shrink-0 rounded border border-slate-200 bg-white px-1.5 py-1 text-[10px] font-bold text-slate-600 outline-none"
                                         >
-                                          <option value="KB">KB</option><option value="GB">GB</option><option value="TB">TB</option>
+                                          <option value="MB">MB</option><option value="GB">GB</option><option value="TB">TB</option>
                                         </select>
                                       </div>
                                     </td>
@@ -3999,7 +4011,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
                       onChange={(e) => setUnitFor(`edit-crew-${editingCrewData.crewId}`, e.target.value as StorageUnit)}
                       className="w-12 bg-slate-50 border border-slate-300 rounded-lg px-1 text-xs font-bold text-slate-700"
                     >
-                      <option value="KB">KB</option><option value="GB">GB</option><option value="TB">TB</option>
+                      <option value="MB">MB</option><option value="GB">GB</option><option value="TB">TB</option>
                     </select>
                   </div>
                 </div>

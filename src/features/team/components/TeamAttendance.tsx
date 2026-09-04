@@ -260,25 +260,11 @@ export const TeamAttendance: React.FC<TeamAttendanceProps> = ({
     setFormMember(null);
   };
 
-  /**
-   * Deactivate rather than delete: attendance history and past shoot
-   * assignments must stay readable for a member who has left.
-   */
   const handleToggleActive = (member: TeamMember) => {
-    if (!canEditMember && !canDeleteMember) return;
-    const isActive = (member.status || 'active') === 'active';
-    const updated: TeamMember = {
-      ...member,
-      status: isActive ? 'inactive' : 'active',
-      workStatus: isActive ? 'CLOCKED_OUT' : member.workStatus,
-    };
-    void onUpdateTeamMember(updated);
-    if (profileMember?.id === member.id) setProfileMember(updated);
-    showToast(
-      isActive
-        ? `${member.name} deactivated — their attendance and shoot history is preserved.`
-        : `${member.name} reactivated.`
-    );
+    if (!canDeleteMember || !onDeleteTeamMember) return;
+    onDeleteTeamMember(member.id);
+    setProfileMember(null);
+    showToast(`${member.name} deleted.`);
   };
 
   /** Upsert one attendance row without disturbing the rest of the ledger. */
@@ -404,8 +390,6 @@ export const TeamAttendance: React.FC<TeamAttendanceProps> = ({
         <KpiCard label="Present Today" value={kpis.presentToday} hint="Office, WFH or shoot" icon={CalendarCheck} tone="emerald" onClick={() => goTab('attendance')} />
         <KpiCard label="Absent Today" value={kpis.absentToday} hint="Not marked present" icon={FileText} tone="red" onClick={() => goTab('attendance')} />
         <KpiCard label="WFH Today" value={kpis.wfhToday} hint="Working from home" icon={Home} tone="blue" />
-        <KpiCard label="Freelancers" value={kpis.freelancers} hint="External crew on file" icon={CircleDollarSign} tone="rose" onClick={() => goTab('freelancers')} />
-        <KpiCard label="Pending Attendance" value={kpis.pendingAttendance} hint="Still unmarked today" icon={FileText} tone="amber" onClick={() => goTab('attendance')} />
       </section>
 
       <section className={`${CARD} p-3 sm:p-4`}>

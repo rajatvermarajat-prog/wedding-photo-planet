@@ -236,7 +236,7 @@ export const TeamMemberProfileDrawer: React.FC<Props> = ({
               isActive ? 'border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100' : 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
             }`}
           >
-            <Power className="w-3.5 h-3.5" /> {isActive ? 'Deactivate' : 'Reactivate'}
+            <Power className="w-3.5 h-3.5" /> Delete member
           </button>
           )}
         </div>
