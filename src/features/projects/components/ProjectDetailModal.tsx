@@ -92,11 +92,11 @@ const idempotencyKey = () =>
     ? crypto.randomUUID()
     : `payment-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
-type StorageUnit = 'KB' | 'GB' | 'TB';
+type StorageUnit = 'MB' | 'GB' | 'TB';
 
 // Storage amounts are persisted in GB so existing data and all progress calculations
 // remain compatible. The selected unit only changes how the value is entered/displayed.
-const storageUnitFactor: Record<StorageUnit, number> = { KB: 1 / 1_000_000, GB: 1, TB: 1_000 };
+const storageUnitFactor: Record<StorageUnit, number> = { MB: 1 / 1_000, GB: 1, TB: 1_000 };
 const storageValue = (gb: number | undefined, unit: StorageUnit) => {
   if (!gb) return '';
   const value = gb / storageUnitFactor[unit];
@@ -3155,7 +3155,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
                           onChange={(e) => setUnitFor('project-total', e.target.value as StorageUnit)}
                           className="absolute right-1.5 top-1.5 h-8 w-[64px] rounded border border-slate-200 bg-white px-2 text-[11px] font-black text-slate-600 outline-none"
                         >
-                          <option value="KB">KB</option><option value="GB">GB</option><option value="TB">TB</option>
+                          <option value="MB">MB</option><option value="GB">GB</option><option value="TB">TB</option>
                         </select>
                       </div>
                       <div className="flex items-center justify-between text-[10px]">
@@ -3527,7 +3527,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
                                           onChange={(e) => setUnitFor(`crew-${s.id}-${c.id}`, e.target.value as StorageUnit)}
                                           className="w-[64px] shrink-0 rounded border border-slate-200 bg-white px-1.5 py-1 text-[10px] font-bold text-slate-600 outline-none"
                                         >
-                                          <option value="KB">KB</option><option value="GB">GB</option><option value="TB">TB</option>
+                                          <option value="MB">MB</option><option value="GB">GB</option><option value="TB">TB</option>
                                         </select>
                                       </div>
                                     </td>
@@ -4011,7 +4011,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
                       onChange={(e) => setUnitFor(`edit-crew-${editingCrewData.crewId}`, e.target.value as StorageUnit)}
                       className="w-12 bg-slate-50 border border-slate-300 rounded-lg px-1 text-xs font-bold text-slate-700"
                     >
-                      <option value="KB">KB</option><option value="GB">GB</option><option value="TB">TB</option>
+                      <option value="MB">MB</option><option value="GB">GB</option><option value="TB">TB</option>
                     </select>
                   </div>
                 </div>

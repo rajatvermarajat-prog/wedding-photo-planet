@@ -8,8 +8,8 @@ interface DataManagementProps {
   onUpdateProject: (updated: Project) => void;
 }
 
-type StorageUnit = 'KB' | 'GB' | 'TB';
-const storageUnitFactor: Record<StorageUnit, number> = { KB: 1 / 1_000_000, GB: 1, TB: 1_000 };
+type StorageUnit = 'MB' | 'GB' | 'TB';
+const storageUnitFactor: Record<StorageUnit, number> = { MB: 1 / 1_000, GB: 1, TB: 1_000 };
 const storageValue = (gb: number | undefined, unit: StorageUnit) => !gb ? '' : Number((gb / storageUnitFactor[unit]).toFixed(6)).toString();
 const storageToGB = (value: string, unit: StorageUnit) => Number(value || 0) * storageUnitFactor[unit];
 
@@ -549,7 +549,7 @@ export const DataManagement: React.FC<DataManagementProps> = ({ projects = [], o
                                                         onChange={(e) => setUnitFor(`data-${p.id}-${s.id}-${c.id}`, e.target.value as StorageUnit)}
                                                         className="w-[64px] shrink-0 rounded border border-slate-200 bg-white px-1.5 py-1 text-[10px] font-bold text-slate-600 outline-none"
                                                       >
-                                                        <option value="KB">KB</option><option value="GB">GB</option><option value="TB">TB</option>
+                                                        <option value="MB">MB</option><option value="GB">GB</option><option value="TB">TB</option>
                                                       </select>
                                                     </div>
                                                   </td>
@@ -579,7 +579,7 @@ export const DataManagement: React.FC<DataManagementProps> = ({ projects = [], o
                                                         onChange={(e) => setUnitFor(`backup-${p.id}-${s.id}-${c.id}`, e.target.value as StorageUnit)}
                                                         className="w-[64px] shrink-0 rounded border border-slate-200 bg-white px-1.5 py-1 text-[10px] font-bold text-slate-600 outline-none"
                                                       >
-                                                        <option value="KB">KB</option><option value="GB">GB</option><option value="TB">TB</option>
+                                                        <option value="MB">MB</option><option value="GB">GB</option><option value="TB">TB</option>
                                                       </select>
                                                     </div>
                                                   </td>
