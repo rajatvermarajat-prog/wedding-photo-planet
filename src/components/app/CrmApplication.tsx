@@ -151,10 +151,13 @@ export default function App() {
     document.querySelectorAll<HTMLInputElement>('input[type="date"]').forEach(applyBounds);
     const observer = new MutationObserver(() => document.querySelectorAll<HTMLInputElement>('input[type="date"]').forEach(applyBounds));
     observer.observe(document.body, { childList: true, subtree: true });
-    document.addEventListener('change', validateDate, true);
+    // Native date controls emit intermediate change events while their
+    // day/month/year segments are being edited. Validate only after focus
+    // leaves the field so entering a year never clears day or month.
+    document.addEventListener('blur', validateDate, true);
     return () => {
       observer.disconnect();
-      document.removeEventListener('change', validateDate, true);
+      document.removeEventListener('blur', validateDate, true);
     };
   }, []);
   const router = useRouter();
