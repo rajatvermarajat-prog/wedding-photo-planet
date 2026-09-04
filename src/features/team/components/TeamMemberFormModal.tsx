@@ -187,13 +187,11 @@ export const TeamMemberFormModal: React.FC<Props> = ({
 }) => {
   const { showToast } = useToast();
   const isEdit = !!member;
-  // The server decides assignability; anything it flags is hidden here so the
-  // admin is never offered a role the API would refuse.
+  // This selector intentionally shows reusable templates only. Employee
+  // specific roles remain visible in Individual Access on the roles desk.
   const assignable = useMemo(
-    // `member.id` is the backend user id, so an employee still sees the personal
-    // role that belongs to them.
-    () => assignableRoles(accessRoles, member?.id),
-    [accessRoles, member?.id],
+    () => assignableRoles(accessRoles),
+    [accessRoles],
   );
   const matchingRoles = assignable;
   const [form, setForm] = useState<FormState>(() => emptyForm(defaultEmploymentType));
