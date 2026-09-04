@@ -16,4 +16,5 @@ export const TAB_PERMISSIONS: Partial<Record<TabType, string | string[]>> = {
   // Reading the roles desk needs ROLE_VIEW; the create/edit/delete actions on
   // the page are gated separately on their own permissions.
   access: 'ROLE_VIEW',
+  settings: ['SETTING_VIEW', 'ORG_VIEW'],
 };

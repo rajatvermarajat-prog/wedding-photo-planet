@@ -22,12 +22,13 @@ import {
   Target,
   Banknote,
   Heart,
-  MoreHorizontal
+  MoreHorizontal,
+  Settings
 } from 'lucide-react';
 import { ProjectStatus, TeamMember } from '@/types';
 import { NotificationBell } from '@/features/notifications/NotificationBell';
 
-export type TabType = 'dashboard' | 'roles' | 'projects' | 'shoots' | 'expenses' | 'data' | 'team' | 'freelancers' | 'clients' | 'deliveries' | 'owner_workspace' | 'equipment' | 'leads' | 'access';
+export type TabType = 'dashboard' | 'roles' | 'projects' | 'shoots' | 'expenses' | 'data' | 'team' | 'freelancers' | 'clients' | 'deliveries' | 'owner_workspace' | 'equipment' | 'leads' | 'access' | 'settings';
 
 interface SidebarProps {
   activeTab: TabType;
@@ -65,6 +66,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'clients' as TabType, label: 'Clients', icon: Heart },
     { id: 'equipment' as TabType, label: 'Equipment Inventory', icon: Camera },
     { id: 'access' as TabType, label: 'Roles & Permissions', icon: ShieldCheck },
+    { id: 'settings' as TabType, label: 'Settings', icon: Settings },
   ].filter((item) => allowed(item.id));
 
   const userInitials = currentUser?.name
@@ -199,6 +201,7 @@ const PAGE_ICONS: Record<TabType, typeof LayoutDashboard> = {
   equipment: Camera,
   leads: Target,
   access: ShieldCheck,
+  settings: Settings,
 };
 
 interface TopHeaderProps {
@@ -251,6 +254,7 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
     equipment: 'Equipment Inventory',
     leads: 'Leads & Inquiries',
     access: 'Roles & Permissions',
+    settings: 'Settings',
   };
   const PageIcon = PAGE_ICONS[activeTab];
   const userInitials = currentUser?.name
