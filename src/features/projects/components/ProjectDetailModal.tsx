@@ -335,53 +335,58 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
   const [schedAmount, setSchedAmount] = useState<number>(0);
   const [schedStatus, setSchedStatus] = useState<'pending' | 'received' | 'overdue'>('pending');
   const [schedNotes, setSchedNotes] = useState('');
+  const [scheduleSubmitting, setScheduleSubmitting] = useState(false);
 
-  const handleSaveScheduleItem = (e: React.FormEvent) => {
+  const handleSaveScheduleItem = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!schedStageName.trim()) {
       showToast('Please enter a stage or milestone name.', { variant: 'error' });
       return;
     }
-
-    let updated: ScheduledPayment[];
-    if (editingScheduleItem) {
-      updated = paymentSchedules.map((item) =>
-        item.id === editingScheduleItem.id
-          ? {
-              ...item,
-              stageName: schedStageName.trim(),
-              dueDate: schedDueDate || 'TBD',
-              amount: Number(schedAmount) || 0,
-              status: schedStatus,
-              notes: schedNotes.trim(),
-            }
-          : item
-      );
-    } else {
-      const newItem: ScheduledPayment = {
-        id: `sched-${Date.now()}`,
-        stageName: schedStageName.trim(),
-        dueDate: schedDueDate || 'TBD',
-        amount: Number(schedAmount) || 0,
-        status: schedStatus,
-        notes: schedNotes.trim(),
-      };
-      updated = [...paymentSchedules, newItem];
+    if (!schedDueDate) {
+      showToast('Please select a due date.', { variant: 'error' });
+      return;
     }
 
-    setPaymentSchedules(updated);
-    onUpdateProject({
-      ...project,
-      paymentSchedule: updated,
-    });
+    const payload = {
+      title: schedStageName.trim(),
+      amount: Number(schedAmount) || 0,
+      percentage: project.totalBudget > 0
+        ? Number(((Number(schedAmount) / project.totalBudget) * 100).toFixed(2))
+        : 0,
+      dueDate: schedDueDate,
+      status: schedStatus.toUpperCase() as 'PENDING' | 'RECEIVED' | 'OVERDUE',
+      notes: schedNotes.trim() || undefined,
+    };
 
-    setShowAddScheduleModal(false);
-    setEditingScheduleItem(null);
-    setSchedStageName('');
-    setSchedDueDate('');
-    setSchedAmount(0);
-    setSchedStatus('pending');
-    setSchedNotes('');
+    setScheduleSubmitting(true);
+    try {
+      if (editingScheduleItem) {
+        await projectsApi.updatePaymentMilestone(project.id, editingScheduleItem.id, payload);
+      } else {
+        await projectsApi.createPaymentMilestone(project.id, payload);
+      }
+      const items = await projectsApi.listPaymentMilestones(project.id);
+      const updated = items.map((item) => ({
+        id: String(item.id), stageName: String(item.title), dueDate: item.dueDate ? String(item.dueDate).slice(0, 10) : 'TBD',
+        amount: Number(item.amount), status: String(item.status).toLowerCase() as ScheduledPayment['status'], notes: item.notes || '',
+      }));
+      setPaymentSchedules(updated);
+      onUpdateProject({ ...project, paymentSchedule: updated });
+      setShowAddScheduleModal(false);
+      setEditingScheduleItem(null);
+      setSchedStageName('');
+      setSchedDueDate('');
+      setSchedAmount(0);
+      setSchedStatus('pending');
+      setSchedNotes('');
+      showToast(`Payment milestone ${editingScheduleItem ? 'updated' : 'saved'}.`, { variant: 'success' });
+    } catch (error) {
+      console.error('Unable to save payment milestone', { projectId: project.id, payload, error });
+      showToast(error instanceof Error ? error.message : 'Could not save the payment milestone. Please try again.', { variant: 'error' });
+    } finally {
+      setScheduleSubmitting(false);
+    }
   };
 
   const handleToggleScheduleStatus = (itemId: string) => {
@@ -1610,7 +1615,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
                         onClick={() => {
                           setEditingScheduleItem(null);
                           setSchedStageName('');
-                          setSchedDueDate(project.weddingFunctionDates ? project.weddingFunctionDates.split(' ')[0] : '');
+                          setSchedDueDate(firstIsoDate(project.weddingFunctionDates) || '');
                           setSchedAmount(Math.max(0, project.balanceDue));
                           setSchedStatus('pending');
                           setSchedNotes('');
@@ -1785,7 +1790,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
                                   onClick={() => {
                                     setEditingScheduleItem(item);
                                     setSchedStageName(item.stageName);
-                                    setSchedDueDate(item.dueDate);
+                                    setSchedDueDate(/^\d{4}-\d{2}-\d{2}$/.test(item.dueDate) ? item.dueDate : '');
                                     setSchedAmount(item.amount);
                                     setSchedStatus(item.status);
                                     setSchedNotes(item.notes || '');
@@ -3652,7 +3657,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
 
           {/* PAYMENTS TAB */}
           {activeTab === 'payments' && (
-            <div className="space-y-4">
+            <div className="flex flex-col gap-4">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                 <div>
                   <h4 className="text-sm font-bold text-slate-900 uppercase tracking-tight">Payment Receipts & Installment Log</h4>
@@ -3669,9 +3674,55 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
                 </button>
               </div>
 
+              {/* Persisted schedule context belongs alongside the collection log,
+                  so the person recording a payment can see every due item. */}
+              <div className="order-2 rounded-xl border border-slate-200 bg-slate-50 p-3.5">
+                <div className="mb-2.5 flex items-center justify-between gap-3">
+                  <div>
+                    <h5 className="text-[10px] font-extrabold uppercase tracking-wider text-slate-600">Payment Due Schedule</h5>
+                    <p className="mt-0.5 text-[11px] text-slate-500">Milestone, due date, amount, status and payment terms</p>
+                  </div>
+                  <span className="shrink-0 rounded-md border border-red-200 bg-red-50 px-2 py-1 text-[10px] font-extrabold text-red-700">
+                    Due: ₹{balanceDue.toLocaleString('en-IN')}
+                  </span>
+                </div>
+                {paymentSchedules.length === 0 ? (
+                  <p className="py-1 text-xs italic text-slate-400">No payment schedule defined yet.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {paymentSchedules.map((item) => {
+                      const pct = project.totalBudget > 0 ? Math.round((item.amount / project.totalBudget) * 100) : 0;
+                      const statusClass = item.status === 'received'
+                        ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                        : item.status === 'overdue'
+                        ? 'border-red-200 bg-red-50 text-red-700'
+                        : 'border-amber-200 bg-amber-50 text-amber-700';
+                      return (
+                        <div key={item.id} className="rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-xs">
+                          <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                            <div className="min-w-0">
+                              <p className="font-extrabold text-slate-800">{item.stageName}</p>
+                              <p className="mt-1 flex items-center gap-1 text-[11px] font-medium text-slate-500">
+                                <Calendar className="size-3" /> Due: {formatDateDDMMYYYY(item.dueDate) || item.dueDate || 'TBD'}
+                              </p>
+                              {item.notes && <p className="mt-1 text-[11px] italic text-slate-500">{item.notes}</p>}
+                            </div>
+                            <div className="flex shrink-0 items-center gap-2 sm:text-right">
+                              <span className="font-mono text-sm font-black text-slate-900">₹{item.amount.toLocaleString('en-IN')}</span>
+                              <span className="rounded border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-[10px] font-bold text-slate-600">{pct}%</span>
+                              <span className={`rounded-full border px-2 py-0.5 text-[10px] font-extrabold uppercase ${statusClass}`}>{item.status}</span>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
               {/* Add Payment Form */}
               {canRecordPayment && (
-              <form onSubmit={handleAddPayment} className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3 text-xs items-end">
+              <form onSubmit={handleAddPayment} className="order-1 p-3.5 rounded-xl bg-slate-50 border border-slate-200 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3 text-xs items-end">
                 <div>
                   <label className="block text-slate-600 mb-1 font-extrabold text-[10px] uppercase tracking-wider">Amount (₹)</label>
                   <input
@@ -3761,7 +3812,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
                 </button>
               </form>
               )}
-              <div className="space-y-2 pt-1">
+              <div className="order-3 space-y-2 pt-1">
                 <h5 className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">Payment History</h5>
                 {paymentsLoading ? (
                   <p className="text-xs text-slate-400 italic py-2">Loading payment history…</p>
@@ -4168,7 +4219,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
                     <span className={`${LABEL} mb-2`}>Due Date</span>
                     <input
                       type="date"
-                      value={schedDueDate.includes('-') && schedDueDate.length === 10 ? schedDueDate : ''}
+                      value={schedDueDate}
                       onChange={(e) => setSchedDueDate(e.target.value)}
                       className={`${FIELD} py-3`}
                       required
@@ -4201,9 +4252,9 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
               </div>
 
               <div className="shrink-0 border-t border-[#eee7e2] bg-white px-6 py-5 sm:px-8">
-                <button type="submit" className={`${BTN_PRIMARY} w-full py-3.5 text-xs uppercase tracking-wider`}>
+                <button type="submit" disabled={scheduleSubmitting} className={`${BTN_PRIMARY} w-full py-3.5 text-xs uppercase tracking-wider disabled:cursor-not-allowed disabled:opacity-60`}>
                   <CheckCircle2 className="size-4" />
-                  {editingScheduleItem ? 'Update Milestone' : 'Save Payment Milestone'}
+                  {scheduleSubmitting ? 'Saving...' : editingScheduleItem ? 'Update Milestone' : 'Save Payment Milestone'}
                 </button>
               </div>
             </form>

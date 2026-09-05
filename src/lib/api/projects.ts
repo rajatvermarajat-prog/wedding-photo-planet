@@ -9,6 +9,7 @@ export interface CreateProjectEventInput {name:string;eventDate:string;venueName
 export interface CreateProjectClientInput {displayName:string;primaryPhone:string;primaryEmail?:string;}
 export interface CreateProjectTaskInput {title:string;description?:string;category?:BackendTaskCategory;priority?:BackendTaskPriority;quantity?:number;unit?:string;dueDate?:string;assigneeId?:string;status?:BackendTaskStatus;}
 export interface CreateProjectShootAssignmentInput {userId:string;role:BackendCrewRole;}
+export interface PaymentMilestoneInput {title:string;amount:number;percentage:number;dueDate:string;status:'PENDING'|'RECEIVED'|'OVERDUE';notes?:string;}
 export interface CreateProjectShootInput {title:string;shootDate:string;startTime?:string;endTime?:string;location?:string;city?:string;notes?:string;shootType?:BackendShootType;status?:BackendShootStatus;plannedRoleSlots?:Array<{role:string;requiredCount:number;name?:string;mobile?:string}>;crewAssignments?:CreateProjectShootAssignmentInput[];}
 export interface CreateProjectInput {clientId?:string;client?:CreateProjectClientInput;name:string;type?:BackendProjectType;status?:BackendProjectStatus;isUrgent?:boolean;weddingDate?:string;deliveryDueDate?:string;venueName?:string;venueAddress?:string;venueCity?:string;totalQuotation?:string;customServiceType?:string;otherClientDetails?:string;notes?:string;managerId?:string;branchId?:string;events?:CreateProjectEventInput[];tasks?:CreateProjectTaskInput[];shoots?:CreateProjectShootInput[];}
 export type UpdateProjectInput=Partial<Omit<CreateProjectInput,'clientId'|'client'|'events'|'tasks'|'shoots'|'status'>>;
@@ -24,6 +25,8 @@ export const projectsApi={
   changeStatus:async(id:string,input:{status:BackendProjectStatus;reason?:string})=>(await apiRequest<Project>(`/projects/${encodeURIComponent(id)}/status`,{method:'PATCH',body:JSON.stringify(input)})).data,
   remove:async(id:string)=>apiRequest<void>(`/projects/${encodeURIComponent(id)}`,{method:'DELETE'}),
   listPaymentMilestones:async(projectId:string)=>(await apiRequest<any[]>(`/projects/${encodeURIComponent(projectId)}/payment-milestones`)).data,
+  createPaymentMilestone:async(projectId:string,input:PaymentMilestoneInput)=>(await apiRequest<any>(`/projects/${encodeURIComponent(projectId)}/payment-milestones`,{method:'POST',body:JSON.stringify(input)})).data,
+  updatePaymentMilestone:async(projectId:string,milestoneId:string,input:PaymentMilestoneInput)=>(await apiRequest<any>(`/projects/${encodeURIComponent(projectId)}/payment-milestones/${encodeURIComponent(milestoneId)}`,{method:'PATCH',body:JSON.stringify(input)})).data,
   removePaymentMilestone:async(projectId:string,milestoneId:string,milestones?:unknown[])=>apiRequest<void>(`/projects/${encodeURIComponent(projectId)}/payment-milestones/${encodeURIComponent(milestoneId)}`,{method:'DELETE',body:JSON.stringify({milestones})})
 };
 export type ProjectListResult={data:Project[];meta:ApiMeta};
