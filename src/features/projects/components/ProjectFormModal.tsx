@@ -984,8 +984,8 @@ export const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
                 <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">
                   Balance Due (₹) <span className="text-slate-400 font-normal">(Auto)</span>
                 </label>
-                <div className="w-full bg-slate-50 border border-slate-200 rounded px-3 py-1.5 text-red-600 font-bold text-xs">
-                  {hasFinancialAmount ? `₹${balanceDue.toLocaleString('en-IN')}` : <span className="font-medium text-slate-400">Calculated automatically</span>}
+                <div className="flex min-h-10 w-full items-center rounded border border-rose-200 bg-rose-50 px-3 py-1.5 text-sm font-bold text-red-600">
+                  {hasFinancialAmount ? `₹${balanceDue.toLocaleString('en-IN')}` : <span className="text-xs font-medium text-slate-400">Calculated automatically</span>}
                 </div>
               </div>
 
