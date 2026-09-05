@@ -23,7 +23,9 @@ function normalizeMeridiemTime(value: string) {
   const input = value.trim().toUpperCase().replace(/\./g, '');
   if (!input) return '';
 
-  const twelveHour = input.match(/^(\d{1,2})(?::([0-5]\d))?\s*(AM|PM)$/);
+  // Accept both conventional "5:00 PM" and the space-separated value users
+  // commonly enter in this free-text field: "5 00 PM".
+  const twelveHour = input.match(/^(\d{1,2})(?:(?::|\s+)([0-5]\d))?\s*(AM|PM)$/);
   if (twelveHour) {
     const hour = Number(twelveHour[1]);
     if (hour >= 1 && hour <= 12) {
@@ -843,7 +845,7 @@ export const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
                           </button>
                         </div>
 
-                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-2">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2">
                           <div>
                             <label className="block text-[9px] font-bold text-slate-500 uppercase mb-0.5">Shoot Title / Function</label>
                             <input
@@ -873,15 +875,6 @@ export const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
                               value={shoot.startTime || ''}
                               onChange={(value) => handleShootChange(index, 'startTime', value)}
                               label={`Start time for shoot ${index + 1}`}
-                            />
-                          </div>
-
-                          <div>
-                            <label className="block text-[9px] font-bold text-slate-500 uppercase mb-0.5">End Time</label>
-                            <MeridiemTimeInput
-                              value={shoot.endTime || ''}
-                              onChange={(value) => handleShootChange(index, 'endTime', value)}
-                              label={`End time for shoot ${index + 1}`}
                             />
                           </div>
 

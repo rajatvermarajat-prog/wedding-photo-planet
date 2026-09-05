@@ -50,7 +50,7 @@ function toIsoDateTime(date: string, time?: string): string | undefined {
       return `${date}T${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}:00.000Z`;
     }
   }
-  const match = time.trim().toUpperCase().match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/);
+  const match = time.trim().toUpperCase().match(/^(\d{1,2})(?::|\s+)(\d{2})\s*(AM|PM)$/);
   if (!match) return undefined;
   let hour = Number(match[1]);
   if (hour < 1 || hour > 12 || Number(match[2]) > 59) return undefined;
@@ -275,7 +275,10 @@ async function syncAssignments(shootId: string, shoot: ShootEvent, previous: Sho
     try {
       await shootsApi.assign(shootId, { userId, role: toCrewRole(row.role) });
     } catch (error) {
-      if (!(error instanceof ApiError) || (error.status !== 409 && error.status !== 403)) throw error;
+      // A duplicate assignee is a form error the user must resolve.  Do not
+      // swallow the API's 409 here: ProjectFormModal surfaces its exact
+      // message in an error toast.
+      if (!(error instanceof ApiError) || error.status !== 403) throw error;
     }
   }
 }
@@ -398,7 +401,6 @@ export async function persistProjectShoots(
       title: shoot.title?.trim() || 'Shoot',
       shootDate: date,
       startTime: toIsoDateTime(date, shoot.startTime),
-      endTime: toIsoDateTime(date, shoot.endTime),
       location: shoot.venue || shoot.location || undefined,
       notes: shoot.notes || undefined,
       plannedRoleSlots: toPlannedRoleSlots(shoot, team),

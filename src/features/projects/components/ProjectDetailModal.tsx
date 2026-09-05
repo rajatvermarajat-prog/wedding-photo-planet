@@ -281,7 +281,14 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
   const [paymentsLoading, setPaymentsLoading] = useState(false);
   const [paymentSubmitting, setPaymentSubmitting] = useState(false);
 
-  const receivedAmount = payments.reduce((sum, payment) => sum + (payment.amount || 0), 0);
+  const receiptReceivedAmount = payments.reduce((sum, payment) => sum + (payment.amount || 0), 0);
+  // A received milestone is a confirmed collection in the schedule.  The
+  // payment ledger may contain the same collection, so take the larger total
+  // instead of adding both and inflating the amount received.
+  const milestoneReceivedAmount = paymentSchedules
+    .filter((item) => item.status === 'received')
+    .reduce((sum, item) => sum + item.amount, 0);
+  const receivedAmount = Math.max(receiptReceivedAmount, milestoneReceivedAmount);
   const balanceDue = Math.max(0, project.totalBudget - receivedAmount);
 
   const hydratePaymentRecords = async (items: ApiProjectPayment[]) => Promise.all(items.map(async (item) => ({
@@ -439,7 +446,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
 
     const totalScheduled = paymentSchedules.reduce((acc, i) => acc + i.amount, 0);
 
-    const message = `📋 *PAYMENT SCHEDULE & MILESTONES*\nClient: ${project.clientWeddingTitle}\nTotal Package Budget: ₹${project.totalBudget.toLocaleString('en-IN')}\nTotal Scheduled: ₹${totalScheduled.toLocaleString('en-IN')}\nReceived Till Date: ₹${project.advanceReceived.toLocaleString('en-IN')}\nBalance Remaining: ₹${project.balanceDue.toLocaleString('en-IN')}\n\n*Payment Terms Breakdown:*\n${milestonesText}\n\n- Wedding Photo Planet Accounts`;
+    const message = `📋 *PAYMENT SCHEDULE & MILESTONES*\nClient: ${project.clientWeddingTitle}\nTotal Package Budget: ₹${project.totalBudget.toLocaleString('en-IN')}\nTotal Scheduled: ₹${totalScheduled.toLocaleString('en-IN')}\nReceived Till Date: ₹${receivedAmount.toLocaleString('en-IN')}\nBalance Remaining: ₹${balanceDue.toLocaleString('en-IN')}\n\n*Payment Terms Breakdown:*\n${milestonesText}\n\n- Wedding Photo Planet Accounts`;
 
     const cleanMobile = (project.clientContactMobile || '').replace(/\D/g, '');
     window.open(`https://wa.me/${cleanMobile}?text=${encodeURIComponent(message)}`, '_blank');
@@ -477,9 +484,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
 
     // Financial Overview Box calculation
     const totalBudget = project.totalBudget || 0;
-    const totalReceived = payments.length > 0
-      ? payments.reduce((sum, p) => sum + (p.amount || 0), 0)
-      : (project.advanceReceived || 0);
+    const totalReceived = receivedAmount;
     const balanceDue = Math.max(0, totalBudget - totalReceived);
 
     doc.setDrawColor(220, 220, 220);
@@ -662,6 +667,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
     role: string;
     name: string;
     mobile: string;
+    dataReceived: boolean;
     dataSizeGB: number;
     copyInHD: string;
     backupInHD: string;
@@ -1136,6 +1142,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
       role: editingCrewData.role,
       name: editingCrewData.name,
       mobile: editingCrewData.mobile,
+      dataReceived: editingCrewData.dataReceived,
       dataSizeGB: editingCrewData.dataSizeGB,
       copyInHD: editingCrewData.copyInHD,
       backupInHD: editingCrewData.backupInHD,
@@ -2743,7 +2750,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
                                   <div className="flex items-center gap-3 text-slate-500 text-xs mt-0.5">
                                     <span className="flex items-center gap-1 font-bold text-slate-800">
                                       <Calendar className="w-3.5 h-3.5 text-indigo-500" />
-                                      {formatDateDDMMYYYY(s.date)} ({s.time || 'Full Day'})
+                                      {formatDateDDMMYYYY(s.date)} ({s.startTime || s.time || 'Full Day'})
                                     </span>
                                     <span>•</span>
                                     <span className="flex items-center gap-1 text-slate-600">
@@ -3485,9 +3492,9 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
                                           type="text"
                                           list={`team-member-options-${c.id || idx}`}
                                           value={c.name || ''}
-                                          onChange={(e) => handleUpdateCrewInExistingShoot(s.id, c.id, 'name', e.target.value, false)}
+                                          readOnly
                                           placeholder="Enter or select name"
-                                          className="bg-transparent hover:bg-slate-100 focus:bg-white border border-transparent focus:border-slate-300 rounded px-1.5 py-0.5 text-xs font-bold text-slate-900 w-full outline-none"
+                                          className="cursor-default bg-transparent border border-transparent rounded px-1.5 py-0.5 text-xs font-bold text-slate-900 w-full outline-none"
                                         />
                                         <datalist id={`team-member-options-${c.id || idx}`}>
                                           {activeTeamMembers.map((m) => (
@@ -3498,12 +3505,12 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
                                     </td>
 
                                     <td className="p-2 text-center">
-                                      <label className="inline-flex items-center gap-1.5 cursor-pointer">
+                                      <label className="inline-flex items-center gap-1.5 cursor-default">
                                         <input
                                           type="checkbox"
                                           checked={!!c.dataReceived}
-                                          onChange={(e) => handleUpdateCrewInExistingShoot(s.id, c.id, 'dataReceived', e.target.checked)}
-                                          className="rounded text-indigo-600 focus:ring-indigo-500"
+                                          disabled
+                                          className="rounded text-indigo-600 disabled:opacity-100"
                                         />
                                         <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${
                                           c.dataReceived
@@ -3523,14 +3530,14 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
                                           step="any"
                                           placeholder="e.g. 250"
                                           value={storageValue(c.dataSizeGB, unitFor(`crew-${s.id}-${c.id}`))}
-                                          onChange={(e) => handleUpdateCrewInExistingShoot(s.id, c.id, 'dataSizeGB', storageToGB(e.target.value, unitFor(`crew-${s.id}-${c.id}`)))}
-                                          className="w-18 bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs font-bold text-slate-900 focus:bg-white outline-none"
+                                          readOnly
+                                          className="w-18 cursor-default bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs font-bold text-slate-900 outline-none"
                                         />
                                         <select
                                           aria-label={`${c.name || 'Team member'} data size unit`}
                                           value={unitFor(`crew-${s.id}-${c.id}`)}
-                                          onChange={(e) => setUnitFor(`crew-${s.id}-${c.id}`, e.target.value as StorageUnit)}
-                                          className="w-[64px] shrink-0 rounded border border-slate-200 bg-white px-1.5 py-1 text-[10px] font-bold text-slate-600 outline-none"
+                                          disabled
+                                          className="w-[64px] shrink-0 rounded border border-slate-200 bg-white px-1.5 py-1 text-[10px] font-bold text-slate-600 disabled:opacity-100"
                                         >
                                           <option value="MB">MB</option><option value="GB">GB</option><option value="TB">TB</option>
                                         </select>
@@ -3543,8 +3550,8 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
                                         type="text"
                                         placeholder="Copy HD Name"
                                         value={c.copyInHD ?? c.hardDriveName ?? ''}
-                                        onChange={(e) => handleUpdateCrewInExistingShoot(s.id, c.id, 'copyInHD', e.target.value)}
-                                        className="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs font-medium text-slate-900 focus:bg-white outline-none"
+                                        readOnly
+                                        className="w-full cursor-default bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs font-medium text-slate-900 outline-none"
                                       />
                                     </td>
 
@@ -3554,8 +3561,8 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
                                         type="text"
                                         placeholder="Backup HD Name"
                                         value={c.backupInHD || ''}
-                                        onChange={(e) => handleUpdateCrewInExistingShoot(s.id, c.id, 'backupInHD', e.target.value)}
-                                        className="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs font-medium text-slate-900 focus:bg-white outline-none"
+                                        readOnly
+                                        className="w-full cursor-default bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs font-medium text-slate-900 outline-none"
                                       />
                                     </td>
 
@@ -3570,6 +3577,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
                                             role: c.role || 'Photographer',
                                             name: c.name || '',
                                             mobile: c.mobile || '',
+                                            dataReceived: !!c.dataReceived,
                                             dataSizeGB: c.dataSizeGB || 0,
                                             copyInHD: c.copyInHD || c.hardDriveName || '',
                                             backupInHD: c.backupInHD || ''
@@ -4045,6 +4053,15 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
               </div>
 
               <div className="grid grid-cols-3 gap-2">
+                <label className="col-span-3 flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 p-2 font-bold text-slate-700">
+                  <input
+                    type="checkbox"
+                    checked={editingCrewData.dataReceived}
+                    onChange={(e) => setEditingCrewData({ ...editingCrewData, dataReceived: e.target.checked })}
+                    className="rounded text-indigo-600 focus:ring-indigo-500"
+                  />
+                  Data received
+                </label>
                 <div>
                   <label className="font-bold text-slate-700 block mb-1">Data Size</label>
                   <div className="flex gap-1">
