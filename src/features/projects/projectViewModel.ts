@@ -196,7 +196,11 @@ export function normalizeProject(dto: any): Project {
     receiptScreenshot: p.receiptFileId ? `/files/${p.receiptFileId}` : undefined,
   }));
 
-  const received = payments.reduce((sum: number, p: any) => sum + p.amount, 0);
+  const receiptReceived = payments.reduce((sum: number, p: any) => sum + p.amount, 0);
+  const milestoneReceived = (dto.paymentMilestones || [])
+    .filter((milestone: any) => milestone.status === 'RECEIVED')
+    .reduce((sum: number, milestone: any) => sum + Number(milestone.amount || 0), 0);
+  const received = Math.max(receiptReceived, milestoneReceived);
 
   return {
     id: dto.id,
