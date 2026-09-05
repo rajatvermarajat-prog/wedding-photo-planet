@@ -401,7 +401,6 @@ export async function persistProjectShoots(
       title: shoot.title?.trim() || 'Shoot',
       shootDate: date,
       startTime: toIsoDateTime(date, shoot.startTime),
-      endTime: toIsoDateTime(date, shoot.endTime),
       location: shoot.venue || shoot.location || undefined,
       notes: shoot.notes || undefined,
       plannedRoleSlots: toPlannedRoleSlots(shoot, team),

@@ -6,7 +6,7 @@ import { isPersistedProjectId, normalizeProject, toBackendProjectStatus, toCreat
 import { usersApi } from '@/lib/api/users';
 import { normalizeTeamMember } from '@/features/team/teamViewModel';
 import { loadProjectTasks, persistProjectTasks } from './persistProjectTasks';
-import { assertProjectShootTimes, persistProjectShoots, toShootEvent } from '@/features/shoots/persistShoots';
+import { persistProjectShoots, toShootEvent } from '@/features/shoots/persistShoots';
 import { shootsApi } from '@/lib/api/shoots';
 
 export function assignedNames(project: Project) {
@@ -18,10 +18,6 @@ export function assignedNames(project: Project) {
 }
 
 export async function persistStudioProject(project: Project, team: TeamMember[] = []): Promise<Project> {
-  // Do this before client/project creation. The database enforces the same
-  // invariant; checking here avoids a partial Project create followed by a
-  // generic 422 from POST /shoots.
-  assertProjectShootTimes(project.shoots || []);
   let roster = team;
   if (isPersistedProjectId(project.id) && !roster.length) {
     try {

@@ -845,7 +845,7 @@ export const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
                           </button>
                         </div>
 
-                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-2">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2">
                           <div>
                             <label className="block text-[9px] font-bold text-slate-500 uppercase mb-0.5">Shoot Title / Function</label>
                             <input
@@ -875,15 +875,6 @@ export const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
                               value={shoot.startTime || ''}
                               onChange={(value) => handleShootChange(index, 'startTime', value)}
                               label={`Start time for shoot ${index + 1}`}
-                            />
-                          </div>
-
-                          <div>
-                            <label className="block text-[9px] font-bold text-slate-500 uppercase mb-0.5">End Time</label>
-                            <MeridiemTimeInput
-                              value={shoot.endTime || ''}
-                              onChange={(value) => handleShootChange(index, 'endTime', value)}
-                              label={`End time for shoot ${index + 1}`}
                             />
                           </div>
 

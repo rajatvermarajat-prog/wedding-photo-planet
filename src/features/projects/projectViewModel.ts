@@ -310,7 +310,6 @@ export function toCreateProjectInput(project: Project, team: TeamMember[] = []):
         title: shoot.title?.trim() || 'Shoot',
         shootDate,
         startTime: toIsoDateTime(shootDate, shoot.startTime || shoot.time),
-        endTime: toIsoDateTime(shootDate, shoot.endTime),
         location: shoot.venue || shoot.location || undefined,
       notes: shoot.notes || undefined,
       plannedRoleSlots: (shoot.crewAssignments || []).flatMap((crew) => {
