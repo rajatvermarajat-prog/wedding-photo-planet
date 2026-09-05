@@ -913,9 +913,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
   const [shootTitle, setShootTitle] = useState('');
   const [shootDate, setShootDate] = useState('');
   const [shootStartTime, setShootStartTime] = useState('');
-  const [shootEndTime, setShootEndTime] = useState('');
   const [shootVenue, setShootVenue] = useState('');
-  const [shootTime, setShootTime] = useState('09:00 AM - 09:00 PM');
   const [newShootCrew, setNewShootCrew] = useState<CrewMemberAssignment[]>([
     { id: 'c1', name: 'Rajat Verma', role: 'Photographer', mobile: '' },
     { id: 'c2', name: 'Rahul Kapoor', role: 'Videographer', mobile: '' },
@@ -1283,9 +1281,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
     e.preventDefault();
     if (!canAddShoot || !shootTitle || !shootDate) return;
 
-    const displayTime = shootStartTime && shootEndTime
-      ? `${shootStartTime} - ${shootEndTime}`
-      : shootStartTime || shootEndTime || shootTime || '09:00 AM - 09:00 PM';
+    const displayTime = shootStartTime || 'Full Day';
 
     // Derive the headline crew fields from the roles actually entered in the
     // crew grid, instead of hardcoding placeholder names.
@@ -1299,7 +1295,6 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
       date: shootDate,
       time: displayTime,
       startTime: shootStartTime,
-      endTime: shootEndTime,
       venue: shootVenue || project.venueLocation,
       location: project.venueLocation,
       leadPhotographer: findCrewName((r) => r.includes('photographer') && !r.includes('drone')),
@@ -1323,6 +1318,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
             title: newShoot.title,
             shootDate: firstIsoDate(newShoot.date) as string,
             shootType: 'PHOTO_AND_VIDEO',
+            startTime: shootStartTime ? `${firstIsoDate(newShoot.date)}T${shootStartTime}:00.000Z` : undefined,
             location: newShoot.venue || undefined,
           });
           created = { ...newShoot, id: dto.id };
@@ -1358,7 +1354,6 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
     setShootTitle('');
     setShootDate('');
     setShootStartTime('');
-    setShootEndTime('');
     setShootVenue('');
     setNewShootCrew([
       { id: 'c1', name: '', role: 'Photographer', mobile: '' },
@@ -2572,7 +2567,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
                     </button>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-2.5">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2.5">
                     <div>
                       <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Shoot Title / Function</label>
                       <input
@@ -2602,15 +2597,6 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
                         type="time"
                         value={shootStartTime}
                         onChange={(e) => setShootStartTime(e.target.value)}
-                        className="w-full bg-white border border-slate-200 rounded p-1.5 text-slate-800"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">End Time</label>
-                      <input
-                        type="time"
-                        value={shootEndTime}
-                        onChange={(e) => setShootEndTime(e.target.value)}
                         className="w-full bg-white border border-slate-200 rounded p-1.5 text-slate-800"
                       />
                     </div>
