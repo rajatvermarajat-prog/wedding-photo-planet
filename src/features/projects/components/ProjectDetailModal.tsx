@@ -281,7 +281,14 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
   const [paymentsLoading, setPaymentsLoading] = useState(false);
   const [paymentSubmitting, setPaymentSubmitting] = useState(false);
 
-  const receivedAmount = payments.reduce((sum, payment) => sum + (payment.amount || 0), 0);
+  const receiptReceivedAmount = payments.reduce((sum, payment) => sum + (payment.amount || 0), 0);
+  // A received milestone is a confirmed collection in the schedule.  The
+  // payment ledger may contain the same collection, so take the larger total
+  // instead of adding both and inflating the amount received.
+  const milestoneReceivedAmount = paymentSchedules
+    .filter((item) => item.status === 'received')
+    .reduce((sum, item) => sum + item.amount, 0);
+  const receivedAmount = Math.max(receiptReceivedAmount, milestoneReceivedAmount);
   const balanceDue = Math.max(0, project.totalBudget - receivedAmount);
 
   const hydratePaymentRecords = async (items: ApiProjectPayment[]) => Promise.all(items.map(async (item) => ({
@@ -439,7 +446,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
 
     const totalScheduled = paymentSchedules.reduce((acc, i) => acc + i.amount, 0);
 
-    const message = `📋 *PAYMENT SCHEDULE & MILESTONES*\nClient: ${project.clientWeddingTitle}\nTotal Package Budget: ₹${project.totalBudget.toLocaleString('en-IN')}\nTotal Scheduled: ₹${totalScheduled.toLocaleString('en-IN')}\nReceived Till Date: ₹${project.advanceReceived.toLocaleString('en-IN')}\nBalance Remaining: ₹${project.balanceDue.toLocaleString('en-IN')}\n\n*Payment Terms Breakdown:*\n${milestonesText}\n\n- Wedding Photo Planet Accounts`;
+    const message = `📋 *PAYMENT SCHEDULE & MILESTONES*\nClient: ${project.clientWeddingTitle}\nTotal Package Budget: ₹${project.totalBudget.toLocaleString('en-IN')}\nTotal Scheduled: ₹${totalScheduled.toLocaleString('en-IN')}\nReceived Till Date: ₹${receivedAmount.toLocaleString('en-IN')}\nBalance Remaining: ₹${balanceDue.toLocaleString('en-IN')}\n\n*Payment Terms Breakdown:*\n${milestonesText}\n\n- Wedding Photo Planet Accounts`;
 
     const cleanMobile = (project.clientContactMobile || '').replace(/\D/g, '');
     window.open(`https://wa.me/${cleanMobile}?text=${encodeURIComponent(message)}`, '_blank');
@@ -477,9 +484,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
 
     // Financial Overview Box calculation
     const totalBudget = project.totalBudget || 0;
-    const totalReceived = payments.length > 0
-      ? payments.reduce((sum, p) => sum + (p.amount || 0), 0)
-      : (project.advanceReceived || 0);
+    const totalReceived = receivedAmount;
     const balanceDue = Math.max(0, totalBudget - totalReceived);
 
     doc.setDrawColor(220, 220, 220);
