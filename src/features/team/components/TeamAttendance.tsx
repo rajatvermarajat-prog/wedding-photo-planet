@@ -329,15 +329,6 @@ export const TeamAttendance: React.FC<TeamAttendanceProps> = ({
 
   // --------------------------------------------------------------------------
 
-  const quickActions = [
-    canCreateMember && { label: 'Add Team Member', icon: UserPlus, onClick: () => openAddMember(), primary: true },
-    canManageAttendance && { label: 'Mark Attendance', icon: CalendarCheck, onClick: () => setActiveTab('attendance') },
-    canAssignShoot && { label: 'Assign Shoot', icon: Camera, onClick: () => setActiveTab('assignments') },
-    canRequestLeave && { label: 'Apply Leave', icon: CalendarPlus, onClick: () => openApplyLeave() },
-    allowedTabs.includes('schedule') && { label: 'View Schedule', icon: CalendarClock, onClick: () => setActiveTab('schedule') },
-    canCreateFreelancer && { label: 'Add Freelancer', icon: UserCheck, onClick: () => openAddMember(true) },
-  ].filter(Boolean) as Array<{ label: string; icon: typeof Users; onClick: () => void; primary?: boolean }>;
-
   const pendingLeaveCount = leaves.filter((l) => l.status === 'pending').length;
 
   return (
@@ -393,13 +384,6 @@ export const TeamAttendance: React.FC<TeamAttendanceProps> = ({
       </section>
 
       <section className={`${CARD} p-3 sm:p-4`}>
-        <div className="mb-3 flex flex-wrap items-center gap-2">
-          {quickActions.filter((a) => !a.primary).map(({ label, icon: Icon, onClick }) => (
-            <button key={label} type="button" onClick={onClick} className={BTN_GHOST}>
-              <Icon className="size-3.5" /> {label}
-            </button>
-          ))}
-        </div>
         <nav className="flex items-center gap-1 overflow-x-auto rounded-2xl border border-[#e2d9d3] bg-[#f6f1ee] p-1.5" aria-label="Team sections">
           {TEAM_TABS.filter((tab) => allowedTabs.includes(tab.id)).map(({ id, label, icon: Icon }) => (
             <button
