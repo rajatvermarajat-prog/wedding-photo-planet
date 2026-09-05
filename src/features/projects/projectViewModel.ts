@@ -91,6 +91,14 @@ export function firstIsoDate(value?: string) {
   return value?.match(/\d{4}-\d{2}-\d{2}/)?.[0];
 }
 
+function formatStoredShootTime(value?: string | null) {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  const hours = date.getUTCHours();
+  return `${String(hours % 12 || 12).padStart(2, '0')}:${String(date.getUTCMinutes()).padStart(2, '0')} ${hours >= 12 ? 'PM' : 'AM'}`;
+}
+
 function splitVenue(venue?: string) {
   const parts = (venue || '').split(',').map((part) => part.trim()).filter(Boolean);
   if (!parts.length) return {};
@@ -129,7 +137,7 @@ function toIsoDateTime(date: string, time?: string): string | undefined {
       return `${date}T${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}:00.000Z`;
     }
   }
-  const twelveHour = time.trim().toUpperCase().match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/);
+  const twelveHour = time.trim().toUpperCase().match(/^(\d{1,2})(?::|\s+)(\d{2})\s*(AM|PM)$/);
   if (!twelveHour) return undefined;
   let hour = Number(twelveHour[1]);
   if (hour < 1 || hour > 12 || Number(twelveHour[2]) > 59) return undefined;
@@ -213,27 +221,33 @@ export function normalizeProject(dto: any): Project {
     createdAt: dto.createdAt,
     videoPipeline: parsedMeta.videoPipeline || { ...emptyPipeline.video },
     photoPipeline: parsedMeta.photoPipeline || { ...emptyPipeline.photo },
-    shoots: (dto.shoots || []).map((s: any) => ({
-      id: s.id,
-      title: s.title || s.name || 'Shoot',
-      date: s.shootDate?.slice(0, 10) || s.eventDate?.slice(0, 10) || '',
-      time: s.startTime?.slice(11, 16) || '',
-      venue: s.venueName || s.venue || '',
-      notes: s.notes || '',
-      plannedRoleSlots: s.plannedRoleSlots || undefined,
-      status: s.status === 'COMPLETED' ? 'completed' : s.status === 'CANCELLED' ? 'cancelled' : 'scheduled',
-      crewAssignments: (s.assignments || []).map((a: any) => ({
-        id: a.id,
-        userId: a.user?.id || undefined,
-        role: a.role,
-        name: a.user?.fullName || a.freelancer?.fullName || '',
-        mobile: a.user?.phone || a.freelancer?.phone || '',
-        dataReceived: Boolean(a.dataReceived),
-        dataSizeGB: Number(a.dataSizeGb || 0),
-        copyInHD: a.storageReference || '',
-        backupInHD: a.notes || '',
-      })),
-    })),
+    shoots: (dto.shoots || []).map((s: any) => {
+      const startTime = formatStoredShootTime(s.startTime);
+      const endTime = formatStoredShootTime(s.endTime);
+      return {
+        id: s.id,
+        title: s.title || s.name || 'Shoot',
+        date: s.shootDate?.slice(0, 10) || s.eventDate?.slice(0, 10) || '',
+        time: startTime,
+        startTime: startTime || undefined,
+        endTime: endTime || undefined,
+        venue: s.venueName || s.venue || '',
+        notes: s.notes || '',
+        plannedRoleSlots: s.plannedRoleSlots || undefined,
+        status: s.status === 'COMPLETED' ? 'completed' : s.status === 'CANCELLED' ? 'cancelled' : 'scheduled',
+        crewAssignments: (s.assignments || []).map((a: any) => ({
+          id: a.id,
+          userId: a.user?.id || undefined,
+          role: a.role,
+          name: a.user?.fullName || a.freelancer?.fullName || '',
+          mobile: a.user?.phone || a.freelancer?.phone || '',
+          dataReceived: Boolean(a.dataReceived),
+          dataSizeGB: Number(a.dataSizeGb || 0),
+          copyInHD: a.storageReference || '',
+          backupInHD: a.notes || '',
+        })),
+      };
+    }),
     tasks: (dto.tasks || []).map((t: any) => ({
       id: t.id,
       taskName: t.title || '',

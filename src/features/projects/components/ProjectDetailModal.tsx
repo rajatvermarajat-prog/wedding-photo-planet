@@ -2743,7 +2743,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
                                   <div className="flex items-center gap-3 text-slate-500 text-xs mt-0.5">
                                     <span className="flex items-center gap-1 font-bold text-slate-800">
                                       <Calendar className="w-3.5 h-3.5 text-indigo-500" />
-                                      {formatDateDDMMYYYY(s.date)} ({s.time || 'Full Day'})
+                                      {formatDateDDMMYYYY(s.date)} ({s.startTime && s.endTime ? `${s.startTime} – ${s.endTime}` : s.startTime || s.time || 'Full Day'})
                                     </span>
                                     <span>•</span>
                                     <span className="flex items-center gap-1 text-slate-600">

@@ -23,7 +23,9 @@ function normalizeMeridiemTime(value: string) {
   const input = value.trim().toUpperCase().replace(/\./g, '');
   if (!input) return '';
 
-  const twelveHour = input.match(/^(\d{1,2})(?::([0-5]\d))?\s*(AM|PM)$/);
+  // Accept both conventional "5:00 PM" and the space-separated value users
+  // commonly enter in this free-text field: "5 00 PM".
+  const twelveHour = input.match(/^(\d{1,2})(?:(?::|\s+)([0-5]\d))?\s*(AM|PM)$/);
   if (twelveHour) {
     const hour = Number(twelveHour[1]);
     if (hour >= 1 && hour <= 12) {
