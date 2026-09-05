@@ -216,7 +216,11 @@ export default function App() {
         });
         setProjects((current) => current.map((project) => {
           const payments = byProject.get(project.id) ?? [];
-          const advanceReceived = payments.reduce((sum, payment) => sum + payment.amount, 0);
+          const receiptReceived = payments.reduce((sum, payment) => sum + payment.amount, 0);
+          // `project.advanceReceived` already includes received payment
+          // milestones from the projects API.  Do not overwrite that total
+          // with receipt-only data after a refresh.
+          const advanceReceived = Math.max(project.advanceReceived, receiptReceived);
           return { ...project, payments, advanceReceived, balanceDue: Math.max(0, project.totalBudget - advanceReceived) };
         }));
       })

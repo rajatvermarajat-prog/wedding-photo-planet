@@ -290,6 +290,13 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
     .reduce((sum, item) => sum + item.amount, 0);
   const receivedAmount = Math.max(receiptReceivedAmount, milestoneReceivedAmount);
   const balanceDue = Math.max(0, project.totalBudget - receivedAmount);
+  const paymentSummaryForSchedule = (schedule: ScheduledPayment[]) => {
+    const scheduleReceived = schedule
+      .filter((item) => item.status === 'received')
+      .reduce((sum, item) => sum + item.amount, 0);
+    const received = Math.max(receiptReceivedAmount, scheduleReceived);
+    return { advanceReceived: received, balanceDue: Math.max(0, project.totalBudget - received) };
+  };
 
   const hydratePaymentRecords = async (items: ApiProjectPayment[]) => Promise.all(items.map(async (item) => ({
     ...toPaymentRecord(item),
@@ -311,7 +318,10 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
   };
 
   const syncPaymentSummary = (nextPayments: PaymentRecord[]) => {
-    const received = nextPayments.reduce((sum, payment) => sum + payment.amount, 0);
+    const received = Math.max(
+      nextPayments.reduce((sum, payment) => sum + payment.amount, 0),
+      milestoneReceivedAmount,
+    );
     onUpdateProject({
       ...project,
       payments: nextPayments,
@@ -379,7 +389,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
         amount: Number(item.amount), status: String(item.status).toLowerCase() as ScheduledPayment['status'], notes: item.notes || '',
       }));
       setPaymentSchedules(updated);
-      onUpdateProject({ ...project, paymentSchedule: updated });
+      onUpdateProject({ ...project, paymentSchedule: updated, ...paymentSummaryForSchedule(updated) });
       setShowAddScheduleModal(false);
       setEditingScheduleItem(null);
       setSchedStageName('');
@@ -409,6 +419,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
     onUpdateProject({
       ...project,
       paymentSchedule: updated,
+      ...paymentSummaryForSchedule(updated),
     });
   };
 
@@ -424,7 +435,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
           await projectsApi.removePaymentMilestone(project.id, item.id, paymentSchedules);
           const updated = paymentSchedules.filter((s) => s.id !== item.id);
           setPaymentSchedules(updated);
-          onUpdateProject({ ...project, paymentSchedule: updated });
+          onUpdateProject({ ...project, paymentSchedule: updated, ...paymentSummaryForSchedule(updated) });
           setGenericDeleteModal((prev) => ({ ...prev, isOpen: false }));
           showToast('Payment milestone deleted.', { variant: 'success' });
         } catch {
