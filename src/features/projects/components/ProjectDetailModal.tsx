@@ -1855,7 +1855,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs bg-slate-50 p-3 rounded-xl border border-slate-200/80">
                     <div>
-                      <span className="text-slate-500 block font-bold text-[10px] uppercase">Wedding Function Date(s)</span>
+                      <span className="text-slate-500 block font-bold text-[10px] uppercase">Event Date(s)</span>
                       <span className="text-slate-900 font-extrabold text-xs">{project.weddingFunctionDates.split(',').map((date) => formatDateDDMMYYYY(date.trim()) || date.trim()).filter(Boolean).join(', ') || 'Not set'}</span>
                     </div>
 
