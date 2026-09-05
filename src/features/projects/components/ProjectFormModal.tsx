@@ -1218,6 +1218,7 @@ export const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
                         </div>
                         <input
                           type="text"
+                          maxLength={160}
                           placeholder="Unit: Pcs / Reels"
                           value={task.unit || ''}
                           onChange={(e) => handleTaskChange(index, 'unit', e.target.value)}
