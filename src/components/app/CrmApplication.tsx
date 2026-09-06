@@ -38,6 +38,16 @@ import { isPersistedProjectId, normalizeProject, toBackendProjectStatus } from '
 import { projectsApi } from '@/lib/api/projects';
 import { persistStudioProject } from '@/features/projects/persistProject';
 import { attachShoots, persistProjectShoots, persistSingleCrewDataHandover } from '@/features/shoots/persistShoots';
+
+function toShiftValue(value?: string): string | undefined {
+  if (!value) return undefined;
+  const match = value.trim().match(/^(\d{1,2}):(\d{2})\s*(AM|PM)?$/i);
+  if (!match) return undefined;
+  let hours = Number(match[1]);
+  const minutes = Number(match[2]);
+  if (match[3]) hours = (hours % 12) + (match[3].toUpperCase() === 'PM' ? 12 : 0);
+  return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+}
 import { shootsApi } from '@/lib/api/shoots';
 import { paymentMethodLabel, paymentsApi } from '@/lib/api/payments';
 import { normalizeTask, taskCreateInput, taskStatusInput } from '@/features/tasks/taskViewModel';
@@ -593,6 +603,8 @@ export default function App() {
         joiningDate: member.joiningDate || undefined,
         monthlySalary: member.monthlySalary ?? 0,
         dailyRate: member.dailyRate ?? 0,
+        shiftStart: toShiftValue(member.inTime),
+        shiftEnd: toShiftValue(member.outTime),
         workLocation: member.attendanceMode === 'WFH' ? 'WFH' as const
           : member.attendanceMode === 'Hybrid' ? 'HYBRID' as const
           : member.attendanceMode === 'Field' ? 'ON_SHOOT' as const
@@ -629,6 +641,8 @@ export default function App() {
           joiningDate: updatedMember.joiningDate || undefined,
           monthlySalary: updatedMember.monthlySalary ?? 0,
           dailyRate: updatedMember.dailyRate ?? 0,
+          shiftStart: toShiftValue(updatedMember.inTime),
+          shiftEnd: toShiftValue(updatedMember.outTime),
           workLocation: updatedMember.attendanceMode === 'WFH' ? 'WFH'
             : updatedMember.attendanceMode === 'Hybrid' ? 'HYBRID'
             : updatedMember.attendanceMode === 'Field' ? 'ON_SHOOT'
@@ -1220,24 +1234,9 @@ export default function App() {
                 onDeleteRole={async (id) => { await rbacApi.removeRole(id); await rbacQuery.refresh(); }}
                 onLoadAudit={canViewAudit ? loadRoleAudit : undefined}
                 onLoadRoleUsers={(roleId) => rbacApi.roleUsers(roleId)}
-                onCreatePersonalRole={async ({ source, userId, userName }) => {
-                  // Clone the source role's permissions into a personal role so
-                  // this employee can diverge without affecting colleagues.
-                  const created = await rbacApi.createRole({
-                    name: `${userName} — ${source.name}`.slice(0, 64),
-                    description: `Personal access for ${userName}, based on ${source.name}.`,
-                    status: 'ACTIVE',
-                    // Pins the role to this employee, which keeps it out of
-                    // everyone else's role list.
-                    personalForUserId: userId,
-                    permissionKeys: Object.entries(source.grants)
-                      .filter(([, grant]) => grant.enabled)
-                      .map(([key]) => key),
-                  });
-                  await teamMutations.setRoles(userId, [created.id]);
-                  await rbacQuery.refresh();
-                  return created.id;
-                }}
+                onLoadMemberPermissionOverride={(userId) => rbacApi.userPermissionOverride(userId)}
+                onSaveMemberPermissionOverride={(userId, permissionKeys) => rbacApi.setUserPermissionOverride(userId, permissionKeys)}
+                onClearMemberPermissionOverride={(userId) => rbacApi.clearUserPermissionOverride(userId)}
                 capabilities={{
                   create: hasPermission(currentUser, accessRoles, 'ROLE_CREATE'),
                   update: hasPermission(currentUser, accessRoles, 'ROLE_UPDATE'),

@@ -180,6 +180,29 @@ export async function apiRequest<T>(
   return request;
 }
 
+/** Authenticated binary download with the same one-time refresh behavior as API JSON calls. */
+export async function apiBlobRequest(path: string, isRetry = false): Promise<{ blob: Blob; filename: string | null }> {
+  const headers = new Headers({ Accept: 'application/pdf' });
+  const token = getAccessToken();
+  if (token) headers.set('Authorization', `Bearer ${token}`);
+  try {
+    const response = await fetch(`${baseUrl}${path.startsWith('/') ? path : `/${path}`}`, { headers, credentials: 'include' });
+    if (response.status === 401 && !isRetry && hasStoredSession() && await refreshSession()) {
+      return apiBlobRequest(path, true);
+    }
+    if (!response.ok) {
+      const payload = await response.json().catch(() => null) as ApiErrorEnvelope | null;
+      throw new ApiError(response.status, payload?.error?.message ?? statusMessage(response.status), payload?.error?.code, payload?.error?.details);
+    }
+    const disposition = response.headers.get('content-disposition');
+    const filename = disposition?.match(/filename="?([^";]+)"?/i)?.[1] ?? null;
+    return { blob: await response.blob(), filename };
+  } catch (error) {
+    if (error instanceof ApiError) throw error;
+    throw new ApiError(0, 'Unable to download the report. Check your connection and try again.');
+  }
+}
+
 const NO_REFRESH_PATHS = ['/auth/login', '/auth/refresh', '/auth/logout'];
 
 async function performRequest<T>(

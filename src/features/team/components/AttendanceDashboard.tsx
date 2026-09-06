@@ -169,8 +169,8 @@ export const AttendanceDashboard: React.FC<Props> = ({
   return (
     <div className="space-y-5">
       {/* Controls */}
-      <div className={`${CARD} flex flex-col gap-3 p-3 sm:p-4 lg:flex-row lg:items-end`}>
-        <div className="grid flex-1 grid-cols-1 gap-3 sm:grid-cols-3">
+      <div className={`${CARD} flex flex-col gap-4 p-5 lg:flex-row lg:items-end`}>
+        <div className="grid flex-1 grid-cols-1 gap-4 sm:grid-cols-3">
           <div>
             <label className={LABEL} htmlFor="att-date">
               Attendance date
@@ -202,36 +202,36 @@ export const AttendanceDashboard: React.FC<Props> = ({
         </div>
 
         <div className="flex items-center gap-2">
-          <button type="button" onClick={() => setDateKey(today)} className={BTN_GHOST} disabled={dateKey === today}>
+          <button type="button" onClick={() => setDateKey(today)} className={`${BTN_GHOST} !px-4 !py-3 !text-sm`} disabled={dateKey === today}>
             Today
           </button>
           <div className={TOGGLE_WRAP}>
             <button
               type="button"
               onClick={() => setMode('day')}
-              className={`flex cursor-pointer items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-bold transition ${mode === 'day' ? TOGGLE_ACTIVE : TOGGLE_IDLE}`}
+              className={`flex cursor-pointer items-center gap-2 rounded-lg px-4 py-3 text-sm font-bold transition ${mode === 'day' ? TOGGLE_ACTIVE : TOGGLE_IDLE}`}
               aria-pressed={mode === 'day'}
             >
-              <CalendarDays className="size-3.5" /> Day
+              <CalendarDays className="size-4" /> Day
             </button>
             <button
               type="button"
               onClick={() => setMode('month')}
-              className={`flex cursor-pointer items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-bold transition ${mode === 'month' ? TOGGLE_ACTIVE : TOGGLE_IDLE}`}
+              className={`flex cursor-pointer items-center gap-2 rounded-lg px-4 py-3 text-sm font-bold transition ${mode === 'month' ? TOGGLE_ACTIVE : TOGGLE_IDLE}`}
               aria-pressed={mode === 'month'}
             >
-              <CalendarRange className="size-3.5" /> Month
+              <CalendarRange className="size-4" /> Month
             </button>
           </div>
         </div>
       </div>
 
       {mode === 'month' ? (
-        <section className={`${CARD} p-5 space-y-4`}>
+        <section className={`${CARD} p-6 space-y-5`}>
           <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
-              <h3 className="text-sm font-extrabold text-slate-900 uppercase tracking-tight">Monthly attendance calendar</h3>
-              <p className="text-[11px] text-slate-500 font-medium">Every member, every day — shoot days included.</p>
+              <h3 className="text-lg font-extrabold text-slate-900 uppercase tracking-tight">Monthly attendance calendar</h3>
+              <p className="text-sm text-slate-500 font-medium">Every member, every day — shoot days included.</p>
             </div>
             <MonthNavigator monthKey={monthKey} onChange={setMonthKey} />
           </header>

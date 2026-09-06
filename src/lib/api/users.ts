@@ -24,6 +24,8 @@ export interface BackendUser {
     joiningDate: string | null;
     monthlySalary: string | number | null;
     dailyRate: string | number | null;
+    shiftStart: string | null;
+    shiftEnd: string | null;
     workLocation: 'OFFICE' | 'WFH' | 'HYBRID' | 'ON_SHOOT' | null;
     skills: string[];
   } | null;
@@ -45,6 +47,8 @@ export interface EmployeeProfileInput {
   joiningDate?: string;
   monthlySalary?: number;
   dailyRate?: number;
+  shiftStart?: string;
+  shiftEnd?: string;
   workLocation?: 'OFFICE' | 'WFH' | 'HYBRID' | 'ON_SHOOT';
   skills?: string[];
   reportingManagerId?: string;

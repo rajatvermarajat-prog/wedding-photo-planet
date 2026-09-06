@@ -8,8 +8,8 @@
  * attendance ledger for reliability.
  */
 
-import React, { useMemo, useState } from 'react';
-import { Activity, CalendarRange, Camera, Clock, TrendingUp, Users } from 'lucide-react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Activity, CalendarRange, Camera, Clock, Download, TrendingUp, Users, WalletCards } from 'lucide-react';
 import { AttendanceRecord, LeaveRequest, Project, TeamMember } from '@/types';
 import {
   Avatar,
@@ -34,6 +34,7 @@ import {
   getWorkloadForRange,
   isActiveMember,
 } from '../teamDomain';
+import { attendanceApi, type EmployeePerformanceReport } from '@/lib/api/attendance';
 
 interface Props {
   team: TeamMember[];
@@ -56,9 +57,36 @@ export const TeamPerformanceView: React.FC<Props> = ({ team, attendance, project
   const [span, setSpan] = useState(7);
   const [statsStart, setStatsStart] = useState(monthStart);
   const [statsEnd, setStatsEnd] = useState(today);
+  const [selectedEmployeeId, setSelectedEmployeeId] = useState('');
+  const [reportMonth, setReportMonth] = useState(today.slice(0, 7));
+  const [employeeReport, setEmployeeReport] = useState<EmployeePerformanceReport | null>(null);
+  const [reportState, setReportState] = useState<'idle' | 'loading' | 'error'>('idle');
+  const [downloadingReport, setDownloadingReport] = useState(false);
 
   const capacityEnd = useMemo(() => addDays(today, span - 1), [today, span]);
   const activeTeam = useMemo(() => team.filter(isActiveMember), [team]);
+
+  useEffect(() => {
+    if (!selectedEmployeeId && activeTeam[0]) setSelectedEmployeeId(activeTeam[0].id);
+  }, [activeTeam, selectedEmployeeId]);
+
+  useEffect(() => {
+    if (!selectedEmployeeId || !reportMonth) return;
+    let active = true;
+    setReportState('loading');
+    attendanceApi.performanceReport(selectedEmployeeId, reportMonth)
+      .then((report) => {
+        if (!active) return;
+        setEmployeeReport(report);
+        setReportState('idle');
+      })
+      .catch(() => {
+        if (!active) return;
+        setEmployeeReport(null);
+        setReportState('error');
+      });
+    return () => { active = false; };
+  }, [selectedEmployeeId, reportMonth]);
 
   const workload = useMemo(
     () => getWorkloadForRange(activeTeam, projects, attendance, leaves, today, capacityEnd),
@@ -90,6 +118,24 @@ export const TeamPerformanceView: React.FC<Props> = ({ team, attendance, project
 
   const maxShoots = Math.max(1, ...workload.map((w) => w.shootsInRange));
 
+  const downloadReport = async () => {
+    if (!selectedEmployeeId || !reportMonth) return;
+    setDownloadingReport(true);
+    try {
+      const { blob, filename } = await attendanceApi.downloadPerformanceReport(selectedEmployeeId, reportMonth);
+      const url = window.URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = filename || `Performance_Report_${reportMonth}.pdf`;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      window.URL.revokeObjectURL(url);
+    } finally {
+      setDownloadingReport(false);
+    }
+  };
+
   if (!activeTeam.length) {
     return (
       <div className={CARD}>
@@ -100,6 +146,60 @@ export const TeamPerformanceView: React.FC<Props> = ({ team, attendance, project
 
   return (
     <div className="space-y-5">
+      <section className={`${CARD} overflow-hidden`}>
+        <header className="border-b border-[#eee7e2] bg-[linear-gradient(120deg,#fff8fa,#fbfaf8)] p-5">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+            <div>
+              <h3 className="flex items-center gap-2 text-base font-black text-slate-900"><TrendingUp className="size-5 text-[#8f3655]" /> Employee performance report</h3>
+              <p className="mt-1 text-xs font-medium text-slate-500">Authoritative attendance, shift hours, payroll and delivery metrics from one report API.</p>
+            </div>
+            <div className="grid gap-2 sm:grid-cols-2">
+              <label>
+                <span className={LABEL}>Employee</span>
+                <select className={`${FIELD} min-w-[240px]`} value={selectedEmployeeId} onChange={(e) => setSelectedEmployeeId(e.target.value)}>
+                  {activeTeam.map((member) => <option key={member.id} value={member.id}>{member.name} — {member.role}</option>)}
+                </select>
+              </label>
+              <label>
+                <span className={LABEL}>Report month</span>
+                <input type="month" className={FIELD} value={reportMonth} max={today.slice(0, 7)} onChange={(e) => setReportMonth(e.target.value)} />
+              </label>
+            </div>
+          </div>
+          <div className="mt-3 flex justify-end">
+            <button type="button" className={BTN_GHOST} disabled={!employeeReport || downloadingReport} onClick={() => void downloadReport()}>
+              <Download className="size-4" /> {downloadingReport ? 'Preparing PDF…' : 'Download PDF'}
+            </button>
+          </div>
+        </header>
+        {reportState === 'loading' && <div className="p-6 text-sm font-semibold text-slate-500">Loading employee report…</div>}
+        {reportState === 'error' && <div className="p-6 text-sm font-semibold text-red-700">Could not load this employee report. Please try again.</div>}
+        {employeeReport && reportState === 'idle' && (() => {
+          const { employee, attendance: attendanceSummary, salary, performance } = employeeReport;
+          const money = new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 });
+          return <div className="space-y-5 p-5">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div><p className="text-lg font-black text-slate-900">{employee.fullName}</p><p className="text-xs font-semibold text-slate-500">{employee.employeeCode || 'No employee ID'} · Shift {employee.shift.start || 'Not set'} – {employee.shift.end || 'Not set'}</p></div>
+              <Badge className="border-[#e6cbd5] bg-[#fff7f9] text-[#8f3655]">{employeeReport.month}</Badge>
+            </div>
+            <div className="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-6">
+              <KpiCard label="Present" value={attendanceSummary.present} hint={`${attendanceSummary.halfDay} half day`} tone="emerald" />
+              <KpiCard label="Working hours" value={formatHours(attendanceSummary.workingMinutes / 60)} hint={`Expected ${formatHours(attendanceSummary.expectedMinutes / 60)}`} icon={Clock} tone="blue" />
+              <KpiCard label="Undertime" value={formatHours(attendanceSummary.undertimeMinutes / 60)} tone={attendanceSummary.undertimeMinutes ? 'amber' : 'stone'} />
+              <KpiCard label="Calculated salary" value={money.format(salary.calculatedSalary)} hint={`${attendanceSummary.payableDays} payable days`} icon={WalletCards} tone="emerald" />
+              <KpiCard label="Tasks complete" value={`${performance.completedTasks}/${performance.assignedTasks}`} hint={`${performance.completionRate}% completion`} tone="purple" />
+              <KpiCard label="Shoot assignments" value={performance.shootAssignments} hint={`${formatHours(performance.trackedWorkMinutes / 60)} tracked`} icon={Camera} tone="rose" />
+            </div>
+            <div className="grid gap-3 text-sm sm:grid-cols-4">
+              <div className="rounded-xl bg-slate-50 p-3"><span className="text-xs font-bold text-slate-500">Absent</span><p className="mt-1 font-black text-slate-900">{attendanceSummary.absent}</p></div>
+              <div className="rounded-xl bg-slate-50 p-3"><span className="text-xs font-bold text-slate-500">Late arrivals</span><p className="mt-1 font-black text-slate-900">{attendanceSummary.late}</p></div>
+              <div className="rounded-xl bg-slate-50 p-3"><span className="text-xs font-bold text-slate-500">Leave days</span><p className="mt-1 font-black text-slate-900">{attendanceSummary.onLeave}</p></div>
+              <div className="rounded-xl bg-slate-50 p-3"><span className="text-xs font-bold text-slate-500">Tracked sessions</span><p className="mt-1 font-black text-slate-900">{performance.trackedWorkSessions}</p></div>
+            </div>
+          </div>;
+        })()}
+      </section>
+
       {/* Capacity snapshot */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
         <KpiCard label="Active members" value={activeTeam.length} icon={Users} tone="rose" />
