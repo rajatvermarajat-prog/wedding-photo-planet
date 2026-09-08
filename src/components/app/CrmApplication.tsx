@@ -71,6 +71,7 @@ import { TeamAttendance, MemberDashboardModal } from '@/features/team';
 import { EmployeeDashboardTasks } from '@/features/tasks/EmployeeDashboardTasks';
 import { DeliveriesManager } from '@/features/deliveries';
 import { FreelancerTeamManager } from '@/features/freelancers';
+import { INITIAL_FREELANCER_CATEGORIES, INITIAL_FREELANCERS } from '@/data/mockFreelancers';
 import { BACKEND_MODULE_META, BACKEND_MODULE_ORDER, FINANCE_PERMISSION_ORDER, hasAnyPermission, hasPermission, PermissionProvider, ROLE_UI_HIDDEN_KEYS, ROLE_UI_MODULE_OVERRIDE, RolesPermissionsManager, TAB_PERMISSIONS, TEAM_PERMISSION_ORDER } from '@/features/access';
 import { ExpenseManagement } from '@/features/expenses';
 import { expenseService } from '@/features/expenses/services/expenseService';
@@ -369,9 +370,9 @@ export default function App() {
   const [leaves, setLeaves] = useState<LeaveRequest[]>([]);
 
   // Freelancer Module Persistent States
-  const [freelancerCategories, setFreelancerCategories] = useState<FreelancerCategory[]>([]);
+  const [freelancerCategories, setFreelancerCategories] = useState<FreelancerCategory[]>(INITIAL_FREELANCER_CATEGORIES);
 
-  const [freelancers, setFreelancers] = useState<Freelancer[]>([]);
+  const [freelancers, setFreelancers] = useState<Freelancer[]>(INITIAL_FREELANCERS);
 
   const [freelancerAssignments, setFreelancerAssignments] = useState<FreelancerAssignment[]>([]);
 
