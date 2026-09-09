@@ -21,10 +21,12 @@ import { FreelancerReportsView } from './FreelancerReportsView';
 import { CategoriesManagerModal } from './CategoriesManagerModal';
 import { FreelancerFormModal } from './FreelancerFormModal';
 import { FreelancerProfileModal } from './FreelancerProfileModal';
+import { FreelancerApplicationsView } from './FreelancerApplicationsView';
 import {
   BarChart3,
   Calendar,
   CreditCard,
+  ClipboardList,
   LayoutDashboard,
   Tag,
   UserPlus,
@@ -33,7 +35,7 @@ import {
 import { BTN_CREAM, BTN_GHOST, CARD, TOGGLE_ACTIVE, TOGGLE_IDLE } from '@/features/team/components/TeamUiKit';
 import { usePermission } from '@/features/access';
 
-type FreelancerTab = 'dashboard' | 'all_freelancers' | 'calendar' | 'payments' | 'reports';
+type FreelancerTab = 'dashboard' | 'all_freelancers' | 'applications' | 'calendar' | 'payments' | 'reports';
 
 interface FreelancerTeamManagerProps {
   freelancers: Freelancer[];
@@ -64,6 +66,7 @@ interface FreelancerTeamManagerProps {
 const TABS: Array<{ id: FreelancerTab; label: string; icon: typeof Users }> = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { id: 'all_freelancers', label: 'Freelancers', icon: Users },
+  { id: 'applications', label: 'Applications', icon: ClipboardList },
   { id: 'calendar', label: 'Shoot Calendar', icon: Calendar },
   { id: 'payments', label: 'Payments', icon: CreditCard },
   { id: 'reports', label: 'Reports', icon: BarChart3 },
@@ -240,6 +243,15 @@ export const FreelancerTeamManager: React.FC<FreelancerTeamManagerProps> = (prop
           onDeleteFreelancer={canDelete ? onDeleteFreelancer : undefined}
           onManageCategoriesClick={canEdit ? () => setShowCategoriesModal(true) : undefined}
           initialCategory={listCategory}
+        />
+      )}
+
+      {activeSubTab === 'applications' && (
+        <FreelancerApplicationsView
+          freelancers={freelancers}
+          onOpenProfile={(freelancer) => setSelectedProfileFreelancer(freelancer)}
+          onSaveFreelancer={onSaveFreelancer}
+          onAddFreelancerClick={handleOpenAddForm}
         />
       )}
 

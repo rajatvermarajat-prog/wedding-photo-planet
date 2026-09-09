@@ -34,6 +34,17 @@ export interface RoleMember {
   roles: Array<{ id: string; name: string; type: 'SYSTEM' | 'CUSTOM' }>;
 }
 
+export interface UserPermissionOverride {
+  userId: string;
+  fullName: string;
+  roleNames: string[];
+  defaultPermissionKeys: string[];
+  /** null means this employee currently inherits the fixed role defaults. */
+  overridePermissionKeys: string[] | null;
+  effectivePermissionKeys: string[];
+  updatedAt: string | null;
+}
+
 export const rbacApi = {
   async listRoles(): Promise<BackendRole[]> { const { data } = await apiRequest<BackendRole[]>('/roles'); return data; },
   async listPermissions(): Promise<BackendPermission[]> { const { data } = await apiRequest<BackendPermission[]>('/permissions'); return data; },
@@ -42,6 +53,9 @@ export const rbacApi = {
   async setRolePermissions(id: string, permissionKeys: string[]): Promise<BackendRole> { const { data } = await apiRequest<BackendRole>(`/roles/${id}/permissions`, { method: 'PUT', body: JSON.stringify({ permissionKeys }) }); return data; },
   async removeRole(id: string): Promise<void> { await apiRequest<void>(`/roles/${id}`, { method: 'DELETE' }); },
   async roleUsers(id: string): Promise<RoleMember[]> { const { data } = await apiRequest<RoleMember[]>(`/roles/${id}/users`); return data; },
+  async userPermissionOverride(id: string): Promise<UserPermissionOverride> { const { data } = await apiRequest<UserPermissionOverride>(`/users/${id}/permission-override`); return data; },
+  async setUserPermissionOverride(id: string, permissionKeys: string[]): Promise<UserPermissionOverride> { const { data } = await apiRequest<UserPermissionOverride>(`/users/${id}/permission-override`, { method: 'PUT', body: JSON.stringify({ permissionKeys }) }); return data; },
+  async clearUserPermissionOverride(id: string): Promise<UserPermissionOverride> { const { data } = await apiRequest<UserPermissionOverride>(`/users/${id}/permission-override`, { method: 'DELETE' }); return data; },
   /** Role-scoped slice of the shared audit trail; needs `AUDIT_VIEW`. */
   async roleAudit(limit = 25): Promise<RoleAuditEntry[]> {
     const { data } = await apiRequest<RoleAuditEntry[]>(`/audit?entityType=Role&limit=${limit}`);

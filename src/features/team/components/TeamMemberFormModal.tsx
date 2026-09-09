@@ -258,6 +258,13 @@ export const TeamMemberFormModal: React.FC<Props> = ({
       showToast('Pick the employee\u2019s role.', { variant: 'error' });
       return;
     }
+    // A profile change must never silently retain an old role. Existing
+    // legacy/personal roles are excluded from `matchingRoles`, so editing one
+    // requires explicitly selecting an approved fixed role.
+    if (isEdit && !matchingRoles.some((role) => role.id === form.accessRoleId)) {
+      showToast('Select one of the approved fixed roles before saving this employee.', { variant: 'error' });
+      return;
+    }
     if (!isEdit && !form.email.trim()) {
       showToast('Email is required to create a studio login.', { variant: 'error' });
       return;
@@ -502,42 +509,25 @@ export const TeamMemberFormModal: React.FC<Props> = ({
                       ? 'No roles you are allowed to assign'
                       : 'Select a role'}
                 </option>
-                {(['system', 'custom'] as const).map((group) => {
-                  const options = matchingRoles.filter((role) => role.type === group);
-                  if (options.length === 0) return null;
-                  return (
-                    <optgroup key={group} label={group === 'system' ? 'System roles' : 'Custom roles'}>
-                      {options.map((role) => (
-                        <option key={role.id} value={role.id}>
-                          {role.name}
-                        </option>
-                      ))}
-                    </optgroup>
-                  );
-                })}
+                {matchingRoles.map((role) => (
+                  <option key={role.id} value={role.id}>{role.name}</option>
+                ))}
               </select>
 
               {selectedAccessRole && (
-                <div className="rounded-xl border border-[#ded5cf] bg-[#fbfaf8] p-3">
-                  <p className="text-xs font-extrabold text-slate-800">
-                    {selectedAccessRole.name} provides
+                <div className="mt-2 rounded-xl border border-[#eadde2] bg-[#fff8fa] px-3 py-2.5">
+                  <p className="text-sm font-extrabold text-slate-800">
+                    Access included with {selectedAccessRole.name}
                   </p>
                   {selectedAccessRole.description && (
                     <p className="text-[11px] font-medium text-slate-500">{selectedAccessRole.description}</p>
                   )}
                   {rolePreview.length === 0 ? (
-                    <p className="mt-2 text-[11px] font-medium text-slate-500">No module access yet.</p>
+                    <p className="mt-1 text-xs font-medium text-slate-500">No module access is configured for this role.</p>
                   ) : (
-                    <ul className="mt-2 flex flex-wrap gap-1.5">
-                      {rolePreview.map((entry) => (
-                        <li
-                          key={entry.module}
-                          className="rounded-full border border-[#ded5cf] bg-[#f6f1ee] px-2 py-0.5 text-[11px] font-bold text-slate-700"
-                        >
-                          ✓ {entry.module} ({entry.count})
-                        </li>
-                      ))}
-                    </ul>
+                    <p className="mt-1 text-xs font-semibold text-slate-600">
+                      {rolePreview.length} access areas · {rolePreview.reduce((total, entry) => total + entry.count, 0)} permissions
+                    </p>
                   )}
                 </div>
               )}

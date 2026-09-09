@@ -11,10 +11,12 @@ export interface RoleFilter {
   status?: 'all' | AccessRoleStatus;
 }
 
-const SYSTEM_ROLE_PRIORITY: Record<string, number> = {
-  ADMIN: 0,
-  MANAGER: 1,
-};
+export const FIXED_ROLE_NAMES = [
+  'Admin', 'Manager', 'Account Manager', 'Video Editor', 'Social Media Handler',
+  'Photo Editor', 'Album Designer', 'Photographer - Traditional',
+  'Photographer - Candid', 'Videographer - Traditional',
+  'Videographer - Candid', 'Drone Operator', 'Sales Team',
+] as const;
 
 /** True for an employee-specific permission set, rather than a reusable role template. */
 export function isPersonalRole(role: Pick<AccessRole, 'personalForUserId'>): boolean {
@@ -22,38 +24,19 @@ export function isPersonalRole(role: Pick<AccessRole, 'personalForUserId'>): boo
 }
 
 /**
- * Presentation-only cleanup for reusable roles. Older data can contain the
- * same system role with different casing (for example ADMIN and Admin). Keep
- * one row/option, preferring the canonical all-caps record when it exists.
+ * The role catalogue is fixed. This second client-side guard keeps every
+ * selector safe even if a stale API response is cached in a browser.
  */
 export function roleTemplates(roles: AccessRole[]): AccessRole[] {
-  const seenSystemNames = new Set<string>();
-  const canonicalFirst = [...roles].sort((a, b) => {
-    const aCanonical = a.type === 'system' && a.name === a.name.toUpperCase() ? 0 : 1;
-    const bCanonical = b.type === 'system' && b.name === b.name.toUpperCase() ? 0 : 1;
-    return aCanonical - bCanonical;
-  });
-
-  return canonicalFirst
-    .filter((role) => {
-      if (isPersonalRole(role)) return false;
-      if (role.type !== 'system') return true;
-      const key = role.name.trim().toLocaleUpperCase();
-      if (seenSystemNames.has(key)) return false;
-      seenSystemNames.add(key);
-      return true;
-    })
-    .sort((a, b) => {
-      const priority = (role: AccessRole) => SYSTEM_ROLE_PRIORITY[role.name.trim().toLocaleUpperCase()] ?? 2;
-      return priority(a) - priority(b) || a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
-    });
+  return roles
+    .filter((role) => FIXED_ROLE_NAMES.includes(role.name as typeof FIXED_ROLE_NAMES[number]))
+    .sort((a, b) => FIXED_ROLE_NAMES.indexOf(a.name as typeof FIXED_ROLE_NAMES[number]) - FIXED_ROLE_NAMES.indexOf(b.name as typeof FIXED_ROLE_NAMES[number]));
 }
 
 /** Personal roles, sorted consistently for the Individual Access view. */
 export function individualAccessRoles(roles: AccessRole[]): AccessRole[] {
-  return roles
-    .filter(isPersonalRole)
-    .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
+  void roles;
+  return [];
 }
 
 export function filterRoles(roles: AccessRole[], filter: RoleFilter): AccessRole[] {

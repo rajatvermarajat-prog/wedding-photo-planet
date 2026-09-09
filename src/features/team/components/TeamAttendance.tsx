@@ -19,7 +19,6 @@ import {
   CalendarPlus,
   Camera,
   CheckCircle2,
-  CircleDollarSign,
   FileText,
   Home,
   IndianRupee,
@@ -56,8 +55,8 @@ import { TeamScheduleView } from './TeamScheduleView';
 import { TeamAvailabilityView } from './TeamAvailabilityView';
 import { LeaveManagementView } from './LeaveManagementView';
 import { ShootAssignmentView } from './ShootAssignmentView';
-import { TeamFreelancersView } from './TeamFreelancersView';
 import { TeamPerformanceView } from './TeamPerformanceView';
+import { attendanceApi } from '@/lib/api/attendance';
 import { AttendanceReportsView } from './AttendanceReportsView';
 import {
   BTN_CREAM,
@@ -99,7 +98,6 @@ type TeamTabId =
   | 'availability'
   | 'leave'
   | 'assignments'
-  | 'freelancers'
   | 'performance'
   | 'reports';
 
@@ -110,7 +108,6 @@ const TEAM_TABS: Array<{ id: TeamTabId; label: string; icon: typeof Users }> = [
   { id: 'availability', label: 'Availability', icon: UserCheck },
   { id: 'leave', label: 'Leave', icon: Plane },
   { id: 'assignments', label: 'Shoot Assignments', icon: Camera },
-  { id: 'freelancers', label: 'Freelancers', icon: CircleDollarSign },
   { id: 'performance', label: 'Performance', icon: TrendingUp },
   { id: 'reports', label: 'Reports', icon: BarChart3 },
 ];
@@ -182,8 +179,6 @@ export const TeamAttendance: React.FC<TeamAttendanceProps> = ({
     can('shoots.assign_photographer') ||
     can('shoots.assign_cinematographer') ||
     can('shoots.assign_freelancer');
-  const canViewFreelancers = can('freelancers.view');
-  const canCreateFreelancer = can('freelancers.create');
   const allowedTabs = useMemo(() => {
     const ids: TeamTabId[] = [];
     if (canViewTeam) ids.push('team', 'schedule', 'availability', 'performance');
@@ -191,10 +186,9 @@ export const TeamAttendance: React.FC<TeamAttendanceProps> = ({
     if (canViewAttendance && !ids.includes('schedule')) ids.push('schedule');
     if (canViewLeave) ids.push('leave');
     if (canAssignShoot) ids.push('assignments');
-    if (canViewFreelancers) ids.push('freelancers');
     if (canViewAttendance || canViewTeam) ids.push('reports');
     return [...new Set(ids)];
-  }, [canViewTeam, canViewAttendance, canViewLeave, canAssignShoot, canViewFreelancers]);
+  }, [canViewTeam, canViewAttendance, canViewLeave, canAssignShoot]);
 
   const { showToast } = useToast();
   const today = getTodayDateString();
@@ -231,10 +225,10 @@ export const TeamAttendance: React.FC<TeamAttendanceProps> = ({
   // Handlers
   // --------------------------------------------------------------------------
 
-  const openAddMember = (asFreelancer = false) => {
-    if (asFreelancer ? !canCreateFreelancer : !canCreateMember) return;
+  const openAddMember = () => {
+    if (!canCreateMember) return;
     setFormMember(null);
-    setFormDefaultType(asFreelancer ? 'Freelancer' : undefined);
+    setFormDefaultType(undefined);
     setIsFormOpen(true);
   };
 
@@ -247,7 +241,7 @@ export const TeamAttendance: React.FC<TeamAttendanceProps> = ({
 
   const handleSaveMember = async (member: TeamMember, mode: 'create' | 'update', password?: string) => {
     if (mode === 'create') {
-      if (!canCreateMember && !canCreateFreelancer) return;
+      if (!canCreateMember) return;
       await onAddTeamMember(member, password);
       showToast(`${member.name} was added to the team and can now sign in with the temporary password you set.`);
     } else {
@@ -268,8 +262,28 @@ export const TeamAttendance: React.FC<TeamAttendanceProps> = ({
   };
 
   /** Upsert one attendance row without disturbing the rest of the ledger. */
-  const handleSaveAttendance = (record: AttendanceRecord) => {
+  const handleSaveAttendance = async (record: AttendanceRecord) => {
     if (!canManageAttendance) return;
+    const statusMap: Record<AttendanceRecord['status'], 'PRESENT' | 'HALF_DAY' | 'ABSENT' | 'ON_LEAVE' | 'WEEKLY_OFF' | 'HOLIDAY'> = {
+      present: 'PRESENT', present_office: 'PRESENT', present_wfh: 'PRESENT', present_shoot: 'PRESENT', half_day: 'HALF_DAY', absent: 'ABSENT', leave: 'ON_LEAVE', weekly_off: 'WEEKLY_OFF', holiday: 'HOLIDAY',
+    };
+    const toIso = (time?: string) => {
+      if (!time) return undefined;
+      const match = time.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+      if (!match) return undefined;
+      let hour = Number(match[1]) % 12;
+      if (match[3].toUpperCase() === 'PM') hour += 12;
+      return `${record.date}T${String(hour).padStart(2, '0')}:${match[2]}:00.000Z`;
+    };
+    await attendanceApi.mark({
+      userId: record.teamMemberId,
+      date: record.date,
+      checkIn: toIso(record.inTime),
+      checkOut: toIso(record.outTime),
+      status: statusMap[record.status],
+      source: 'ADMIN',
+      workLocation: record.status === 'present_wfh' ? 'WFH' : record.status === 'present_shoot' ? 'ON_SHOOT' : 'OFFICE',
+    });
     const exists = attendance.some((a) => a.id === record.id);
     if (exists) {
       onUpdateAttendance(attendance.map((a) => (a.id === record.id ? record : a)));
@@ -329,15 +343,6 @@ export const TeamAttendance: React.FC<TeamAttendanceProps> = ({
 
   // --------------------------------------------------------------------------
 
-  const quickActions = [
-    canCreateMember && { label: 'Add Team Member', icon: UserPlus, onClick: () => openAddMember(), primary: true },
-    canManageAttendance && { label: 'Mark Attendance', icon: CalendarCheck, onClick: () => setActiveTab('attendance') },
-    canAssignShoot && { label: 'Assign Shoot', icon: Camera, onClick: () => setActiveTab('assignments') },
-    canRequestLeave && { label: 'Apply Leave', icon: CalendarPlus, onClick: () => openApplyLeave() },
-    allowedTabs.includes('schedule') && { label: 'View Schedule', icon: CalendarClock, onClick: () => setActiveTab('schedule') },
-    canCreateFreelancer && { label: 'Add Freelancer', icon: UserCheck, onClick: () => openAddMember(true) },
-  ].filter(Boolean) as Array<{ label: string; icon: typeof Users; onClick: () => void; primary?: boolean }>;
-
   const pendingLeaveCount = leaves.filter((l) => l.status === 'pending').length;
 
   return (
@@ -393,13 +398,6 @@ export const TeamAttendance: React.FC<TeamAttendanceProps> = ({
       </section>
 
       <section className={`${CARD} p-3 sm:p-4`}>
-        <div className="mb-3 flex flex-wrap items-center gap-2">
-          {quickActions.filter((a) => !a.primary).map(({ label, icon: Icon, onClick }) => (
-            <button key={label} type="button" onClick={onClick} className={BTN_GHOST}>
-              <Icon className="size-3.5" /> {label}
-            </button>
-          ))}
-        </div>
         <nav className="flex items-center gap-1 overflow-x-auto rounded-2xl border border-[#e2d9d3] bg-[#f6f1ee] p-1.5" aria-label="Team sections">
           {TEAM_TABS.filter((tab) => allowedTabs.includes(tab.id)).map(({ id, label, icon: Icon }) => (
             <button
@@ -554,21 +552,6 @@ export const TeamAttendance: React.FC<TeamAttendanceProps> = ({
             />
           </div>
         )
-      )}
-
-      {activeTab === 'freelancers' && canViewFreelancers && (
-        <TeamFreelancersView
-          team={team}
-          attendance={attendance}
-          projects={projects}
-          leaves={leaves}
-          freelancers={freelancers}
-          freelancerAssignments={freelancerAssignments}
-          freelancerPayments={freelancerPayments}
-          onOpenProfile={setProfileMember}
-          onAddFreelancer={canCreateFreelancer ? () => openAddMember(true) : undefined}
-          onGoToFreelancerModule={onNavigateToFreelancers}
-        />
       )}
 
       {activeTab === 'performance' && canViewTeam && (

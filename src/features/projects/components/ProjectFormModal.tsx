@@ -8,6 +8,7 @@ import { mergeAssignees, FREELANCER_ASSIGNEE, UNASSIGNED_ASSIGNEE, assigneeSelec
 import { useTeam } from '@/hooks/useTeam';
 import { CLIENT_ASSET_ACCEPT, CLIENT_ASSET_MAX_BYTES, clientAssetsApi, type ProjectClientAsset, uploadProjectClientAsset } from '@/lib/api/clientAssets';
 import { paymentsApi, toPaymentMethod, type PaymentMethod } from '@/lib/api/payments';
+import { ApiError } from '@/lib/api/client';
 import { indianMobileError, nextIndianMobileValue } from '@/lib/validation/indianMobile';
 
 const SCHEDULE_DATE_MIN = `${new Date().getFullYear() - 1}-01-01`;
@@ -18,6 +19,16 @@ import { isPersistedProjectId } from '@/features/projects/projectViewModel';
 import { loadProjectTasks } from '@/features/projects/persistProjectTasks';
 import { shootsApi } from '@/lib/api/shoots';
 import { toShootEvent } from '@/features/shoots/persistShoots';
+
+function projectSaveErrorMessage(error: unknown) {
+  if (error instanceof ApiError) {
+    const detail = error.details?.find(
+      (item): item is { message?: string } => typeof item === 'object' && item !== null && 'message' in item,
+    );
+    if (detail?.message) return detail.message;
+  }
+  return error instanceof Error && error.message ? error.message : 'Project could not be saved. Please try again.';
+}
 
 function normalizeMeridiemTime(value: string) {
   const input = value.trim().toUpperCase().replace(/\./g, '');
@@ -492,6 +503,7 @@ export const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
   const balanceDue = Math.max(0, Number(totalBudget || 0) - Number(advanceReceived || 0));
   const hasFinancialAmount = totalBudget !== '' || advanceReceived !== '';
   const [saving, setSaving] = useState(false);
+  const submitInFlight = useRef(false);
   // Stable for the life of this form: retrying a failed submit must replay the
   // same advance rather than record it twice.
   const advanceIdempotencyKey = useRef(
@@ -502,7 +514,7 @@ export const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
 
   const handleSubmit = async (e?: React.SyntheticEvent) => {
     e?.preventDefault();
-    if (saving) return;
+    if (saving || submitInFlight.current) return;
 
     if (!clientWeddingTitle.trim()) {
       showToast('Please enter the Client / Wedding Title.', { variant: 'error' });
@@ -589,6 +601,7 @@ export const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
     const autoWork = computeAutoProjectStatus(newProject);
     newProject.status = autoWork.autoStatus;
 
+    submitInFlight.current = true;
     setSaving(true);
     try {
       const persistedProject = createdProjectId ? undefined : await onSave(newProject);
@@ -647,14 +660,10 @@ export const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
     } catch (error) {
       // Surface what actually failed. A generic message here is how a lost
       // advance looked like "the budget did not save".
-      showToast(
-        error instanceof Error && error.message
-          ? error.message
-          : 'Project could not be saved. Please try again.',
-        { variant: 'error' },
-      );
+      showToast(projectSaveErrorMessage(error), { variant: 'error' });
       return;
     } finally {
+      submitInFlight.current = false;
       setSaving(false);
     }
   };

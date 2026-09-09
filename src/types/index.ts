@@ -573,6 +573,56 @@ export interface Freelancer {
   documents?: FreelancerDocument[];
 }
 
+/** Frontend contracts for the hiring lifecycle; an API adapter can replace the mock store later. */
+export interface FreelancerOpportunity {
+  id: string;
+  title: string;
+  role: string;
+  skills: string[];
+  projectName?: string;
+  eventDate: string;
+  location: string;
+  duration: string;
+  budget: number;
+  requiredCount: number;
+  requirements?: string;
+  status: 'open' | 'closed' | 'filled';
+  createdAt: string;
+}
+
+export type FreelancerOpportunityApplicationStatus = 'applied' | 'under_review' | 'shortlisted' | 'meeting' | 'selected' | 'assigned' | 'rejected' | 'withdrawn';
+export interface FreelancerOpportunityApplication {
+  id: string;
+  opportunityId: string;
+  freelancerId: string;
+  status: FreelancerOpportunityApplicationStatus;
+  appliedAt: string;
+  note?: string;
+}
+
+export type FreelancerMeetingStatus = 'scheduled' | 'completed' | 'rescheduled' | 'cancelled' | 'no_show';
+export interface FreelancerMeeting {
+  id: string;
+  freelancerId: string;
+  title: string;
+  date: string;
+  time: string;
+  type: 'Video call' | 'Phone call' | 'In person';
+  locationOrLink?: string;
+  agenda?: string;
+  notes?: string;
+  decision?: 'proceed' | 'hold' | 'reject' | 'another_meeting';
+  status: FreelancerMeetingStatus;
+}
+
+export interface FreelancerInternalNote {
+  id: string;
+  freelancerId: string;
+  body: string;
+  author: string;
+  createdAt: string;
+}
+
 export interface FreelancerAssignment {
   id: string;
   projectId?: string;

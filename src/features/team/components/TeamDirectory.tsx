@@ -57,6 +57,7 @@ import {
   getTodayDateString,
   getUpcomingShoots,
   formatDayLabel,
+  formatCurrency,
   memberMatchesSearch,
   resolveDayStatus,
   sortMembers,
@@ -80,6 +81,23 @@ interface Props {
 }
 
 const ALL = 'all';
+
+/** Keep the roster's pay display honest: never substitute a placeholder salary. */
+function PayStructure({ member }: { member: TeamMember }) {
+  const isMonthly = member.payType !== 'daily';
+  const amount = isMonthly ? member.monthlySalary : member.dailyRate;
+
+  if (!amount) return <span className="text-xs font-medium text-slate-400">Not set</span>;
+
+  return (
+    <div>
+      <p className="font-mono text-sm font-extrabold text-[#6d2f45]">{formatCurrency(amount)}</p>
+      <p className="text-[10px] font-bold uppercase tracking-wide text-slate-500">
+        {isMonthly ? 'Monthly salary' : 'Daily rate'}
+      </p>
+    </div>
+  );
+}
 
 function MemberActions({
   member,
@@ -543,6 +561,10 @@ export const TeamDirectory: React.FC<Props> = ({
                       {upcomingShoot ? `${formatDayLabel(upcomingShoot.date)} · ${upcomingShoot.shootTitle}` : 'None booked'}
                     </span>
                   </div>
+                  <div className="flex items-center justify-between gap-2 border-t border-slate-200 pt-2">
+                    <span className="font-bold text-slate-500 uppercase tracking-wider text-[9px]">Pay structure</span>
+                    <div className="text-right"><PayStructure member={member} /></div>
+                  </div>
                 </div>
 
                 <div className="flex items-center gap-1.5 text-[11px] text-slate-500 font-medium">
@@ -580,6 +602,7 @@ export const TeamDirectory: React.FC<Props> = ({
                   <th className="p-3.5">Today</th>
                   <th className="hidden p-3.5 xl:table-cell">Assignment</th>
                   <th className="hidden p-3.5 xl:table-cell">Availability</th>
+                  <th className="hidden p-3.5 xl:table-cell">Salary / Rate</th>
                   <th className="p-3.5 text-right">Actions</th>
                 </tr>
               </thead>
@@ -636,6 +659,7 @@ export const TeamDirectory: React.FC<Props> = ({
                       <td className="hidden p-3.5 xl:table-cell">
                         <Badge className={availability.badgeClass} title={availability.reason}>{availability.status}</Badge>
                       </td>
+                      <td className="hidden p-3.5 xl:table-cell"><PayStructure member={member} /></td>
                       <td className="p-3.5 text-right">
                         <MemberActions
                           member={member}

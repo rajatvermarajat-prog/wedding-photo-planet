@@ -15,14 +15,14 @@ import {
   UserCog,
   Users,
 } from 'lucide-react';
-import type { RoleMember } from '@/lib/api/rbac';
+import type { RoleMember, UserPermissionOverride } from '@/lib/api/rbac';
 import { TeamMember } from '@/types';
 import { ConfirmDeleteModal } from '@/components/common/ConfirmDeleteModal';
 import { useToast } from '@/components/common';
 import { Badge, BTN_CREAM, BTN_GHOST, BTN_PRIMARY, CARD, EmptyState, FIELD, KpiCard, LABEL, Modal, ModalHero } from '@/features/team/components/TeamUiKit';
-import { AccessAuditEntry, AccessRole, AccessRoleStatus, AccessRoleType, PermissionGrant, PermissionModule, PermissionScope } from '../accessTypes';
+import { AccessAuditEntry, AccessRole, AccessRoleStatus, PermissionGrant, PermissionModule, PermissionScope } from '../accessTypes';
 import { enabledCount, SCOPE_LABELS } from '../accessDomain';
-import { enabledPermissionKeys, filterRoles, individualAccessRoles, roleTemplates } from '../roleSelection';
+import { enabledPermissionKeys, filterRoles, roleTemplates } from '../roleSelection';
 
 interface Props {
   roles: AccessRole[];
@@ -47,16 +47,9 @@ interface Props {
   onLoadAudit?: () => Promise<AccessAuditEntry[]>;
   /** Employees holding a role, loaded when the role row is expanded. */
   onLoadRoleUsers: (roleId: string) => Promise<RoleMember[]>;
-  /**
-   * Clones a role's permissions into a new personal role and moves the
-   * employee onto it, so one person can differ from their colleagues without
-   * abandoning the role model. Returns the new role id.
-   */
-  onCreatePersonalRole: (input: {
-    source: AccessRole;
-    userId: string;
-    userName: string;
-  }) => Promise<string>;
+  onLoadMemberPermissionOverride: (userId: string) => Promise<UserPermissionOverride>;
+  onSaveMemberPermissionOverride: (userId: string, permissionKeys: string[]) => Promise<UserPermissionOverride>;
+  onClearMemberPermissionOverride: (userId: string) => Promise<UserPermissionOverride>;
   /**
    * Mirrors the backend permissions so the page hides what the API would
    * reject. The API remains the authority — this is presentation only.
@@ -69,9 +62,7 @@ interface Props {
   };
 }
 
-type TypeFilter = 'all' | AccessRoleType;
 type StatusFilter = 'all' | AccessRoleStatus;
-type RoleSection = 'templates' | 'individual';
 
 const FILTER_BTN = (active: boolean) =>
   `rounded-full border px-3 py-1.5 text-xs font-extrabold transition ${
@@ -105,14 +96,14 @@ export const RolesPermissionsManager: React.FC<Props> = ({
   onDeleteRole,
   onLoadAudit,
   onLoadRoleUsers,
-  onCreatePersonalRole,
+  onLoadMemberPermissionOverride,
+  onSaveMemberPermissionOverride,
+  onClearMemberPermissionOverride,
   capabilities,
 }) => {
   const { showToast } = useToast();
   const [query, setQuery] = useState('');
-  const [typeFilter, setTypeFilter] = useState<TypeFilter>('all');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
-  const [roleSection, setRoleSection] = useState<RoleSection>('templates');
   const [editorRoleId, setEditorRoleId] = useState<string | null>(null);
   const [readOnly, setReadOnly] = useState(false);
   const [creating, setCreating] = useState(false);
@@ -125,7 +116,8 @@ export const RolesPermissionsManager: React.FC<Props> = ({
   const [expandedRoleId, setExpandedRoleId] = useState<string | null>(null);
   const [members, setMembers] = useState<Record<string, RoleMember[]>>({});
   const [memberState, setMemberState] = useState<'idle' | 'loading' | 'error'>('idle');
-  const [busyUserId, setBusyUserId] = useState<string | null>(null);
+  const [memberOverride, setMemberOverride] = useState<UserPermissionOverride | null>(null);
+  const [memberOverrideReadOnly, setMemberOverrideReadOnly] = useState(false);
 
   const loadMembers = async (roleId: string) => {
     setMemberState('loading');
@@ -147,23 +139,12 @@ export const RolesPermissionsManager: React.FC<Props> = ({
     if (!members[role.id]) void loadMembers(role.id);
   };
 
-  const givePersonalRole = async (source: AccessRole, member: RoleMember) => {
-    setBusyUserId(member.id);
+  const openMemberPermissions = async (member: RoleMember, view = false) => {
     try {
-      const newRoleId = await onCreatePersonalRole({
-        source,
-        userId: member.id,
-        userName: member.fullName,
-      });
-      await loadMembers(source.id);
-      showToast(`${member.fullName} now has their own permission set.`);
-      setExpandedRoleId(null);
-      setReadOnly(false);
-      setEditorRoleId(newRoleId);
+      setMemberOverrideReadOnly(view);
+      setMemberOverride(await onLoadMemberPermissionOverride(member.id));
     } catch (error) {
-      showToast(error instanceof Error ? error.message : 'Unable to create a personal role.', { variant: 'error' });
-    } finally {
-      setBusyUserId(null);
+      showToast(error instanceof Error ? error.message : 'Unable to load employee permissions.', { variant: 'error' });
     }
   };
 
@@ -179,13 +160,10 @@ export const RolesPermissionsManager: React.FC<Props> = ({
     }
   };
 
-  const sectionRoles = useMemo(
-    () => roleSection === 'templates' ? roleTemplates(roles) : individualAccessRoles(roles),
-    [roles, roleSection],
-  );
+  const sectionRoles = useMemo(() => roleTemplates(roles), [roles]);
   const filtered = useMemo(
-    () => filterRoles(sectionRoles, { query, type: typeFilter, status: statusFilter }),
-    [sectionRoles, query, typeFilter, statusFilter],
+    () => filterRoles(sectionRoles, { query, status: statusFilter }),
+    [sectionRoles, query, statusFilter],
   );
 
   const editing = roles.find((r) => r.id === editorRoleId) || null;
@@ -274,6 +252,40 @@ export const RolesPermissionsManager: React.FC<Props> = ({
     );
   }
 
+  if (memberOverride) {
+    const defaultKeys = new Set(memberOverride.defaultPermissionKeys);
+    const grants = Object.fromEntries(memberOverride.effectivePermissionKeys.map((key) => [key, { enabled: true, scope: 'all' as PermissionScope }]));
+    return (
+      <PermissionEditor
+        role={{ id: memberOverride.userId, name: memberOverride.fullName, description: memberOverride.roleNames.join(' · '), type: 'system', status: 'active', grants, createdAt: '', updatedAt: memberOverride.updatedAt || '', userCount: 1, assignable: true }}
+        mode="edit"
+        readOnly={memberOverrideReadOnly}
+        employeeOverride={{ roleNames: memberOverride.roleNames, hasOverride: memberOverride.overridePermissionKeys !== null, defaultKeys }}
+        onResetEmployeeOverride={memberOverride.overridePermissionKeys !== null ? async () => {
+          try {
+            await onClearMemberPermissionOverride(memberOverride.userId);
+            showToast(`${memberOverride.fullName} now inherits their fixed role defaults.`);
+            setMemberOverride(null);
+          } catch (error) {
+            showToast(error instanceof Error ? error.message : 'Unable to reset employee permissions.', { variant: 'error' });
+          }
+        } : undefined}
+        onBack={() => setMemberOverride(null)}
+        onSave={async (next) => {
+          try {
+            await onSaveMemberPermissionOverride(memberOverride.userId, enabledKeys(next));
+            showToast(`${memberOverride.fullName}'s individual permissions saved.`);
+            setMemberOverride(null);
+          } catch (error) {
+            showToast(error instanceof Error ? error.message : 'Unable to save employee permissions.', { variant: 'error' });
+            throw error;
+          }
+        }}
+        permissions={permissions}
+      />
+    );
+  }
+
   return (
     <div className="space-y-6 pb-8">
       <section className="relative overflow-hidden rounded-3xl border border-[#ddc89c]/35 bg-[radial-gradient(circle_at_88%_8%,rgba(221,200,156,.2),transparent_30%),linear-gradient(125deg,#704758,#55333f_50%,#38262d)] p-5 text-white shadow-xl sm:p-7">
@@ -297,60 +309,24 @@ export const RolesPermissionsManager: React.FC<Props> = ({
             <button type="button" onClick={() => void openAudit()} className={`${BTN_GHOST} !border-white/20 !bg-white/10 !text-white hover:!bg-white/15`}>
               Audit Log
             </button>
-            {capabilities.create && (
-              <button type="button" onClick={() => setCreating(true)} className={BTN_CREAM}>
-                <Plus className="size-4" />
-                Create Role
-              </button>
-            )}
           </div>
         </div>
       </section>
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <KpiCard label="Roles" value={roles.length} hint="System and custom" icon={ShieldCheck} tone="rose" />
+        <KpiCard label="Fixed roles" value={roles.length} hint="Approved studio roles" icon={ShieldCheck} tone="rose" />
         <KpiCard label="Active" value={roles.filter((r) => r.status === 'active').length} hint="Assignable now" icon={CheckCircle2} tone="emerald" />
-        <KpiCard label="Custom Roles" value={roles.filter((r) => r.type === 'custom').length} hint="Created from this desk" icon={Sparkles} tone="amber" />
+        <KpiCard label="Role catalogue" value="13" hint="Flat fixed list" icon={Sparkles} tone="amber" />
         <KpiCard label="People Mapped" value={team.length} hint="From team roster" icon={Eye} tone="stone" />
       </div>
 
       <div className={`${CARD} space-y-4 p-4`}>
-        <div className="grid gap-2 border-b border-[#eee7e2] pb-4 sm:grid-cols-2">
-          <button
-            type="button"
-            onClick={() => setRoleSection('templates')}
-            className={`rounded-2xl border p-3 text-left transition ${roleSection === 'templates' ? 'border-[#8f3655] bg-[#f9eef2] shadow-sm' : 'border-[#e6ddd7] bg-[#fbfaf8] hover:border-[#8f3655]/40'}`}
-          >
-            <span className="flex items-center justify-between gap-3">
-              <span className="text-sm font-extrabold text-slate-900">Role templates</span>
-              <span className="rounded-full bg-white px-2 py-0.5 text-xs font-black text-[#8f3655]">{roleTemplates(roles).length}</span>
-            </span>
-            <span className="mt-1 block text-xs font-medium text-slate-500">Shared access for a team or job role</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setRoleSection('individual')}
-            className={`rounded-2xl border p-3 text-left transition ${roleSection === 'individual' ? 'border-[#326e62] bg-[#eef8f5] shadow-sm' : 'border-[#e6ddd7] bg-[#fbfaf8] hover:border-[#326e62]/40'}`}
-          >
-            <span className="flex items-center justify-between gap-3">
-              <span className="flex items-center gap-2 text-sm font-extrabold text-slate-900"><UserCog className="size-4 text-[#326e62]" /> Individual access</span>
-              <span className="rounded-full bg-white px-2 py-0.5 text-xs font-black text-[#326e62]">{individualAccessRoles(roles).length}</span>
-            </span>
-            <span className="mt-1 block text-xs font-medium text-slate-500">One employee’s custom permission set</span>
-          </button>
-        </div>
         <div className="relative">
           <Search className="pointer-events-none absolute left-3 top-3 size-4 text-slate-400" />
           <input className={`${FIELD} pl-10`} value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search roles" />
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400">Type</span>
-          {(['all', 'system', 'custom'] as TypeFilter[]).map((value) => (
-            <button key={value} type="button" className={FILTER_BTN(typeFilter === value)} onClick={() => setTypeFilter(value)}>
-              {value === 'all' ? 'All' : value === 'system' ? 'System' : 'Custom'}
-            </button>
-          ))}
-          <span className="ml-2 text-[10px] font-extrabold uppercase tracking-wider text-slate-400">Status</span>
+          <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400">Status</span>
           {(['all', 'active', 'inactive'] as StatusFilter[]).map((value) => (
             <button key={value} type="button" className={FILTER_BTN(statusFilter === value)} onClick={() => setStatusFilter(value)}>
               {value === 'all' ? 'All' : value === 'active' ? 'Active' : 'Inactive'}
@@ -362,7 +338,7 @@ export const RolesPermissionsManager: React.FC<Props> = ({
 
       {filtered.length === 0 ? (
         <div className={CARD}>
-          <EmptyState icon={ShieldCheck} title="No roles found" message={roleSection === 'individual' ? 'No employee-specific access roles have been created.' : 'Create a custom role to get started.'} />
+          <EmptyState icon={ShieldCheck} title="No roles found" message="No approved fixed role matches this filter." />
         </div>
       ) : (
         <div className={`${CARD} overflow-hidden`}>
@@ -451,9 +427,9 @@ export const RolesPermissionsManager: React.FC<Props> = ({
                           role={role}
                           members={members[role.id]}
                           state={memberState}
-                          busyUserId={busyUserId}
                           canManage={capabilities.create && canEdit}
-                          onGivePersonalRole={(member) => void givePersonalRole(role, member)}
+                          onViewMember={(member) => void openMemberPermissions(member, true)}
+                          onEditMember={(member) => void openMemberPermissions(member)}
                         />
                       </td>
                     </tr>
@@ -523,24 +499,23 @@ export const RolesPermissionsManager: React.FC<Props> = ({
 };
 
 /**
- * The people on one role. Two managers who need different access are handled by
- * giving one of them their own derived role, which keeps permissions attached to
- * roles instead of introducing a parallel per-user grant system.
+ * Assigned people retain their shared fixed role. An optional per-user override
+ * adjusts only that employee's effective permissions.
  */
 function RoleMemberList({
   role,
   members,
   state,
-  busyUserId,
   canManage,
-  onGivePersonalRole,
+  onViewMember,
+  onEditMember,
 }: {
   role: AccessRole;
   members?: RoleMember[];
   state: 'idle' | 'loading' | 'error';
-  busyUserId: string | null;
   canManage: boolean;
-  onGivePersonalRole: (member: RoleMember) => void;
+  onViewMember?: (member: RoleMember) => void;
+  onEditMember?: (member: RoleMember) => void;
 }) {
   if (state === 'loading' && !members) {
     return <p className="text-xs font-semibold text-slate-500">Loading people on this role…</p>;
@@ -563,11 +538,9 @@ function RoleMemberList({
         </div>
         <span className="w-fit rounded-full border border-[#dfc1cb] bg-white px-2.5 py-1 text-[10px] font-extrabold text-[#8f3655]">{members.length} assigned</span>
       </div>
-      {canManage && (
-        <p className="mt-3 text-[11px] font-medium leading-relaxed text-slate-600">
-          Create individual access when one employee needs permissions different from this shared role. It affects only that employee.
-        </p>
-      )}
+      <p className="mt-3 text-[11px] font-medium leading-relaxed text-slate-600">
+        Role defaults stay shared. View or edit an employee’s own effective permissions without changing their fixed role.
+      </p>
       <div className="mt-3 space-y-2">
       {members.map((member) => (
         <div
@@ -587,17 +560,10 @@ function RoleMemberList({
               </p>
             )}
           </div>
-          {canManage && (
+          {(onViewMember || (canManage && onEditMember)) && (
             <div className="flex flex-wrap items-end gap-2">
-              <button
-                type="button"
-                className={BTN_PRIMARY}
-                disabled={busyUserId === member.id}
-                onClick={() => onGivePersonalRole(member)}
-              >
-                <UserCog className="size-3.5" />
-                {busyUserId === member.id ? 'Working…' : 'Create individual access'}
-              </button>
+              {onViewMember && <button type="button" className={BTN_GHOST} onClick={() => onViewMember(member)}><Eye className="size-3.5" /> View</button>}
+              {canManage && onEditMember && <button type="button" className={BTN_PRIMARY} onClick={() => onEditMember(member)}><Pencil className="size-3.5" /> Edit permissions</button>}
             </div>
           )}
         </div>
@@ -614,6 +580,8 @@ function PermissionEditor({
   onBack,
   onSave,
   permissions,
+  employeeOverride,
+  onResetEmployeeOverride,
 }: {
   role: AccessRole;
   mode: 'create' | 'edit';
@@ -621,6 +589,8 @@ function PermissionEditor({
   onBack: () => void;
   onSave: (role: AccessRole) => Promise<void>;
   permissions: PermissionModule[];
+  employeeOverride?: { roleNames: string[]; hasOverride: boolean; defaultKeys: Set<string> };
+  onResetEmployeeOverride?: () => Promise<void>;
 }) {
   const isCreate = mode === 'create';
   const [name, setName] = useState(role.name);
@@ -641,7 +611,8 @@ function PermissionEditor({
   const [openMods, setOpenMods] = useState<string[]>(permissions.map((m) => m.id));
   const [saving, setSaving] = useState(false);
   const [pendingSensitive, setPendingSensitive] = useState<string | null>(null);
-  const isSystemAdmin = role.type === 'system' && role.name === 'ADMIN';
+  const isEmployeeOverride = Boolean(employeeOverride);
+  const isSystemAdmin = !isEmployeeOverride && role.type === 'system' && role.name === 'ADMIN';
   const isAlwaysOn = (modId: string, key?: string) =>
     modId === 'notification' || key === 'NOTIFICATION_VIEW';
   const isLocked = (modId: string, key?: string) =>
@@ -735,9 +706,9 @@ function PermissionEditor({
           <div>
             <button type="button" onClick={onBack} className="text-xs font-bold text-[#ddc89c]">← All roles</button>
             <h1 className="mt-2 text-2xl font-black">
-              {isCreate ? 'Create Role' : role.name}
+              {isCreate ? 'Create Role' : isEmployeeOverride ? `${role.name} — individual access` : role.name}
             </h1>
-            {!isCreate && <p className="mt-1 text-sm text-[#eadfe2]">{role.description}</p>}
+            {!isCreate && <p className="mt-1 text-sm text-[#eadfe2]">{isEmployeeOverride ? `Fixed role: ${employeeOverride!.roleNames.join(' · ') || 'Not assigned'}` : role.description}</p>}
             {!isCreate && (
               <div className="mt-2 flex flex-wrap gap-2">
                 <Badge className={isSystem ? 'border-[#c9b7ad] bg-[#efe7e2] text-slate-700' : 'border-[#ddc89c] bg-[#f9f3e8] text-[#7a5a2e]'}>
@@ -760,11 +731,21 @@ function PermissionEditor({
                 Dashboard widgets can be shown or hidden for Admin. All other Admin permissions stay granted.
               </p>
             )}
+            {isEmployeeOverride && (
+              <p className="mt-2 max-w-2xl text-xs font-semibold leading-relaxed text-[#ddc89c]">
+                {employeeOverride!.hasOverride ? 'Employee-specific override is active. Saving changes updates only this employee.' : 'Currently inherited from the fixed role. Saving creates an employee-specific override; the shared role remains unchanged.'}
+              </p>
+            )}
             <p className="mt-2 text-sm font-extrabold text-[#ddc89c]">{enabled} permissions enabled</p>
           </div>
           <div className="flex flex-wrap gap-2">
             {dirty && <Badge className="border-[#ddc89c] bg-[#f9f3e8] text-[#7a5a2e]">Unsaved Changes</Badge>}
             <button type="button" className={`${BTN_GHOST} !border-white/20 !bg-white/10 !text-white`} onClick={onBack}>Cancel</button>
+            {isEmployeeOverride && employeeOverride!.hasOverride && !readOnly && onResetEmployeeOverride && (
+              <button type="button" className={`${BTN_GHOST} !border-white/20 !bg-white/10 !text-white`} onClick={() => void onResetEmployeeOverride()}>
+                Use role defaults
+              </button>
+            )}
             {!readOnly && (
               <button type="button" disabled={!dirty || saving} onClick={save} className={BTN_CREAM}>
                 <Save className="size-4" />
@@ -775,7 +756,7 @@ function PermissionEditor({
         </div>
       </section>
 
-      {!readOnly && (
+      {!readOnly && !isEmployeeOverride && (
         <div className={`${CARD} grid gap-4 p-4 lg:grid-cols-3`}>
           <label>
             <span className={LABEL}>Role name {isCreate && '*'}</span>
@@ -901,6 +882,7 @@ function PermissionEditor({
                           <tr key={perm.key} className="border-t border-[#f3eeea]">
                             <td className="py-3 pr-3">
                               <p className="font-bold text-slate-800">{perm.label}</p>
+                              {isEmployeeOverride && <p className={`mt-0.5 text-[10px] font-bold ${employeeOverride!.defaultKeys.has(perm.key) ? 'text-emerald-700' : 'text-slate-400'}`}>{employeeOverride!.defaultKeys.has(perm.key) ? 'Role default: allowed' : 'Role default: not allowed'}</p>}
                               {perm.sensitive && <p className="text-[10px] font-extrabold uppercase tracking-wider text-[#8f3655]">Sensitive</p>}
                             </td>
                             <td className="py-3 pr-3">
@@ -934,7 +916,7 @@ function PermissionEditor({
                     return (
                       <article key={perm.key} className="rounded-2xl border border-[#eee7e2] bg-[#fbfaf8] p-3">
                         <div className="flex items-center justify-between gap-3">
-                          <p className="text-sm font-bold text-slate-800">{perm.label}</p>
+                          <div><p className="text-sm font-bold text-slate-800">{perm.label}</p>{isEmployeeOverride && <p className={`text-[10px] font-bold ${employeeOverride!.defaultKeys.has(perm.key) ? 'text-emerald-700' : 'text-slate-400'}`}>{employeeOverride!.defaultKeys.has(perm.key) ? 'Role default: allowed' : 'Role default: not allowed'}</p>}</div>
                           <Switch on={!!g.enabled} disabled={isLocked(mod.id, perm.key)} onClick={() => toggle(perm.key)} />
                         </div>
                         {g.enabled && (perm.scopes || []).length > 1 && (

@@ -51,7 +51,7 @@ interface Props {
   attendance: AttendanceRecord[];
   projects: Project[];
   leaves: LeaveRequest[];
-  onSave: (record: AttendanceRecord) => void;
+  onSave: (record: AttendanceRecord) => Promise<void> | void;
   onClose: () => void;
   onChangeMember?: (member: TeamMember) => void;
 }
@@ -151,7 +151,7 @@ export const MarkAttendanceModal: React.FC<Props> = ({
     fn();
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!dateKey) {
       showToast('Pick a date for this attendance entry.', { variant: 'error' });
@@ -169,9 +169,13 @@ export const MarkAttendanceModal: React.FC<Props> = ({
       notes: notes.trim() || undefined,
       existing,
     });
-    onSave(record);
-    showToast(`Attendance saved for ${member.name} — ${formatLongDate(dateKey)}.`);
-    onClose();
+    try {
+      await onSave(record);
+      showToast(`Attendance saved for ${member.name} — ${formatLongDate(dateKey)}.`);
+      onClose();
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Unable to save attendance.', { variant: 'error' });
+    }
   };
 
   const titleId = 'mark-attendance-title';

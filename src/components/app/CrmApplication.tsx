@@ -38,6 +38,16 @@ import { isPersistedProjectId, normalizeProject, toBackendProjectStatus } from '
 import { projectsApi } from '@/lib/api/projects';
 import { persistStudioProject } from '@/features/projects/persistProject';
 import { attachShoots, persistProjectShoots, persistSingleCrewDataHandover } from '@/features/shoots/persistShoots';
+
+function toShiftValue(value?: string): string | undefined {
+  if (!value) return undefined;
+  const match = value.trim().match(/^(\d{1,2}):(\d{2})\s*(AM|PM)?$/i);
+  if (!match) return undefined;
+  let hours = Number(match[1]);
+  const minutes = Number(match[2]);
+  if (match[3]) hours = (hours % 12) + (match[3].toUpperCase() === 'PM' ? 12 : 0);
+  return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+}
 import { shootsApi } from '@/lib/api/shoots';
 import { paymentMethodLabel, paymentsApi } from '@/lib/api/payments';
 import { normalizeTask, taskCreateInput, taskStatusInput } from '@/features/tasks/taskViewModel';
@@ -61,6 +71,7 @@ import { TeamAttendance, MemberDashboardModal } from '@/features/team';
 import { EmployeeDashboardTasks } from '@/features/tasks/EmployeeDashboardTasks';
 import { DeliveriesManager } from '@/features/deliveries';
 import { FreelancerTeamManager } from '@/features/freelancers';
+import { INITIAL_FREELANCER_CATEGORIES, INITIAL_FREELANCERS } from '@/data/mockFreelancers';
 import { BACKEND_MODULE_META, BACKEND_MODULE_ORDER, FINANCE_PERMISSION_ORDER, hasAnyPermission, hasPermission, PermissionProvider, ROLE_UI_HIDDEN_KEYS, ROLE_UI_MODULE_OVERRIDE, RolesPermissionsManager, TAB_PERMISSIONS, TEAM_PERMISSION_ORDER } from '@/features/access';
 import { ExpenseManagement } from '@/features/expenses';
 import { expenseService } from '@/features/expenses/services/expenseService';
@@ -110,6 +121,31 @@ function apiErrorMessage(error: unknown, fallback: string): string {
     .map((detail) => `${detail.field ? `${detail.field}: ` : ''}${detail.message ?? ''}`.trim())
     .filter(Boolean);
   return details?.length ? `${error.message}\n${details.join('\n')}` : error.message;
+}
+
+function hasEmployeeAssignmentConflict(candidate: Project, projects: Project[], team: TeamMember[]) {
+  const assignments = (project: Project) => (project.shoots || []).flatMap((shoot) => {
+    const date = shoot.date?.slice(0, 10);
+    return (shoot.crewAssignments || []).flatMap((crew) => {
+      const name = crew.name?.trim();
+      if (!date || !name) return [];
+      const employeeId = crew.userId || team.find((member) => member.name.trim().toLowerCase() === name.toLowerCase())?.id;
+      return [{ projectId: project.id, assignmentId: crew.id, employee: employeeId || name.toLowerCase(), date }];
+    });
+  });
+
+  const nextAssignments = assignments(candidate);
+  const savedAssignments = projects.flatMap(assignments);
+  return nextAssignments.some((next, index) =>
+    savedAssignments.some((saved) =>
+      next.employee === saved.employee &&
+      next.date === saved.date &&
+      !(next.projectId === saved.projectId && next.assignmentId === saved.assignmentId),
+    ) ||
+    nextAssignments.some((other, otherIndex) =>
+      index !== otherIndex && next.employee === other.employee && next.date === other.date,
+    ),
+  );
 }
 
 function isEmployeeAttendanceUser(user: { role?: string; roles?: string[] } | null): boolean {
@@ -359,9 +395,9 @@ export default function App() {
   const [leaves, setLeaves] = useState<LeaveRequest[]>([]);
 
   // Freelancer Module Persistent States
-  const [freelancerCategories, setFreelancerCategories] = useState<FreelancerCategory[]>([]);
+  const [freelancerCategories, setFreelancerCategories] = useState<FreelancerCategory[]>(INITIAL_FREELANCER_CATEGORIES);
 
-  const [freelancers, setFreelancers] = useState<Freelancer[]>([]);
+  const [freelancers, setFreelancers] = useState<Freelancer[]>(INITIAL_FREELANCERS);
 
   const [freelancerAssignments, setFreelancerAssignments] = useState<FreelancerAssignment[]>([]);
 
@@ -485,6 +521,9 @@ export default function App() {
     } else if (!hasPermission(currentUser, accessRoles, 'weddings.create') && !hasPermission(currentUser, accessRoles, 'clients.create')) {
       return;
     }
+    if (hasEmployeeAssignmentConflict(savedProject, projects, team)) {
+      throw new Error('This employee is already assigned on this date.');
+    }
     const persisted = await persistStudioProject(savedProject, team);
     setProjects((prev) => {
       const next = prev.filter((project) => project.id !== savedProject.id && project.id !== persisted.id);
@@ -593,6 +632,8 @@ export default function App() {
         joiningDate: member.joiningDate || undefined,
         monthlySalary: member.monthlySalary ?? 0,
         dailyRate: member.dailyRate ?? 0,
+        shiftStart: toShiftValue(member.inTime),
+        shiftEnd: toShiftValue(member.outTime),
         workLocation: member.attendanceMode === 'WFH' ? 'WFH' as const
           : member.attendanceMode === 'Hybrid' ? 'HYBRID' as const
           : member.attendanceMode === 'Field' ? 'ON_SHOOT' as const
@@ -629,6 +670,8 @@ export default function App() {
           joiningDate: updatedMember.joiningDate || undefined,
           monthlySalary: updatedMember.monthlySalary ?? 0,
           dailyRate: updatedMember.dailyRate ?? 0,
+          shiftStart: toShiftValue(updatedMember.inTime),
+          shiftEnd: toShiftValue(updatedMember.outTime),
           workLocation: updatedMember.attendanceMode === 'WFH' ? 'WFH'
             : updatedMember.attendanceMode === 'Hybrid' ? 'HYBRID'
             : updatedMember.attendanceMode === 'Field' ? 'ON_SHOOT'
@@ -1220,24 +1263,9 @@ export default function App() {
                 onDeleteRole={async (id) => { await rbacApi.removeRole(id); await rbacQuery.refresh(); }}
                 onLoadAudit={canViewAudit ? loadRoleAudit : undefined}
                 onLoadRoleUsers={(roleId) => rbacApi.roleUsers(roleId)}
-                onCreatePersonalRole={async ({ source, userId, userName }) => {
-                  // Clone the source role's permissions into a personal role so
-                  // this employee can diverge without affecting colleagues.
-                  const created = await rbacApi.createRole({
-                    name: `${userName} — ${source.name}`.slice(0, 64),
-                    description: `Personal access for ${userName}, based on ${source.name}.`,
-                    status: 'ACTIVE',
-                    // Pins the role to this employee, which keeps it out of
-                    // everyone else's role list.
-                    personalForUserId: userId,
-                    permissionKeys: Object.entries(source.grants)
-                      .filter(([, grant]) => grant.enabled)
-                      .map(([key]) => key),
-                  });
-                  await teamMutations.setRoles(userId, [created.id]);
-                  await rbacQuery.refresh();
-                  return created.id;
-                }}
+                onLoadMemberPermissionOverride={(userId) => rbacApi.userPermissionOverride(userId)}
+                onSaveMemberPermissionOverride={(userId, permissionKeys) => rbacApi.setUserPermissionOverride(userId, permissionKeys)}
+                onClearMemberPermissionOverride={(userId) => rbacApi.clearUserPermissionOverride(userId)}
                 capabilities={{
                   create: hasPermission(currentUser, accessRoles, 'ROLE_CREATE'),
                   update: hasPermission(currentUser, accessRoles, 'ROLE_UPDATE'),

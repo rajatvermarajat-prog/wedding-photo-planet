@@ -59,10 +59,10 @@ export function formatMonthLabel(monthKey: string): string {
 }
 
 export const CalendarLegend: React.FC = () => (
-  <div className="flex flex-wrap items-center gap-1.5">
+  <div className="flex flex-wrap items-center gap-2.5 pt-1">
     {CALENDAR_LEGEND.map((item) => (
-      <span key={item.code} className="inline-flex items-center gap-1 text-[10px] font-semibold text-slate-600">
-        <span className={`inline-grid place-items-center min-w-[1.5rem] h-5 px-1 rounded border font-black ${item.className}`}>{item.code}</span>
+      <span key={item.code} className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-600">
+        <span className={`inline-grid place-items-center min-w-[2rem] h-7 px-1.5 rounded-md border text-xs font-black ${item.className}`}>{item.code}</span>
         {item.label}
       </span>
     ))}
@@ -73,23 +73,23 @@ export const MonthNavigator: React.FC<{
   monthKey: string;
   onChange: (monthKey: string) => void;
 }> = ({ monthKey, onChange }) => (
-  <div className="flex items-center gap-1.5">
+  <div className="flex items-center gap-3">
     <button
       type="button"
       onClick={() => onChange(shiftMonth(monthKey, -1))}
-      className="p-1.5 rounded-lg border border-slate-200 bg-white hover:border-rose-300 hover:text-[#8f3655] text-slate-500 transition cursor-pointer"
+      className="p-2.5 rounded-xl border border-slate-200 bg-white hover:border-rose-300 hover:text-[#8f3655] text-slate-500 transition cursor-pointer"
       aria-label="Previous month"
     >
-      <ChevronLeft className="w-4 h-4" />
+      <ChevronLeft className="w-5 h-5" />
     </button>
-    <span className="text-xs font-extrabold text-slate-800 min-w-[8.5rem] text-center">{formatMonthLabel(monthKey)}</span>
+    <span className="text-base font-extrabold text-slate-800 min-w-[11rem] text-center">{formatMonthLabel(monthKey)}</span>
     <button
       type="button"
       onClick={() => onChange(shiftMonth(monthKey, 1))}
-      className="p-1.5 rounded-lg border border-slate-200 bg-white hover:border-rose-300 hover:text-[#8f3655] text-slate-500 transition cursor-pointer"
+      className="p-2.5 rounded-xl border border-slate-200 bg-white hover:border-rose-300 hover:text-[#8f3655] text-slate-500 transition cursor-pointer"
       aria-label="Next month"
     >
-      <ChevronRight className="w-4 h-4" />
+      <ChevronRight className="w-5 h-5" />
     </button>
   </div>
 );
@@ -217,18 +217,18 @@ export const TeamAttendanceCalendarGrid: React.FC<TeamGridProps> = ({
   if (!team.length || !days.length) return null;
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-5">
       <ScrollArea>
         <table className="border-collapse">
           <thead>
             <tr>
-              <th className="sticky left-0 z-10 bg-white py-2 pr-3 text-left text-[10px] font-extrabold uppercase tracking-wider text-slate-500 min-w-[170px]">
+              <th className="sticky left-0 z-10 bg-white py-3 pr-5 text-left text-xs font-extrabold uppercase tracking-wider text-slate-600 min-w-[240px]">
                 Member
               </th>
               {days.map((dateKey) => (
                 <th
                   key={dateKey}
-                  className={`px-0.5 pb-2 text-[9px] font-bold ${dateKey === today ? 'text-[#8f3655]' : 'text-slate-400'}`}
+                  className={`px-1 pb-3 text-xs font-extrabold ${dateKey === today ? 'text-[#8f3655]' : 'text-slate-500'}`}
                 >
                   {Number(dateKey.slice(8, 10))}
                 </th>
@@ -238,24 +238,24 @@ export const TeamAttendanceCalendarGrid: React.FC<TeamGridProps> = ({
           <tbody>
             {grid.map(({ member, cells }) => (
               <tr key={member.id} className="hover:bg-slate-50/60">
-                <td className="sticky left-0 z-10 bg-white py-1.5 pr-3">
+                <td className="sticky left-0 z-10 bg-white py-2.5 pr-5">
                   <button
                     type="button"
                     onClick={() => onSelectMember?.(member)}
-                    className="flex items-center gap-2 text-left cursor-pointer group"
+                    className="flex items-center gap-3 text-left cursor-pointer group"
                   >
                     <Avatar member={member} size="sm" />
                     <div className="min-w-0">
-                      <p className="text-[11px] font-extrabold text-slate-900 truncate max-w-[120px] group-hover:text-[#8f3655] transition">{member.name}</p>
-                      <p className="text-[9px] font-bold text-slate-400 truncate max-w-[120px]">{member.role}</p>
+                      <p className="text-sm font-extrabold text-slate-900 truncate max-w-[165px] group-hover:text-[#8f3655] transition">{member.name}</p>
+                      <p className="text-[11px] font-bold text-slate-500 truncate max-w-[165px]">{member.role}</p>
                     </div>
                   </button>
                 </td>
                 {cells.map(({ dateKey, status }) => (
-                  <td key={dateKey} className="px-0.5 py-1">
+                  <td key={dateKey} className="px-1 py-1.5">
                     <span
                       title={`${member.name} · ${dateKey} · ${status.label}${status.shoot ? ` · ${status.shoot.shootTitle}` : ''}`}
-                      className={`grid place-items-center min-w-[1.6rem] h-6 rounded border text-[9px] font-black ${status.badgeClass} ${
+                      className={`grid place-items-center min-w-[2.45rem] h-9 rounded-lg border text-xs font-black ${status.badgeClass} ${
                         dateKey === today ? 'ring-1 ring-rose-300' : ''
                       }`}
                     >

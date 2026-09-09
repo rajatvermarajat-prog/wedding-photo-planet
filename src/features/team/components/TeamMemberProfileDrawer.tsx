@@ -161,6 +161,9 @@ export const TeamMemberProfileDrawer: React.FC<Props> = ({
   const statusBadge = getMemberStatusBadge(member);
   const manager = team.find((m) => m.id === member.reportingManagerId);
   const isActive = (member.status || 'active') === 'active';
+  const hasMonthlySalary = member.payType !== 'daily';
+  const salaryAmount = hasMonthlySalary ? member.monthlySalary : member.dailyRate;
+  const salaryLabel = hasMonthlySalary ? 'Monthly salary' : 'Daily rate';
 
   const handleUpload = (file?: File | null) => {
     if (!file || !onUpdateMember) return;
@@ -274,6 +277,7 @@ export const TeamMemberProfileDrawer: React.FC<Props> = ({
                   { label: 'Role', value: String(member.role) },
                   { label: 'Department', value: getMemberDepartment(member) },
                   { label: 'Employment type', value: getEmploymentType(member) },
+                  { label: salaryLabel, value: salaryAmount ? formatCurrency(salaryAmount) : 'Not set' },
                   { label: 'Joining date', value: member.joiningDate ? formatLongDate(member.joiningDate) : 'Not recorded' },
                   { label: 'Status', value: statusBadge.label },
                   { label: 'Work mode', value: member.attendanceMode || 'Office' },
