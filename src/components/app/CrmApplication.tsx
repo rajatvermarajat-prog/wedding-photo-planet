@@ -123,6 +123,31 @@ function apiErrorMessage(error: unknown, fallback: string): string {
   return details?.length ? `${error.message}\n${details.join('\n')}` : error.message;
 }
 
+function hasEmployeeAssignmentConflict(candidate: Project, projects: Project[], team: TeamMember[]) {
+  const assignments = (project: Project) => (project.shoots || []).flatMap((shoot) => {
+    const date = shoot.date?.slice(0, 10);
+    return (shoot.crewAssignments || []).flatMap((crew) => {
+      const name = crew.name?.trim();
+      if (!date || !name) return [];
+      const employeeId = crew.userId || team.find((member) => member.name.trim().toLowerCase() === name.toLowerCase())?.id;
+      return [{ projectId: project.id, assignmentId: crew.id, employee: employeeId || name.toLowerCase(), date }];
+    });
+  });
+
+  const nextAssignments = assignments(candidate);
+  const savedAssignments = projects.flatMap(assignments);
+  return nextAssignments.some((next, index) =>
+    savedAssignments.some((saved) =>
+      next.employee === saved.employee &&
+      next.date === saved.date &&
+      !(next.projectId === saved.projectId && next.assignmentId === saved.assignmentId),
+    ) ||
+    nextAssignments.some((other, otherIndex) =>
+      index !== otherIndex && next.employee === other.employee && next.date === other.date,
+    ),
+  );
+}
+
 function isEmployeeAttendanceUser(user: { role?: string; roles?: string[] } | null): boolean {
   if (!user) return false;
   const roleNames = user.roles?.length ? user.roles : [user.role ?? ''];
@@ -495,6 +520,9 @@ export default function App() {
       if (!hasPermission(currentUser, accessRoles, 'weddings.edit') && !hasPermission(currentUser, accessRoles, 'clients.edit')) return;
     } else if (!hasPermission(currentUser, accessRoles, 'weddings.create') && !hasPermission(currentUser, accessRoles, 'clients.create')) {
       return;
+    }
+    if (hasEmployeeAssignmentConflict(savedProject, projects, team)) {
+      throw new Error('This employee is already assigned on this date.');
     }
     const persisted = await persistStudioProject(savedProject, team);
     setProjects((prev) => {
