@@ -3263,6 +3263,11 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
                       const copyCount = nonAssistantCrew.filter((c) => !!(c.copyInHD || c.hardDriveName)?.trim()).length;
                       const backupCount = nonAssistantCrew.filter((c) => !!c.backupInHD?.trim()).length;
                       const totalCrew = nonAssistantCrew.length;
+                      // The event-level Edit button is the single entry point for
+                      // changing its RAW data.  While it is active, every member's
+                      // handover fields become editable inline, so users do not
+                      // need to open a second edit dialog for each row.
+                      const isEditingEventRawData = editingEventData?.shootId === s.id && canAssignShoot;
 
                       return (
                         <div key={s.id} className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-3">
@@ -3290,14 +3295,17 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
                               <div className="flex items-center gap-1 ml-2 border-l border-slate-200 pl-2">
                                 <button
                                   type="button"
-                                  onClick={() => setEditingEventData({
-                                    shootId: s.id,
-                                    title: s.title || '',
-                                    date: s.date || '',
-                                    time: s.time || '',
-                                    venue: s.venue || '',
-                                    status: s.status || 'scheduled',
-                                  })}
+                                  onClick={() => {
+                                    setAddingCrewShootId(null);
+                                    setEditingEventData({
+                                      shootId: s.id,
+                                      title: s.title || '',
+                                      date: s.date || '',
+                                      time: s.time || '',
+                                      venue: s.venue || '',
+                                      status: s.status || 'scheduled',
+                                    });
+                                  }}
                                   className="px-2 py-1 bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 hover:text-indigo-600 rounded text-[10px] font-bold flex items-center gap-1 transition shadow-2xs"
                                   title="Edit Event Title, Date & Venue"
                                 >
@@ -3506,7 +3514,8 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
                                         <input
                                           type="checkbox"
                                           checked={!!c.dataReceived}
-                                          disabled
+                                          disabled={!isEditingEventRawData}
+                                          onChange={(e) => handleUpdateCrewInExistingShoot(s.id, c.id, { dataReceived: e.target.checked })}
                                           className="rounded text-indigo-600 disabled:opacity-100"
                                         />
                                         <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${
@@ -3527,13 +3536,15 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
                                           step="any"
                                           placeholder="e.g. 250"
                                           value={storageValue(c.dataSizeGB, unitFor(`crew-${s.id}-${c.id}`))}
-                                          readOnly
-                                          className="w-18 cursor-default bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs font-bold text-slate-900 outline-none"
+                                          readOnly={!isEditingEventRawData}
+                                          onChange={(e) => handleUpdateCrewInExistingShoot(s.id, c.id, { dataSizeGB: storageToGB(e.target.value, unitFor(`crew-${s.id}-${c.id}`)) })}
+                                          className={`w-18 border border-slate-200 rounded px-2 py-1 text-xs font-bold text-slate-900 outline-none ${isEditingEventRawData ? 'bg-white focus:ring-2 focus:ring-indigo-500' : 'cursor-default bg-slate-50'}`}
                                         />
                                         <select
                                           aria-label={`${c.name || 'Team member'} data size unit`}
                                           value={unitFor(`crew-${s.id}-${c.id}`)}
-                                          disabled
+                                          disabled={!isEditingEventRawData}
+                                          onChange={(e) => setUnitFor(`crew-${s.id}-${c.id}`, e.target.value as StorageUnit)}
                                           className="w-[64px] shrink-0 rounded border border-slate-200 bg-white px-1.5 py-1 text-[10px] font-bold text-slate-600 disabled:opacity-100"
                                         >
                                           <option value="MB">MB</option><option value="GB">GB</option><option value="TB">TB</option>
@@ -3547,8 +3558,9 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
                                         type="text"
                                         placeholder="Copy HD Name"
                                         value={c.copyInHD ?? c.hardDriveName ?? ''}
-                                        readOnly
-                                        className="w-full cursor-default bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs font-medium text-slate-900 outline-none"
+                                        readOnly={!isEditingEventRawData}
+                                        onChange={(e) => handleUpdateCrewInExistingShoot(s.id, c.id, { copyInHD: e.target.value })}
+                                        className={`w-full border border-slate-200 rounded px-2 py-1 text-xs font-medium text-slate-900 outline-none ${isEditingEventRawData ? 'bg-white focus:ring-2 focus:ring-indigo-500' : 'cursor-default bg-slate-50'}`}
                                       />
                                     </td>
 
@@ -3558,32 +3570,35 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
                                         type="text"
                                         placeholder="Backup HD Name"
                                         value={c.backupInHD || ''}
-                                        readOnly
-                                        className="w-full cursor-default bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs font-medium text-slate-900 outline-none"
+                                        readOnly={!isEditingEventRawData}
+                                        onChange={(e) => handleUpdateCrewInExistingShoot(s.id, c.id, { backupInHD: e.target.value })}
+                                        className={`w-full border border-slate-200 rounded px-2 py-1 text-xs font-medium text-slate-900 outline-none ${isEditingEventRawData ? 'bg-white focus:ring-2 focus:ring-indigo-500' : 'cursor-default bg-slate-50'}`}
                                       />
                                     </td>
 
                                     {/* Actions Column: Edit & Delete Icons */}
                                     <td className="p-2 text-center">
                                       <div className="flex items-center justify-center gap-1">
-                                        <button
-                                          type="button"
-                                          onClick={() => setEditingCrewData({
-                                            shootId: s.id,
-                                            crewId: c.id,
-                                            role: c.role || 'Photographer',
-                                            name: c.name || '',
-                                            mobile: c.mobile || '',
-                                            dataReceived: !!c.dataReceived,
-                                            dataSizeGB: c.dataSizeGB || 0,
-                                            copyInHD: c.copyInHD || c.hardDriveName || '',
-                                            backupInHD: c.backupInHD || ''
-                                          })}
-                                          className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded transition"
-                                          title="Edit Member Details"
-                                        >
-                                          <Pencil className="w-3.5 h-3.5 text-indigo-600" />
-                                        </button>
+                                        {!isEditingEventRawData && (
+                                          <button
+                                            type="button"
+                                            onClick={() => setEditingCrewData({
+                                              shootId: s.id,
+                                              crewId: c.id,
+                                              role: c.role || 'Photographer',
+                                              name: c.name || '',
+                                              mobile: c.mobile || '',
+                                              dataReceived: !!c.dataReceived,
+                                              dataSizeGB: c.dataSizeGB || 0,
+                                              copyInHD: c.copyInHD || c.hardDriveName || '',
+                                              backupInHD: c.backupInHD || ''
+                                            })}
+                                            className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded transition"
+                                            title="Edit Member Details"
+                                          >
+                                            <Pencil className="w-3.5 h-3.5 text-indigo-600" />
+                                          </button>
+                                        )}
 
                                         <button
                                           type="button"
