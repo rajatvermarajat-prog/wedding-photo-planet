@@ -194,6 +194,14 @@ export const TeamAttendance: React.FC<TeamAttendanceProps> = ({
   const today = getTodayDateString();
   const [activeTab, setActiveTab] = useState<TeamTabId>('team');
 
+  // The studio owner administers the roster; they are not themselves a team
+  // member. Keep that account out of the Team directory without hiding a
+  // different employee who happens to have an Admin role.
+  const rosterMembers = useMemo(
+    () => team.filter((member) => member.id !== currentUser?.id),
+    [team, currentUser?.id]
+  );
+
   // Modal / drawer state
   const [profileMember, setProfileMember] = useState<TeamMember | null>(null);
   const [formMember, setFormMember] = useState<TeamMember | null>(null);
@@ -411,7 +419,7 @@ export const TeamAttendance: React.FC<TeamAttendanceProps> = ({
             >
               <Icon className="size-3.5" />
               {label}
-              {id === 'team' && <span className="text-[10px] font-black opacity-60">({team.length})</span>}
+              {id === 'team' && <span className="text-[10px] font-black opacity-60">({rosterMembers.length})</span>}
               {id === 'leave' && pendingLeaveCount > 0 && (
                 <span className="rounded-full bg-amber-500 px-1.5 text-[10px] font-black text-white">{pendingLeaveCount}</span>
               )}
@@ -434,7 +442,7 @@ export const TeamAttendance: React.FC<TeamAttendanceProps> = ({
       {/* ---------------- Tabs ---------------- */}
       {activeTab === 'team' && canViewTeam && (
         <TeamDirectory
-          team={team}
+          team={rosterMembers}
           attendance={attendance}
           projects={projects}
           leaves={leaves}
