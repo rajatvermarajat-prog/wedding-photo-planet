@@ -31,6 +31,7 @@ function resource<T, Create = Partial<T>, Update = Partial<T>>(path: string) {
 export const crmApi = {
   clients: resource<unknown, Record<string, unknown>, Record<string, unknown>>('/clients'),
   leads: resource<unknown, Record<string, unknown>, Record<string, unknown>>('/leads'),
+  leadSources: resource<unknown, Record<string, unknown>, never>('/leads/sources'),
   projects: resource<unknown, Record<string, unknown>, Record<string, unknown>>('/projects'),
   events: resource<unknown, Record<string, unknown>, Record<string, unknown>>('/events'),
   shoots: resource<unknown, Record<string, unknown>, Record<string, unknown>>('/shoots'),

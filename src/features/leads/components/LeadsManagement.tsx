@@ -51,6 +51,22 @@ const API_STATUS_TO_UI: Record<string, LeadStatus> = {
   PROPOSAL_SENT: 'quotation_sent', NEGOTIATION: 'quotation_sent', WON: 'booked', LOST: 'lost',
 };
 
+const UI_STATUS_TO_API: Record<LeadStatus, string> = {
+  new: 'NEW', contacted: 'CONTACTED', meeting_fixed: 'QUALIFIED',
+  quotation_sent: 'PROPOSAL_SENT', booked: 'WON', lost: 'LOST',
+};
+
+function eventTypeForApi(eventType: string) {
+  const key = eventType.trim().toUpperCase().replace(/[^A-Z0-9]+/g, '_').replace(/^_|_$/g, '');
+  const supported = new Set(['ROKA', 'ENGAGEMENT', 'PRE_WEDDING', 'WEDDING', 'COMPLETE_WEDDING_SERVICES', 'HALDI_MEHENDI', 'SANGEET', 'RECEPTION', 'ANNIVERSARY', 'CORPORATE', 'OTHER']);
+  if (supported.has(key)) return key;
+  if (key.includes('COMPLETE') && key.includes('WEDDING')) return 'COMPLETE_WEDDING_SERVICES';
+  if (key.includes('PRE') && key.includes('WEDDING')) return 'PRE_WEDDING';
+  if (key.includes('HALDI') || key.includes('MEHENDI')) return 'HALDI_MEHENDI';
+  if (key.includes('WEDDING')) return 'WEDDING';
+  return 'OTHER';
+}
+
 function leadFromApi(value: unknown): OwnerLead {
   const lead = value as Record<string, unknown>;
   const owner = lead.owner as { fullName?: string } | null | undefined;
@@ -334,6 +350,10 @@ export const LeadsManagement: React.FC<LeadsManagementProps> = ({ currentUser, t
     const members = isStudioOwner ? team.filter((member) => member.id !== currentUser?.id) : team;
     return [...new Set(members.map((member) => `${member.name} (${member.role})`))];
   }, [team, currentUser?.id, isStudioOwner]);
+  const assigneeIdByLabel = useMemo(
+    () => new Map(team.filter((member) => !isStudioOwner || member.id !== currentUser?.id).map((member) => [`${member.name} (${member.role})`, member.id])),
+    [team, currentUser?.id, isStudioOwner]
+  );
   const usingBackend = Array.isArray((currentUser as { permissions?: string[] } | null)?.permissions);
   const canCreateLead = can('leads.create');
   const canEditLead = can('leads.edit');
@@ -344,6 +364,16 @@ export const LeadsManagement: React.FC<LeadsManagementProps> = ({ currentUser, t
     ? can('leads.view')
     : can('leads.view') && role?.grants['leads.view']?.scope === 'all';
   const isOwner = seeAllLeads || can('reports.view_sales');
+
+  const refreshLeads = async () => {
+    if (!usingBackend) return;
+    try {
+      const { items } = await crmApi.leads.list({ limit: 100 });
+      setLeads(items.map(leadFromApi));
+    } catch {
+      setLeads([]);
+    }
+  };
 
   useEffect(() => {
     if (!usingBackend) return;
@@ -407,7 +437,7 @@ export const LeadsManagement: React.FC<LeadsManagementProps> = ({ currentUser, t
     setShowAddLeadModal(true);
   };
 
-  const handleSaveLead = (e: React.FormEvent) => {
+  const handleSaveLead = async (e: React.FormEvent) => {
     e.preventDefault();
     if (editingLead ? !canEditLead : !canCreateLead) return;
     const mobileError = indianMobileError(mobile, true);
@@ -420,96 +450,55 @@ export const LeadsManagement: React.FC<LeadsManagementProps> = ({ currentUser, t
     const finalEventType = eventType.trim() || 'General Photography Inquiry';
     const finalSource = source.trim() || 'Direct / Call';
     const finalAssignee = assignedTo.trim();
-    const today = new Date().toISOString().split('T')[0];
     const numBudget = Number(budgetEstimate) || 0;
-    const numAdv = Number(advanceReceived) || 0;
-
-    if (editingLead) {
-      const isReassigned = editingLead.assignedTo !== finalAssignee;
-      const isStatusChanged = editingLead.status !== status;
-
-      setLeads((prev) =>
-        prev.map((l) => {
-          if (l.id === editingLead.id) {
-            const updatedLogs = [...(l.activityLogs || [])];
-
-            if (isReassigned) {
-              updatedLogs.push(
-                createLog('assigned', `Reassigned from "${l.assignedTo || 'Unassigned'}" to "${finalAssignee}"`)
-              );
-            }
-
-            if (isStatusChanged) {
-              updatedLogs.push(
-                createLog('status_changed', `Status updated from "${l.status}" to "${status}"`)
-              );
-            }
-
-            updatedLogs.push(
-              createLog('edited', `Lead details updated by ${userName}`)
-            );
-
-            return {
-              ...l,
-              clientName: finalClientName,
-              mobile: mobile.trim(),
-              email: email.trim() || undefined,
-              eventType: finalEventType,
-              eventDate: eventDate || undefined,
-              budgetEstimate: numBudget,
-              finalAmount: status === 'booked' ? numBudget : l.finalAmount,
-              advanceReceived: status === 'booked' ? numAdv : l.advanceReceived,
-              status,
-              source: finalSource,
-              assignedTo: finalAssignee,
-              assignedDate: isReassigned ? today : (l.assignedDate || l.createdDate || today),
-              notes: notes.trim() || undefined,
-              activityLogs: updatedLogs,
-            };
-          }
-          return l;
-        })
-      );
-    } else {
-      const newLeadLogs: LeadActivityLog[] = [
-        createLog('created', `Lead added by ${userName}`),
-      ];
-
-      if (finalAssignee) {
-        newLeadLogs.push(
-          createLog('assigned', `Initial lead assigned to ${finalAssignee}`)
-        );
+    try {
+      let sourceId: string | undefined;
+      if (finalSource) {
+        const { items: sources } = await crmApi.leadSources.list({ limit: 100 });
+        const existing = sources.find((item) => String((item as { name?: string }).name || '').toLowerCase() === finalSource.toLowerCase());
+        const source = existing || await crmApi.leadSources.create({ name: finalSource });
+        sourceId = String((source as { id: string }).id);
       }
-
-      const newLead: OwnerLead = {
-        id: `lead-${Date.now()}`,
-        clientName: finalClientName,
-        mobile: mobile.trim(),
+      const payload = {
+        name: finalClientName,
+        phone: mobile.trim(),
         email: email.trim() || undefined,
-        eventType: finalEventType,
+        eventType: eventTypeForApi(finalEventType),
         eventDate: eventDate || undefined,
-        budgetEstimate: numBudget,
-        finalAmount: status === 'booked' ? numBudget : undefined,
-        advanceReceived: status === 'booked' ? numAdv : undefined,
-        status,
-        source: finalSource,
-        assignedTo: finalAssignee,
-        assignedDate: today,
-        createdBy: userName,
+        estimatedValue: numBudget,
+        ownerId: finalAssignee ? assigneeIdByLabel.get(finalAssignee) : undefined,
+        sourceId,
         notes: notes.trim() || undefined,
-        createdDate: today,
-        quotations: [],
-        activityLogs: newLeadLogs,
+        ...(editingLead ? { status: UI_STATUS_TO_API[status], ...(status === 'lost' ? { lostReason: 'Marked as lost' } : {}) } : {}),
       };
-      setLeads((prev) => [newLead, ...prev]);
+      if (editingLead) {
+        await crmApi.leads.update(editingLead.id, payload);
+      } else {
+        const created = await crmApi.leads.create(payload) as { id: string };
+        if (status !== 'new') {
+          await crmApi.leads.update(created.id, {
+            status: UI_STATUS_TO_API[status],
+            ...(status === 'lost' ? { lostReason: 'Marked as lost' } : {}),
+          });
+        }
+      }
+      await refreshLeads();
+      setShowAddLeadModal(false);
+      setEditingLead(null);
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : 'Unable to save the lead. Please try again.');
     }
-
-    setShowAddLeadModal(false);
-    setEditingLead(null);
   };
 
   const handleUpdateStatus = (id: string, newStatus: LeadStatus, finalAmt?: number, advAmt?: number) => {
     if (!canChangeLeadStatus) return;
+    void crmApi.leads.update(id, {
+      status: UI_STATUS_TO_API[newStatus],
+      ...(newStatus === 'lost' ? { lostReason: 'Marked as lost' } : {}),
+      ...(finalAmt !== undefined ? { estimatedValue: finalAmt } : {}),
+    }).then(refreshLeads).catch((error) => {
+      window.alert(error instanceof Error ? error.message : 'Unable to update lead status.');
+    });
     setLeads((prev) =>
       prev.map((l) => {
         if (l.id === id) {
@@ -550,6 +539,11 @@ export const LeadsManagement: React.FC<LeadsManagementProps> = ({ currentUser, t
 
   const handleUpdateAssignedTo = (id: string, newAssignedTo: string) => {
     if (!canAssignLead) return;
+    const ownerId = assigneeIdByLabel.get(newAssignedTo);
+    if (!ownerId) return;
+    void crmApi.leads.update(id, { ownerId }).then(refreshLeads).catch((error) => {
+      window.alert(error instanceof Error ? error.message : 'Unable to reassign this lead.');
+    });
     const today = new Date().toISOString().split('T')[0];
     setLeads((prev) =>
       prev.map((l) => {
@@ -576,6 +570,9 @@ export const LeadsManagement: React.FC<LeadsManagementProps> = ({ currentUser, t
     if (!canEditLead || !noteModalLead) return;
 
     const trimmed = quickNoteText.trim();
+    void crmApi.leads.update(noteModalLead.id, { notes: trimmed || undefined }).then(refreshLeads).catch((error) => {
+      window.alert(error instanceof Error ? error.message : 'Unable to save the note.');
+    });
     setLeads((prev) =>
       prev.map((l) => {
         if (l.id === noteModalLead.id) {
