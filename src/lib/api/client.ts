@@ -34,7 +34,12 @@ export class ApiError extends Error {
   }
 }
 
-const baseUrl = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:5050/api/v1').replace(/\/$/, '');
+const configuredApiUrl = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:5050/api/v1';
+const baseUrl = configuredApiUrl.replace(/[“”"']/g, '').trim().replace(/\/$/, '');
+
+if (!/^(https?:\/\/|\/)/i.test(baseUrl)) {
+  throw new Error('NEXT_PUBLIC_API_URL must be an absolute http(s) URL or an app-relative path.');
+}
 const REQUEST_TIMEOUT_MS = 15_000;
 const TOKEN_KEY = 'wpp.accessToken';
 const REFRESH_KEY = 'wpp.refreshToken';
