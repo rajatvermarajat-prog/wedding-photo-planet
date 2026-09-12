@@ -817,6 +817,29 @@ export const LeadsManagement: React.FC<LeadsManagementProps> = ({ currentUser })
     )
     .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 
+  const leadStatusClass = (leadStatus: LeadStatus) =>
+    leadStatus === 'booked'
+      ? 'bg-emerald-100 text-emerald-900 border-emerald-300'
+      : leadStatus === 'quotation_sent'
+      ? 'bg-blue-100 text-blue-900 border-blue-300'
+      : leadStatus === 'meeting_fixed'
+      ? 'bg-purple-100 text-purple-900 border-purple-300'
+      : leadStatus === 'contacted'
+      ? 'bg-amber-100 text-amber-900 border-amber-300'
+      : leadStatus === 'lost'
+      ? 'bg-rose-100 text-rose-900 border-rose-300'
+      : 'bg-slate-100 text-slate-800 border-slate-300';
+
+  const openBookingAmountModal = (lead: OwnerLead) => {
+    setBookingAmountModalLead(lead);
+    setModalFinalAmount(
+      lead.finalAmount ? String(lead.finalAmount) : lead.budgetEstimate ? String(lead.budgetEstimate) : ''
+    );
+    setModalAdvanceAmount(
+      lead.advanceReceived !== undefined && lead.advanceReceived !== null ? String(lead.advanceReceived) : ''
+    );
+  };
+
   return (
     <div className="h-fit space-y-6 animate-in fade-in duration-300">
       <LeadsHeader userName={userName} userRole={userRole} isOwner={isOwner} canAddLead={canCreateLead} activeView={activeSubTab} onViewChange={setActiveSubTab} onAddLead={handleOpenAddModal} />
@@ -1121,7 +1144,201 @@ export const LeadsManagement: React.FC<LeadsManagementProps> = ({ currentUser })
 
           {/* Leads Data Table */}
           <div className="h-fit">
-            <div className="h-fit overflow-hidden border-y border-[#d8ccc5] bg-white">
+            {filteredLeads.length === 0 ? (
+              <div className="rounded-2xl border border-dashed border-[#d8ccc5] bg-white p-8 text-center text-sm italic text-slate-400 xl:hidden">
+                {isOwner
+                  ? 'No lead records found matching your current filter criteria.'
+                  : canCreateLead
+                    ? 'No leads found assigned to or created by you. Use "+ Add Lead" to add your new inquiries!'
+                    : 'No leads found assigned to or created by you.'}
+              </div>
+            ) : (
+              <div className="space-y-3 xl:hidden">
+                {filteredLeads.map((lead, index) => {
+                  const whatsappLink = `https://wa.me/91${lead.mobile.replace(/\D/g, '')}?text=Hello%20${encodeURIComponent(
+                    lead.clientName
+                  )},%20thank%20you%20for%20inquiring%20with%20our%20Wedding%20Photography%20Studio!`;
+                  const quoteCount = lead.quotations?.length || 0;
+
+                  return (
+                    <article key={lead.id} className="overflow-hidden rounded-2xl border border-[#e1d9d4] bg-white shadow-sm">
+                      <div className="flex items-start gap-3 border-b border-[#eee8e4] p-4">
+                        <div className="flex size-10 shrink-0 items-center justify-center rounded-xl border border-rose-200 bg-rose-50 text-sm font-extrabold text-rose-800">
+                          {index + 1}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <h3 className="break-words text-base font-black leading-snug text-slate-900">{lead.clientName || 'Anonymous Client'}</h3>
+                          <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                            <span className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[10px] font-bold text-slate-500">ID: #{lead.id.slice(-4)}</span>
+                            <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-bold text-slate-600">{lead.source}</span>
+                          </div>
+                          <p className="mt-1 text-[10px] font-mono text-slate-400">{lead.createdBy || 'Studio Owner'} · {lead.createdDate}</p>
+                        </div>
+                      </div>
+
+                      <div className="grid gap-3 p-4 sm:grid-cols-2">
+                        <div className="space-y-1.5">
+                          <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Contact</p>
+                          <a href={`tel:${lead.mobile}`} className="flex items-center gap-1.5 text-sm font-extrabold text-slate-800 hover:text-emerald-700">
+                            <Phone className="size-4 shrink-0 text-emerald-600" />
+                            {lead.mobile}
+                          </a>
+                          <a href={whatsappLink} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-extrabold text-emerald-700 hover:bg-emerald-100">
+                            <MessageSquare className="size-3.5 shrink-0 text-emerald-600" />
+                            WhatsApp Chat
+                          </a>
+                        </div>
+
+                        <div className="space-y-1.5">
+                          <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Requirement</p>
+                          <p className="break-words text-sm font-extrabold text-slate-900">{lead.eventType}</p>
+                          {!lead.notes && canEditLead && (
+                            <button
+                              onClick={() => {
+                                setNoteModalLead(lead);
+                                setQuickNoteText('');
+                              }}
+                              className="inline-flex items-center gap-1 rounded-lg border border-indigo-200/80 bg-indigo-50 px-2.5 py-1 text-xs font-extrabold text-indigo-700 hover:bg-indigo-100"
+                            >
+                              <Plus className="size-3.5" />
+                              <span>Add Note</span>
+                            </button>
+                          )}
+                        </div>
+
+                        <div className="space-y-1.5 sm:col-span-2">
+                          <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Assigned To</p>
+                          <div className="flex min-h-11 items-center gap-2 rounded-xl border border-indigo-100 bg-indigo-50/80 px-3 py-2 text-xs font-extrabold text-indigo-950">
+                            <UserCheck className="size-4 shrink-0 text-indigo-600" />
+                            <select
+                              value={lead.assignedTo || ''}
+                              disabled={!canAssignLead}
+                              onChange={(e) => handleUpdateAssignedTo(lead.id, e.target.value)}
+                              className="min-w-0 flex-1 bg-transparent p-0 text-xs font-extrabold text-indigo-900 outline-none disabled:cursor-not-allowed"
+                            >
+                              <option value="">-- Unassigned --</option>
+                              {SALES_TEAM_OPTIONS.map((member) => (
+                                <option key={member} value={member}>
+                                  {member}
+                                </option>
+                              ))}
+                              {lead.assignedTo && !SALES_TEAM_OPTIONS.includes(lead.assignedTo) && (
+                                <option value={lead.assignedTo}>{lead.assignedTo}</option>
+                              )}
+                            </select>
+                          </div>
+                          {lead.assignedDate && <p className="font-mono text-[10px] text-slate-400">Assigned: {lead.assignedDate}</p>}
+                        </div>
+
+                        <div className="space-y-1.5">
+                          <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Quotation</p>
+                          <div className="flex flex-wrap gap-2">
+                            <button
+                              onClick={() => setQuotationModalLead(lead)}
+                              className={`flex min-h-10 flex-1 items-center justify-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-extrabold transition ${
+                                quoteCount > 0
+                                  ? 'border-indigo-200 bg-indigo-50 text-indigo-900 hover:bg-indigo-100'
+                                  : 'border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100'
+                              }`}
+                              title="Manage & Attach Quotation Files"
+                            >
+                              <Paperclip className="size-4 text-indigo-600" />
+                              <span>Quote ({quoteCount})</span>
+                              {quoteCount > 0 && <span className="size-2 rounded-full bg-emerald-500" />}
+                            </button>
+                            <button
+                              onClick={() => {
+                                const firstQuote = lead.quotations?.[0];
+                                if (firstQuote) setPreviewQuotation({ file: firstQuote, lead });
+                                else setQuotationModalLead(lead);
+                              }}
+                              className="flex min-h-10 flex-1 items-center justify-center gap-1.5 rounded-xl border border-emerald-300 bg-emerald-100 px-3 py-2 text-xs font-extrabold text-emerald-900 hover:bg-emerald-200"
+                              title="View / Preview Quotation Document"
+                            >
+                              <Eye className="size-4 text-emerald-700" />
+                              <span>View</span>
+                            </button>
+                          </div>
+                        </div>
+
+                        <div className="space-y-1.5">
+                          <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Status</p>
+                          <select
+                            value={lead.status}
+                            disabled={!canChangeLeadStatus}
+                            onChange={(e) => {
+                              const newSt = e.target.value as LeadStatus;
+                              if (newSt === 'booked') openBookingAmountModal(lead);
+                              else handleUpdateStatus(lead.id, newSt);
+                            }}
+                            className={`min-h-10 w-full rounded-xl border px-3 py-2 text-xs font-black shadow-2xs ${leadStatusClass(lead.status)}`}
+                          >
+                            <option value="new">New Inquiry</option>
+                            <option value="contacted">Contacted / Followup</option>
+                            <option value="meeting_fixed">Meeting Fixed</option>
+                            <option value="quotation_sent">Quotation Sent</option>
+                            <option value="booked">Booked Deal</option>
+                            <option value="lost">Lost / Unconverted</option>
+                          </select>
+                        </div>
+
+                        {lead.status === 'booked' && (
+                          <div className="rounded-xl border border-emerald-300 bg-emerald-50 p-3 text-xs font-extrabold text-emerald-900 sm:col-span-2">
+                            <button type="button" onClick={() => openBookingAmountModal(lead)} className="flex w-full items-center justify-between gap-2 text-left">
+                              <span className="text-emerald-700">Final Amount</span>
+                              <span className="flex items-center gap-1 font-mono text-sm font-black text-emerald-950">
+                                ₹{(lead.finalAmount || lead.budgetEstimate || 0).toLocaleString('en-IN')}
+                                <Edit3 className="size-3.5 text-emerald-700" />
+                              </span>
+                            </button>
+                            <button type="button" onClick={() => openBookingAmountModal(lead)} className="mt-2 flex w-full items-center justify-between gap-2 border-t border-emerald-200 pt-2 text-left">
+                              <span className="text-indigo-700">Advance Recd</span>
+                              <span className="flex items-center gap-1 font-mono text-sm font-black text-indigo-950">
+                                ₹{(lead.advanceReceived || 0).toLocaleString('en-IN')}
+                                <Edit3 className="size-3.5 text-indigo-700" />
+                              </span>
+                            </button>
+                          </div>
+                        )}
+                      </div>
+
+                      {lead.notes && (
+                        <div className="border-t border-amber-200/80 bg-amber-50/70 p-3">
+                          <div className="rounded-xl border border-amber-300 bg-amber-100/90 p-3 text-amber-950">
+                            <div className="flex items-start gap-2">
+                              <FileText className="mt-0.5 size-4 shrink-0 text-amber-800" />
+                              <div className="min-w-0 flex-1">
+                                <span className="block text-[10px] font-extrabold uppercase tracking-wider text-amber-900">Lead Note / Reminder:</span>
+                                <p className="mt-1 whitespace-pre-wrap break-words text-xs font-bold leading-relaxed text-slate-900">"{lead.notes}"</p>
+                              </div>
+                            </div>
+                            <button
+                              onClick={() => {
+                                setNoteModalLead(lead);
+                                setQuickNoteText(lead.notes || '');
+                              }}
+                              className="mt-3 flex min-h-10 w-full items-center justify-center gap-1.5 rounded-lg border border-amber-400 bg-amber-200 px-3 py-2 text-xs font-black text-amber-950 hover:bg-amber-300"
+                              title="Edit Note"
+                            >
+                              <Edit3 className="size-4" />
+                              <span>Edit Note</span>
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
+                      <div className="flex items-center justify-end gap-2 border-t border-[#eee8e4] bg-[#fbfaf8] px-4 py-3">
+                        <button onClick={() => setHistoryModalLead(lead)} title="View Lead History & Audit Logs" className="grid size-10 place-items-center rounded-lg text-indigo-700 hover:bg-indigo-100"><History className="size-5" /></button>
+                        {canEditLead && <button onClick={() => handleOpenEditModal(lead)} title="Edit Lead Details" className="grid size-10 place-items-center rounded-lg text-slate-700 hover:bg-slate-200"><Edit3 className="size-5" /></button>}
+                        {canDeleteLead && <button onClick={() => handleDeleteLead(lead)} title="Delete Lead" className="grid size-10 place-items-center rounded-lg text-red-600 hover:bg-red-100"><Trash2 className="size-5" /></button>}
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
+            )}
+
+            <div className="hidden h-fit overflow-hidden border-y border-[#d8ccc5] bg-white xl:block">
               <table className="w-full table-fixed border-collapse text-left text-sm">
                 <thead>
                   <tr className="border-b border-[#7e5363] bg-[#4b303a] text-xs font-extrabold uppercase tracking-wider text-[#f4e8ec]">
@@ -1289,36 +1506,12 @@ export const LeadsManagement: React.FC<LeadsManagementProps> = ({ currentUser })
                                 onChange={(e) => {
                                   const newSt = e.target.value as LeadStatus;
                                   if (newSt === 'booked') {
-                                    setBookingAmountModalLead(lead);
-                                    setModalFinalAmount(
-                                      lead.finalAmount
-                                        ? String(lead.finalAmount)
-                                        : lead.budgetEstimate
-                                        ? String(lead.budgetEstimate)
-                                        : ''
-                                    );
-                                    setModalAdvanceAmount(
-                                      lead.advanceReceived !== undefined && lead.advanceReceived !== null
-                                        ? String(lead.advanceReceived)
-                                        : ''
-                                    );
+                                    openBookingAmountModal(lead);
                                   } else {
                                     handleUpdateStatus(lead.id, newSt);
                                   }
                                 }}
-                                className={`w-full font-black text-xs rounded-xl px-2 py-1.5 border shadow-2xs cursor-pointer ${
-                                  lead.status === 'booked'
-                                    ? 'bg-emerald-100 text-emerald-900 border-emerald-300'
-                                    : lead.status === 'quotation_sent'
-                                    ? 'bg-blue-100 text-blue-900 border-blue-300'
-                                    : lead.status === 'meeting_fixed'
-                                    ? 'bg-purple-100 text-purple-900 border-purple-300'
-                                    : lead.status === 'contacted'
-                                    ? 'bg-amber-100 text-amber-900 border-amber-300'
-                                    : lead.status === 'lost'
-                                    ? 'bg-rose-100 text-rose-900 border-rose-300'
-                                    : 'bg-slate-100 text-slate-800 border-slate-300'
-                                }`}
+                                className={`w-full font-black text-xs rounded-xl px-2 py-1.5 border shadow-2xs cursor-pointer ${leadStatusClass(lead.status)}`}
                               >
                                 <option value="new">New Inquiry</option>
                                 <option value="contacted">Contacted / Followup</option>
@@ -1334,21 +1527,7 @@ export const LeadsManagement: React.FC<LeadsManagementProps> = ({ currentUser })
                                     <span className="text-[10px] text-emerald-700 font-bold uppercase tracking-tight">Final Amount:</span>
                                     <button
                                       type="button"
-                                      onClick={() => {
-                                        setBookingAmountModalLead(lead);
-                                        setModalFinalAmount(
-                                          lead.finalAmount
-                                            ? String(lead.finalAmount)
-                                            : lead.budgetEstimate
-                                            ? String(lead.budgetEstimate)
-                                            : ''
-                                        );
-                                        setModalAdvanceAmount(
-                                          lead.advanceReceived !== undefined && lead.advanceReceived !== null
-                                            ? String(lead.advanceReceived)
-                                            : ''
-                                        );
-                                      }}
+                                      onClick={() => openBookingAmountModal(lead)}
                                       className="font-mono text-xs font-black text-emerald-950 underline hover:text-emerald-700 cursor-pointer flex items-center gap-0.5"
                                       title="Click to edit finalized deal & advance amount"
                                     >
@@ -1360,21 +1539,7 @@ export const LeadsManagement: React.FC<LeadsManagementProps> = ({ currentUser })
                                     <span className="text-[10px] text-indigo-700 font-bold uppercase tracking-tight">Advance Recd:</span>
                                     <button
                                       type="button"
-                                      onClick={() => {
-                                        setBookingAmountModalLead(lead);
-                                        setModalFinalAmount(
-                                          lead.finalAmount
-                                            ? String(lead.finalAmount)
-                                            : lead.budgetEstimate
-                                            ? String(lead.budgetEstimate)
-                                            : ''
-                                        );
-                                        setModalAdvanceAmount(
-                                          lead.advanceReceived !== undefined && lead.advanceReceived !== null
-                                            ? String(lead.advanceReceived)
-                                            : ''
-                                        );
-                                      }}
+                                      onClick={() => openBookingAmountModal(lead)}
                                       className="font-mono text-xs font-black text-indigo-950 underline hover:text-indigo-700 cursor-pointer flex items-center gap-0.5"
                                       title="Click to edit advance amount"
                                     >
