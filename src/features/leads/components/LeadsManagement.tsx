@@ -250,22 +250,9 @@ interface LeadsManagementProps {
 
 export const LeadsManagement: React.FC<LeadsManagementProps> = ({ currentUser }) => {
   const { can, role } = usePermission();
-  const isAdminRole = /^(admin|owner|studio owner)$/i.test(String(currentUser?.role || '').trim());
-  const [leads, setLeads] = useState<OwnerLead[]>(() => {
-    // Authenticated sessions must start empty until the scoped API response
-    // arrives; cached/sample rows must never flash for an employee.
-    if (Array.isArray((currentUser as { permissions?: string[] } | null)?.permissions) && !isAdminRole) return [];
-    const saved = localStorage.getItem('wpp_owner_crm_leads');
-    if (saved) {
-      try {
-        const cached = JSON.parse(saved);
-        return Array.isArray(cached) && cached.length > 0 ? cached : INITIAL_LEADS;
-      } catch (e) {
-        return INITIAL_LEADS;
-      }
-    }
-    return INITIAL_LEADS;
-  });
+  // Leads are a server-owned resource. Starting with an empty list prevents
+  // sample/cached records from appearing in a new studio account.
+  const [leads, setLeads] = useState<OwnerLead[]>([]);
 
   const [activeSubTab, setActiveSubTab] = useState<'list' | 'analytics'>('list');
   const [searchQuery, setSearchQuery] = useState('');
@@ -328,6 +315,11 @@ export const LeadsManagement: React.FC<LeadsManagementProps> = ({ currentUser })
     return DEFAULT_LEAD_TARGETS;
   });
 
+  // Remove the legacy demo cache now that the roster is server-owned.
+  useEffect(() => {
+    localStorage.removeItem('wpp_owner_crm_leads');
+  }, []);
+
   const [showTargetModal, setShowTargetModal] = useState(false);
   const [targetForm, setTargetForm] = useState<LeadTargets>(targets);
 
@@ -365,18 +357,12 @@ export const LeadsManagement: React.FC<LeadsManagementProps> = ({ currentUser })
     let active = true;
     void crmApi.leads.list({ limit: 100 }).then(({ items }) => {
       const scopedLeads = items.map(leadFromApi);
-      if (active && (scopedLeads.length > 0 || !isAdminRole)) setLeads(scopedLeads);
+      if (active) setLeads(scopedLeads);
     }).catch(() => {
-      // Employees remain empty on API failure. Admin retains the existing
-      // studio list instead of losing previously visible leads.
-      if (active && !isAdminRole) setLeads([]);
+      if (active) setLeads([]);
     });
     return () => { active = false; };
-  }, [usingBackend, isAdminRole]);
-
-  useEffect(() => {
-    localStorage.setItem('wpp_owner_crm_leads', JSON.stringify(leads));
-  }, [leads]);
+  }, [usingBackend]);
 
   // Helper to add log
   const createLog = (type: LeadActivityLog['type'], description: string): LeadActivityLog => ({
@@ -629,6 +615,20 @@ export const LeadsManagement: React.FC<LeadsManagementProps> = ({ currentUser })
       } else {
         setLeads((prev) => prev.filter((l) => l.id !== leadOrId));
       }
+    }
+  };
+
+  const handleConfirmDeleteLead = async () => {
+    if (!canDeleteLead || !leadToDelete) return;
+
+    try {
+      // Do not only hide the row locally: a successful API deletion is what
+      // keeps it gone after refresh or the next visit to this page.
+      if (usingBackend) await crmApi.leads.remove(leadToDelete.id);
+      setLeads((prev) => prev.filter((lead) => lead.id !== leadToDelete.id));
+      setLeadToDelete(null);
+    } catch {
+      window.alert('Unable to delete this lead. Please try again.');
     }
   };
 
@@ -1679,11 +1679,7 @@ export const LeadsManagement: React.FC<LeadsManagementProps> = ({ currentUser })
         title="Delete Lead Record"
         itemTitle={leadToDelete?.clientName || 'Inquiry Record'}
         message={`Are you sure you want to delete lead "${leadToDelete?.clientName || 'Inquiry Record'}"? This action cannot be undone.`}
-        onConfirm={() => {
-          if (!canDeleteLead || !leadToDelete) return;
-          setLeads((prev) => prev.filter((l) => l.id !== leadToDelete.id));
-          setLeadToDelete(null);
-        }}
+        onConfirm={handleConfirmDeleteLead}
         onCancel={() => setLeadToDelete(null)}
       />
 
