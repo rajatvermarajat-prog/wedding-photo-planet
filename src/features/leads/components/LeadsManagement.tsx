@@ -1120,27 +1120,23 @@ export const LeadsManagement: React.FC<LeadsManagementProps> = ({ currentUser })
           <LeadsFilterBar search={searchQuery} status={statusFilter} source={sourceFilter} assignee={assigneeFilter} teamOptions={SALES_TEAM_OPTIONS} onSearchChange={setSearchQuery} onStatusChange={setStatusFilter} onSourceChange={setSourceFilter} onAssigneeChange={setAssigneeFilter} />
 
           {/* Leads Data Table */}
-          <div className="h-fit overflow-hidden rounded-3xl border border-[#e2d9d3] bg-white shadow-[0_12px_34px_rgba(48,44,46,.07)]">
-            <div className="show-x-scrollbar h-fit overflow-x-auto overflow-y-hidden">
-              <table className="w-full border-collapse text-left text-sm">
+          <div className="h-fit">
+            <div className="h-fit overflow-hidden border-y border-[#d8ccc5] bg-white">
+              <table className="w-full table-fixed border-collapse text-left text-sm">
                 <thead>
                   <tr className="border-b border-[#7e5363] bg-[#4b303a] text-xs font-extrabold uppercase tracking-wider text-[#f4e8ec]">
-                    <th className="p-3.5 whitespace-nowrap min-w-[200px]">Client & Inquiry</th>
-                    <th className="p-3.5 whitespace-nowrap min-w-[150px]">Contact Details</th>
-                    <th className="p-3.5 whitespace-nowrap min-w-[170px]">Event Type / Requirement</th>
-                    <th className="p-3.5 whitespace-nowrap min-w-[120px]">Event Date</th>
-                    <th className="p-3.5 whitespace-nowrap min-w-[110px]">Budget Est.</th>
-                    <th className="p-3.5 whitespace-nowrap min-w-[140px]">Created By</th>
-                    <th className="p-3.5 whitespace-nowrap min-w-[200px]">Assigned To</th>
-                    <th className="p-3.5 whitespace-nowrap min-w-[120px]">Quotation Documents</th>
-                    <th className="p-3.5 whitespace-nowrap min-w-[185px]">Lead Status</th>
-                    <th className="p-3.5 text-center whitespace-nowrap min-w-[140px]">Actions / Logs</th>
+                    <th className="w-[23%] border-r border-white/15 px-3 py-3">Client & Inquiry</th>
+                    <th className="w-[15%] border-r border-white/15 px-3 py-3">Contact Details</th>
+                    <th className="w-[19%] border-r border-white/15 px-3 py-3">Event Type / Requirement</th>
+                    <th className="w-[20%] border-r border-white/15 px-3 py-3">Assigned To</th>
+                    <th className="w-[12%] border-r border-white/15 px-3 py-3">Quotation</th>
+                    <th className="w-[11%] px-3 py-3">Lead Status</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-200 bg-white align-top">
                   {filteredLeads.length === 0 ? (
                     <tr>
-                      <td colSpan={10} className="p-12 text-center text-slate-400 italic">
+                      <td colSpan={6} className="p-12 text-center text-slate-400 italic">
                         {isOwner
                           ? 'No lead records found matching your current filter criteria.'
                           : canCreateLead
@@ -1158,9 +1154,9 @@ export const LeadsManagement: React.FC<LeadsManagementProps> = ({ currentUser })
 
                       return (
                         <React.Fragment key={lead.id}>
-                          <tr className="group align-top transition hover:bg-rose-50/50">
+                          <tr className="group align-top border-b border-[#e1d9d4] transition hover:bg-[#fff9fa]">
                             {/* Client Name & ID */}
-                            <td className="p-3.5 font-black text-slate-900 align-top">
+                            <td className="border-r border-[#eee8e4] p-3.5 font-black text-slate-900 align-top">
                               <div className="flex items-center gap-2 py-0.5">
                                 <div className="flex size-9 shrink-0 items-center justify-center rounded-xl border border-rose-200 bg-rose-50 text-sm font-extrabold text-rose-800">
                                   {index + 1}
@@ -1173,12 +1169,13 @@ export const LeadsManagement: React.FC<LeadsManagementProps> = ({ currentUser })
                                       {lead.source}
                                     </span>
                                   </div>
+                                  <p className="mt-1 text-[9px] font-mono text-slate-400">{lead.createdBy || 'Studio Owner'} · {lead.createdDate}</p>
                                 </div>
                               </div>
                             </td>
 
                             {/* Contact Details */}
-                            <td className="p-3.5 align-top whitespace-nowrap">
+                            <td className="border-r border-[#eee8e4] p-2.5 align-top sm:p-3.5">
                               <div className="space-y-1 py-0.5">
                                 <a
                                   href={`tel:${lead.mobile}`}
@@ -1200,7 +1197,7 @@ export const LeadsManagement: React.FC<LeadsManagementProps> = ({ currentUser })
                             </td>
 
                             {/* Requirement / Event Type */}
-                            <td className="p-3.5 font-bold text-slate-800 align-top">
+                            <td className="border-r border-[#eee8e4] p-3.5 font-bold text-slate-800 align-top">
                               <div className="py-0.5">
                                 <p className="text-slate-900 font-extrabold text-xs">{lead.eventType}</p>
                                 {!lead.notes && canEditLead && (
@@ -1218,41 +1215,8 @@ export const LeadsManagement: React.FC<LeadsManagementProps> = ({ currentUser })
                               </div>
                             </td>
 
-                          {/* Event Date */}
-                          <td className="p-3.5 font-extrabold text-slate-700 align-top whitespace-nowrap">
-                            <div className="py-0.5">
-                              {lead.eventDate ? (
-                                <span className="inline-flex items-center gap-1 bg-slate-100 px-2.5 py-1.5 rounded-xl text-slate-800 text-xs font-extrabold border border-slate-200">
-                                  <Calendar className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
-                                  {lead.eventDate}
-                                </span>
-                              ) : (
-                                <span className="text-slate-400 italic text-xs">Not set</span>
-                              )}
-                            </div>
-                          </td>
-
-                          {/* Budget Est. */}
-                          <td className="p-3.5 font-black text-slate-900 align-top whitespace-nowrap">
-                            <div className="py-0.5">
-                              <span className="inline-flex items-center gap-0.5 text-emerald-700 font-extrabold bg-emerald-50 px-2.5 py-1.5 rounded-xl border border-emerald-100 text-xs">
-                                ₹{(lead.budgetEstimate || 0).toLocaleString('en-IN')}
-                              </span>
-                            </div>
-                          </td>
-
-                          {/* Created By */}
-                          <td className="p-3.5 font-bold text-slate-600 align-top whitespace-nowrap">
-                            <div className="py-0.5">
-                              <span className="text-xs bg-slate-100 text-slate-700 px-2.5 py-1.5 rounded-xl border border-slate-200 font-extrabold inline-block whitespace-nowrap">
-                                {lead.createdBy || 'Studio Owner'}
-                              </span>
-                              <p className="text-[9px] text-slate-400 mt-1 font-mono leading-none">{lead.createdDate}</p>
-                            </div>
-                          </td>
-
                           {/* Assigned To (Drop-down for reassigning) */}
-                          <td className="p-3.5 align-top min-w-[200px]">
+                          <td className="p-2.5 align-top sm:p-3.5">
                             <div className="py-0.5">
                               <div className="flex items-center gap-1.5 bg-indigo-50/80 border border-indigo-100 px-2.5 py-1.5 rounded-xl text-indigo-950 font-extrabold text-xs w-full">
                                 <UserCheck className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
@@ -1280,8 +1244,8 @@ export const LeadsManagement: React.FC<LeadsManagementProps> = ({ currentUser })
                           </td>
 
                           {/* Quotation Documents */}
-                          <td className="p-3.5 align-top whitespace-nowrap">
-                            <div className="py-0.5 flex items-center gap-1.5">
+                          <td className="border-r border-[#eee8e4] p-2.5 align-top sm:p-3.5">
+                            <div className="flex flex-wrap gap-1.5 py-0.5">
                               <button
                                 onClick={() => setQuotationModalLead(lead)}
                                 className={`px-2.5 py-1.5 rounded-xl font-extrabold text-xs flex items-center gap-1.5 transition border cursor-pointer ${
@@ -1317,7 +1281,7 @@ export const LeadsManagement: React.FC<LeadsManagementProps> = ({ currentUser })
                           </td>
 
                           {/* Lead Status Switcher */}
-                          <td className="p-3.5 align-top whitespace-nowrap">
+                          <td className="border-r border-[#eee8e4] p-2.5 align-top sm:p-3.5">
                             <div className="py-0.5">
                               <select
                                 value={lead.status}
@@ -1342,7 +1306,7 @@ export const LeadsManagement: React.FC<LeadsManagementProps> = ({ currentUser })
                                     handleUpdateStatus(lead.id, newSt);
                                   }
                                 }}
-                                className={`w-full font-black text-xs rounded-xl px-2.5 py-1.5 border shadow-2xs cursor-pointer min-w-[175px] ${
+                                className={`w-full font-black text-xs rounded-xl px-2 py-1.5 border shadow-2xs cursor-pointer ${
                                   lead.status === 'booked'
                                     ? 'bg-emerald-100 text-emerald-900 border-emerald-300'
                                     : lead.status === 'quotation_sent'
@@ -1420,37 +1384,11 @@ export const LeadsManagement: React.FC<LeadsManagementProps> = ({ currentUser })
                                   </div>
                                 </div>
                               )}
-                            </div>
-                          </td>
-
-                          {/* Actions & Audit History */}
-                          <td className="p-3.5 text-center align-top whitespace-nowrap">
-                            <div className="py-0.5 flex items-center justify-center gap-1">
-                              <button
-                                onClick={() => setHistoryModalLead(lead)}
-                                title="View Lead History & Audit Logs"
-                                className="p-1.5 hover:bg-indigo-100 text-indigo-700 rounded-lg transition cursor-pointer"
-                              >
-                                <History className="w-4 h-4" />
-                              </button>
-                              {canEditLead && (
-                              <button
-                                onClick={() => handleOpenEditModal(lead)}
-                                title="Edit Lead Details"
-                                className="p-1.5 hover:bg-slate-200 text-slate-700 rounded-lg transition cursor-pointer"
-                              >
-                                <Edit3 className="w-4 h-4" />
-                              </button>
-                              )}
-                              {canDeleteLead && (
-                                <button
-                                  onClick={() => handleDeleteLead(lead)}
-                                  title="Delete Lead"
-                                  className="p-1.5 hover:bg-red-100 text-red-600 rounded-lg transition cursor-pointer"
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                </button>
-                              )}
+                              <div className="mt-2 flex items-center gap-1 border-t border-slate-200 pt-2">
+                                <button onClick={() => setHistoryModalLead(lead)} title="View Lead History & Audit Logs" className="rounded-lg p-1.5 text-indigo-700 hover:bg-indigo-100"><History className="w-4 h-4" /></button>
+                                {canEditLead && <button onClick={() => handleOpenEditModal(lead)} title="Edit Lead Details" className="rounded-lg p-1.5 text-slate-700 hover:bg-slate-200"><Edit3 className="w-4 h-4" /></button>}
+                                {canDeleteLead && <button onClick={() => handleDeleteLead(lead)} title="Delete Lead" className="rounded-lg p-1.5 text-red-600 hover:bg-red-100"><Trash2 className="w-4 h-4" /></button>}
+                              </div>
                             </div>
                           </td>
                         </tr>
@@ -1458,7 +1396,7 @@ export const LeadsManagement: React.FC<LeadsManagementProps> = ({ currentUser })
                         {/* Note Sub-Row (Notepad placed cleanly below lead row) */}
                         {lead.notes && (
                           <tr className="bg-amber-50/70 border-b border-amber-200/80">
-                            <td colSpan={10} className="px-4 py-2.5">
+                            <td colSpan={6} className="px-4 py-2.5">
                               <div className="flex items-start justify-between gap-3 bg-amber-100/90 border border-amber-300 rounded-xl p-3 text-amber-950 shadow-2xs">
                                 <div className="flex items-start gap-2.5">
                                   <FileText className="w-4 h-4 text-amber-800 shrink-0 mt-0.5" />
