@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { OwnerLead, LeadStatus, TeamMember, LeadQuotationFile, LeadActivityLog } from '@/types';
 import { usePermission } from '@/features/access';
 import { indianMobileError } from '@/lib/validation/indianMobile';
@@ -34,19 +34,6 @@ import {
   BarChart2,
   Users,
 } from 'lucide-react';
-
-export const SALES_TEAM_OPTIONS = [
-  'Vikram Aditya (Sales Manager)',
-  'Ishita (Studio Manager)',
-  'Manisha Sharma (Studio Manager)',
-  'Neha Sharma (Social Media Handler)',
-  'Shivali (Social Media Handler)',
-  'Rahul Verma (Senior Cinematographer)',
-  'Ankit Kumar (Lead Photographer)',
-  'Aarav Gupta (Video Editor)',
-  'Priya Das (Album Designer)',
-  'Studio Owner',
-];
 
 export interface LeadTargets {
   yearlyLeadTarget: number;
@@ -246,9 +233,10 @@ const INITIAL_LEADS: OwnerLead[] = [
 
 interface LeadsManagementProps {
   currentUser?: TeamMember | { id?: string; name?: string; role?: string; email?: string } | null;
+  team?: TeamMember[];
 }
 
-export const LeadsManagement: React.FC<LeadsManagementProps> = ({ currentUser }) => {
+export const LeadsManagement: React.FC<LeadsManagementProps> = ({ currentUser, team = [] }) => {
   const { can, role } = usePermission();
   // Leads are a server-owned resource. Starting with an empty list prevents
   // sample/cached records from appearing in a new studio account.
@@ -341,6 +329,11 @@ export const LeadsManagement: React.FC<LeadsManagementProps> = ({ currentUser })
   // User details & Role Determination
   const userName = currentUser?.name || 'Studio Owner';
   const userRole = currentUser?.role || 'Owner';
+  const isStudioOwner = /^(admin|owner|studio owner)$/i.test(userRole.trim());
+  const teamOptions = useMemo(() => {
+    const members = isStudioOwner ? team.filter((member) => member.id !== currentUser?.id) : team;
+    return [...new Set(members.map((member) => `${member.name} (${member.role})`))];
+  }, [team, currentUser?.id, isStudioOwner]);
   const usingBackend = Array.isArray((currentUser as { permissions?: string[] } | null)?.permissions);
   const canCreateLead = can('leads.create');
   const canEditLead = can('leads.edit');
@@ -392,7 +385,7 @@ export const LeadsManagement: React.FC<LeadsManagementProps> = ({ currentUser })
     setAdvanceReceived('');
     setStatus('new');
     setSource('');
-    setAssignedTo(userName || 'Ishita (Studio Manager)');
+    setAssignedTo('');
     setNotes('');
     setShowAddLeadModal(true);
   };
@@ -426,7 +419,7 @@ export const LeadsManagement: React.FC<LeadsManagementProps> = ({ currentUser })
     const finalClientName = clientName.trim() || 'Inquiry Client';
     const finalEventType = eventType.trim() || 'General Photography Inquiry';
     const finalSource = source.trim() || 'Direct / Call';
-    const finalAssignee = assignedTo.trim() || userName || 'Studio Owner';
+    const finalAssignee = assignedTo.trim();
     const today = new Date().toISOString().split('T')[0];
     const numBudget = Number(budgetEstimate) || 0;
     const numAdv = Number(advanceReceived) || 0;
@@ -1074,7 +1067,7 @@ export const LeadsManagement: React.FC<LeadsManagementProps> = ({ currentUser })
               </h4>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                {SALES_TEAM_OPTIONS.map((staffName) => {
+                {teamOptions.map((staffName) => {
                   const staffLeads = leads.filter((l) => l.assignedTo && l.assignedTo.includes(staffName.split(' ')[0]));
                   const staffBooked = staffLeads.filter((l) => l.status === 'booked').length;
                   const staffActive = staffLeads.filter((l) => l.status !== 'booked' && l.status !== 'lost').length;
@@ -1140,7 +1133,7 @@ export const LeadsManagement: React.FC<LeadsManagementProps> = ({ currentUser })
         </div>
       ) : (
         <>
-          <LeadsFilterBar search={searchQuery} status={statusFilter} source={sourceFilter} assignee={assigneeFilter} teamOptions={SALES_TEAM_OPTIONS} onSearchChange={setSearchQuery} onStatusChange={setStatusFilter} onSourceChange={setSourceFilter} onAssigneeChange={setAssigneeFilter} />
+          <LeadsFilterBar search={searchQuery} status={statusFilter} source={sourceFilter} assignee={assigneeFilter} teamOptions={teamOptions} onSearchChange={setSearchQuery} onStatusChange={setStatusFilter} onSourceChange={setSourceFilter} onAssigneeChange={setAssigneeFilter} />
 
           {/* Leads Data Table */}
           <div className="h-fit">
@@ -1217,12 +1210,12 @@ export const LeadsManagement: React.FC<LeadsManagementProps> = ({ currentUser })
                               className="min-w-0 flex-1 bg-transparent p-0 text-xs font-extrabold text-indigo-900 outline-none disabled:cursor-not-allowed"
                             >
                               <option value="">-- Unassigned --</option>
-                              {SALES_TEAM_OPTIONS.map((member) => (
+                              {teamOptions.map((member) => (
                                 <option key={member} value={member}>
                                   {member}
                                 </option>
                               ))}
-                              {lead.assignedTo && !SALES_TEAM_OPTIONS.includes(lead.assignedTo) && (
+                              {lead.assignedTo && !teamOptions.includes(lead.assignedTo) && (
                                 <option value={lead.assignedTo}>{lead.assignedTo}</option>
                               )}
                             </select>
@@ -1444,12 +1437,12 @@ export const LeadsManagement: React.FC<LeadsManagementProps> = ({ currentUser })
                                   className="bg-transparent border-none p-0 focus:outline-none font-extrabold text-indigo-900 text-xs cursor-pointer w-full disabled:cursor-not-allowed truncate"
                                 >
                                   <option value="">-- Unassigned --</option>
-                                  {SALES_TEAM_OPTIONS.map((member) => (
+                                  {teamOptions.map((member) => (
                                     <option key={member} value={member}>
                                       {member}
                                     </option>
                                   ))}
-                                  {lead.assignedTo && !SALES_TEAM_OPTIONS.includes(lead.assignedTo) && (
+                                  {lead.assignedTo && !teamOptions.includes(lead.assignedTo) && (
                                     <option value={lead.assignedTo}>{lead.assignedTo}</option>
                                   )}
                                 </select>
@@ -1614,7 +1607,7 @@ export const LeadsManagement: React.FC<LeadsManagementProps> = ({ currentUser })
         source={source}
         assignedTo={assignedTo}
         notes={notes}
-        teamOptions={SALES_TEAM_OPTIONS}
+        teamOptions={teamOptions}
         onClientNameChange={setClientName}
         onMobileChange={setMobile}
         onEmailChange={setEmail}
