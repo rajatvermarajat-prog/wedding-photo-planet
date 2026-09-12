@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { OwnerNotepad } from './OwnerNotepad';
 import { OwnerTodoList } from './OwnerTodoList';
-import { Crown, LayoutGrid, ListTodo, NotebookPen, UsersRound } from 'lucide-react';
+import { OwnerExcelSheet } from './OwnerExcelSheet';
+import { Crown, LayoutGrid, ListTodo, NotebookPen, Sheet, UsersRound } from 'lucide-react';
 import { TeamMember, Project } from '@/types';
 import { KpiCard } from '@/features/team/components/TeamUiKit';
 
@@ -14,7 +15,7 @@ export const OwnerWorkspace: React.FC<OwnerWorkspaceProps> = ({
   projects = [],
   activeTeamMembers = [],
 }) => {
-  const [activeSection, setActiveSection] = useState<'all' | 'todo' | 'notepad'>('all');
+  const [activeSection, setActiveSection] = useState<'all' | 'todo' | 'notepad' | 'sheet'>('all');
   const [pendingTodosCount, setPendingTodosCount] = useState(0);
   const activeProjectsCount = projects.filter((project) => project.status !== 'completed').length;
 
@@ -55,6 +56,7 @@ export const OwnerWorkspace: React.FC<OwnerWorkspaceProps> = ({
             { id: 'all' as const, label: 'All Columns', icon: LayoutGrid },
             { id: 'todo' as const, label: `To-Do List & Tasks (${pendingTodosCount})`, icon: ListTodo },
             { id: 'notepad' as const, label: 'Owner Private Notepad', icon: NotebookPen },
+            { id: 'sheet' as const, label: 'Excel Sheet', icon: Sheet },
           ]
         ).map((chip) => {
           const Icon = chip.icon;
@@ -79,6 +81,9 @@ export const OwnerWorkspace: React.FC<OwnerWorkspaceProps> = ({
 
       {(activeSection === 'all' || activeSection === 'todo') && <OwnerTodoList onPendingCountChange={setPendingTodosCount} />}
       {(activeSection === 'all' || activeSection === 'notepad') && <OwnerNotepad />}
+      <div className={activeSection === 'all' || activeSection === 'sheet' ? undefined : 'hidden'}>
+        <OwnerExcelSheet />
+      </div>
     </div>
   );
 };

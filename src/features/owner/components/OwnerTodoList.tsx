@@ -10,6 +10,12 @@ const PRIORITY_UI: Record<PersonalTodoPriority, 'high' | 'medium' | 'low'> = {
   LOW: 'low',
 };
 
+/** Renders the API's ISO due date without applying a timezone conversion. */
+const formatTodoDueDate = (value: string) => {
+  const [year, month, day] = value.slice(0, 10).split('-');
+  return year && month && day ? `${day}_${month}_${year}` : value;
+};
+
 export function OwnerTodoList({ onPendingCountChange }: { onPendingCountChange: (count: number) => void }) {
   const { data: todos, loading, pending, create, update, remove, clearCompleted } = usePersonalTodos(true);
   const [title, setTitle] = useState('');
@@ -101,7 +107,7 @@ export function OwnerTodoList({ onPendingCountChange }: { onPendingCountChange: 
                       {task.dueDate && (
                         <span className="flex items-center gap-1.5 text-sm text-slate-600">
                           <Calendar className="size-4" />
-                          {task.dueDate.slice(0, 10)}
+                          {formatTodoDueDate(task.dueDate)}
                         </span>
                       )}
                     </div>
