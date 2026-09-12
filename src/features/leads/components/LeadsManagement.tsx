@@ -454,10 +454,15 @@ export const LeadsManagement: React.FC<LeadsManagementProps> = ({ currentUser, t
     try {
       let sourceId: string | undefined;
       if (finalSource) {
-        const { items: sources } = await crmApi.leadSources.list({ limit: 100 });
-        const existing = sources.find((item) => String((item as { name?: string }).name || '').toLowerCase() === finalSource.toLowerCase());
-        const source = existing || await crmApi.leadSources.create({ name: finalSource });
-        sourceId = String((source as { id: string }).id);
+        // Source setup is administered separately by the backend. A free-text
+        // source must never prevent a lead itself from being saved.
+        try {
+          const { items: sources } = await crmApi.leadSources.list({ limit: 100 });
+          const existing = sources.find((item) => String((item as { name?: string }).name || '').toLowerCase() === finalSource.toLowerCase());
+          sourceId = existing ? String((existing as { id: string }).id) : undefined;
+        } catch {
+          sourceId = undefined;
+        }
       }
       const payload = {
         name: finalClientName,
