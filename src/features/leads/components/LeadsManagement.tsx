@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { OwnerLead, LeadStatus, TeamMember, LeadQuotationFile, LeadActivityLog } from '@/types';
 import { usePermission } from '@/features/access';
 import { indianMobileError } from '@/lib/validation/indianMobile';
@@ -35,19 +35,6 @@ import {
   Users,
 } from 'lucide-react';
 
-export const SALES_TEAM_OPTIONS = [
-  'Vikram Aditya (Sales Manager)',
-  'Ishita (Studio Manager)',
-  'Manisha Sharma (Studio Manager)',
-  'Neha Sharma (Social Media Handler)',
-  'Shivali (Social Media Handler)',
-  'Rahul Verma (Senior Cinematographer)',
-  'Ankit Kumar (Lead Photographer)',
-  'Aarav Gupta (Video Editor)',
-  'Priya Das (Album Designer)',
-  'Studio Owner',
-];
-
 export interface LeadTargets {
   yearlyLeadTarget: number;
   monthlyLeadTarget: number;
@@ -63,6 +50,22 @@ const API_STATUS_TO_UI: Record<string, LeadStatus> = {
   NEW: 'new', CONTACTED: 'contacted', QUALIFIED: 'meeting_fixed',
   PROPOSAL_SENT: 'quotation_sent', NEGOTIATION: 'quotation_sent', WON: 'booked', LOST: 'lost',
 };
+
+const UI_STATUS_TO_API: Record<LeadStatus, string> = {
+  new: 'NEW', contacted: 'CONTACTED', meeting_fixed: 'QUALIFIED',
+  quotation_sent: 'PROPOSAL_SENT', booked: 'WON', lost: 'LOST',
+};
+
+function eventTypeForApi(eventType: string) {
+  const key = eventType.trim().toUpperCase().replace(/[^A-Z0-9]+/g, '_').replace(/^_|_$/g, '');
+  const supported = new Set(['ROKA', 'ENGAGEMENT', 'PRE_WEDDING', 'WEDDING', 'COMPLETE_WEDDING_SERVICES', 'HALDI_MEHENDI', 'SANGEET', 'RECEPTION', 'ANNIVERSARY', 'CORPORATE', 'OTHER']);
+  if (supported.has(key)) return key;
+  if (key.includes('COMPLETE') && key.includes('WEDDING')) return 'COMPLETE_WEDDING_SERVICES';
+  if (key.includes('PRE') && key.includes('WEDDING')) return 'PRE_WEDDING';
+  if (key.includes('HALDI') || key.includes('MEHENDI')) return 'HALDI_MEHENDI';
+  if (key.includes('WEDDING')) return 'WEDDING';
+  return 'OTHER';
+}
 
 function leadFromApi(value: unknown): OwnerLead {
   const lead = value as Record<string, unknown>;
@@ -246,26 +249,14 @@ const INITIAL_LEADS: OwnerLead[] = [
 
 interface LeadsManagementProps {
   currentUser?: TeamMember | { id?: string; name?: string; role?: string; email?: string } | null;
+  team?: TeamMember[];
 }
 
-export const LeadsManagement: React.FC<LeadsManagementProps> = ({ currentUser }) => {
+export const LeadsManagement: React.FC<LeadsManagementProps> = ({ currentUser, team = [] }) => {
   const { can, role } = usePermission();
-  const isAdminRole = /^(admin|owner|studio owner)$/i.test(String(currentUser?.role || '').trim());
-  const [leads, setLeads] = useState<OwnerLead[]>(() => {
-    // Authenticated sessions must start empty until the scoped API response
-    // arrives; cached/sample rows must never flash for an employee.
-    if (Array.isArray((currentUser as { permissions?: string[] } | null)?.permissions) && !isAdminRole) return [];
-    const saved = localStorage.getItem('wpp_owner_crm_leads');
-    if (saved) {
-      try {
-        const cached = JSON.parse(saved);
-        return Array.isArray(cached) && cached.length > 0 ? cached : INITIAL_LEADS;
-      } catch (e) {
-        return INITIAL_LEADS;
-      }
-    }
-    return INITIAL_LEADS;
-  });
+  // Leads are a server-owned resource. Starting with an empty list prevents
+  // sample/cached records from appearing in a new studio account.
+  const [leads, setLeads] = useState<OwnerLead[]>([]);
 
   const [activeSubTab, setActiveSubTab] = useState<'list' | 'analytics'>('list');
   const [searchQuery, setSearchQuery] = useState('');
@@ -328,6 +319,11 @@ export const LeadsManagement: React.FC<LeadsManagementProps> = ({ currentUser })
     return DEFAULT_LEAD_TARGETS;
   });
 
+  // Remove the legacy demo cache now that the roster is server-owned.
+  useEffect(() => {
+    localStorage.removeItem('wpp_owner_crm_leads');
+  }, []);
+
   const [showTargetModal, setShowTargetModal] = useState(false);
   const [targetForm, setTargetForm] = useState<LeadTargets>(targets);
 
@@ -349,6 +345,15 @@ export const LeadsManagement: React.FC<LeadsManagementProps> = ({ currentUser })
   // User details & Role Determination
   const userName = currentUser?.name || 'Studio Owner';
   const userRole = currentUser?.role || 'Owner';
+  const isStudioOwner = /^(admin|owner|studio owner)$/i.test(userRole.trim());
+  const teamOptions = useMemo(() => {
+    const members = isStudioOwner ? team.filter((member) => member.id !== currentUser?.id) : team;
+    return [...new Set(members.map((member) => `${member.name} (${member.role})`))];
+  }, [team, currentUser?.id, isStudioOwner]);
+  const assigneeIdByLabel = useMemo(
+    () => new Map(team.filter((member) => !isStudioOwner || member.id !== currentUser?.id).map((member) => [`${member.name} (${member.role})`, member.id])),
+    [team, currentUser?.id, isStudioOwner]
+  );
   const usingBackend = Array.isArray((currentUser as { permissions?: string[] } | null)?.permissions);
   const canCreateLead = can('leads.create');
   const canEditLead = can('leads.edit');
@@ -360,23 +365,27 @@ export const LeadsManagement: React.FC<LeadsManagementProps> = ({ currentUser })
     : can('leads.view') && role?.grants['leads.view']?.scope === 'all';
   const isOwner = seeAllLeads || can('reports.view_sales');
 
+  const refreshLeads = async () => {
+    if (!usingBackend) return;
+    try {
+      const { items } = await crmApi.leads.list({ limit: 100 });
+      setLeads(items.map(leadFromApi));
+    } catch {
+      setLeads([]);
+    }
+  };
+
   useEffect(() => {
     if (!usingBackend) return;
     let active = true;
     void crmApi.leads.list({ limit: 100 }).then(({ items }) => {
       const scopedLeads = items.map(leadFromApi);
-      if (active && (scopedLeads.length > 0 || !isAdminRole)) setLeads(scopedLeads);
+      if (active) setLeads(scopedLeads);
     }).catch(() => {
-      // Employees remain empty on API failure. Admin retains the existing
-      // studio list instead of losing previously visible leads.
-      if (active && !isAdminRole) setLeads([]);
+      if (active) setLeads([]);
     });
     return () => { active = false; };
-  }, [usingBackend, isAdminRole]);
-
-  useEffect(() => {
-    localStorage.setItem('wpp_owner_crm_leads', JSON.stringify(leads));
-  }, [leads]);
+  }, [usingBackend]);
 
   // Helper to add log
   const createLog = (type: LeadActivityLog['type'], description: string): LeadActivityLog => ({
@@ -406,7 +415,7 @@ export const LeadsManagement: React.FC<LeadsManagementProps> = ({ currentUser })
     setAdvanceReceived('');
     setStatus('new');
     setSource('');
-    setAssignedTo(userName || 'Ishita (Studio Manager)');
+    setAssignedTo('');
     setNotes('');
     setShowAddLeadModal(true);
   };
@@ -428,7 +437,7 @@ export const LeadsManagement: React.FC<LeadsManagementProps> = ({ currentUser })
     setShowAddLeadModal(true);
   };
 
-  const handleSaveLead = (e: React.FormEvent) => {
+  const handleSaveLead = async (e: React.FormEvent) => {
     e.preventDefault();
     if (editingLead ? !canEditLead : !canCreateLead) return;
     const mobileError = indianMobileError(mobile, true);
@@ -440,97 +449,61 @@ export const LeadsManagement: React.FC<LeadsManagementProps> = ({ currentUser })
     const finalClientName = clientName.trim() || 'Inquiry Client';
     const finalEventType = eventType.trim() || 'General Photography Inquiry';
     const finalSource = source.trim() || 'Direct / Call';
-    const finalAssignee = assignedTo.trim() || userName || 'Studio Owner';
-    const today = new Date().toISOString().split('T')[0];
+    const finalAssignee = assignedTo.trim();
     const numBudget = Number(budgetEstimate) || 0;
-    const numAdv = Number(advanceReceived) || 0;
-
-    if (editingLead) {
-      const isReassigned = editingLead.assignedTo !== finalAssignee;
-      const isStatusChanged = editingLead.status !== status;
-
-      setLeads((prev) =>
-        prev.map((l) => {
-          if (l.id === editingLead.id) {
-            const updatedLogs = [...(l.activityLogs || [])];
-
-            if (isReassigned) {
-              updatedLogs.push(
-                createLog('assigned', `Reassigned from "${l.assignedTo || 'Unassigned'}" to "${finalAssignee}"`)
-              );
-            }
-
-            if (isStatusChanged) {
-              updatedLogs.push(
-                createLog('status_changed', `Status updated from "${l.status}" to "${status}"`)
-              );
-            }
-
-            updatedLogs.push(
-              createLog('edited', `Lead details updated by ${userName}`)
-            );
-
-            return {
-              ...l,
-              clientName: finalClientName,
-              mobile: mobile.trim(),
-              email: email.trim() || undefined,
-              eventType: finalEventType,
-              eventDate: eventDate || undefined,
-              budgetEstimate: numBudget,
-              finalAmount: status === 'booked' ? numBudget : l.finalAmount,
-              advanceReceived: status === 'booked' ? numAdv : l.advanceReceived,
-              status,
-              source: finalSource,
-              assignedTo: finalAssignee,
-              assignedDate: isReassigned ? today : (l.assignedDate || l.createdDate || today),
-              notes: notes.trim() || undefined,
-              activityLogs: updatedLogs,
-            };
-          }
-          return l;
-        })
-      );
-    } else {
-      const newLeadLogs: LeadActivityLog[] = [
-        createLog('created', `Lead added by ${userName}`),
-      ];
-
-      if (finalAssignee) {
-        newLeadLogs.push(
-          createLog('assigned', `Initial lead assigned to ${finalAssignee}`)
-        );
+    try {
+      let sourceId: string | undefined;
+      if (finalSource) {
+        // Source setup is administered separately by the backend. A free-text
+        // source must never prevent a lead itself from being saved.
+        try {
+          const { items: sources } = await crmApi.leadSources.list({ limit: 100 });
+          const existing = sources.find((item) => String((item as { name?: string }).name || '').toLowerCase() === finalSource.toLowerCase());
+          sourceId = existing ? String((existing as { id: string }).id) : undefined;
+        } catch {
+          sourceId = undefined;
+        }
       }
-
-      const newLead: OwnerLead = {
-        id: `lead-${Date.now()}`,
-        clientName: finalClientName,
-        mobile: mobile.trim(),
+      const payload = {
+        name: finalClientName,
+        phone: mobile.trim(),
         email: email.trim() || undefined,
-        eventType: finalEventType,
+        eventType: eventTypeForApi(finalEventType),
         eventDate: eventDate || undefined,
-        budgetEstimate: numBudget,
-        finalAmount: status === 'booked' ? numBudget : undefined,
-        advanceReceived: status === 'booked' ? numAdv : undefined,
-        status,
-        source: finalSource,
-        assignedTo: finalAssignee,
-        assignedDate: today,
-        createdBy: userName,
+        estimatedValue: numBudget,
+        ownerId: finalAssignee ? assigneeIdByLabel.get(finalAssignee) : undefined,
+        sourceId,
         notes: notes.trim() || undefined,
-        createdDate: today,
-        quotations: [],
-        activityLogs: newLeadLogs,
+        ...(editingLead ? { status: UI_STATUS_TO_API[status], ...(status === 'lost' ? { lostReason: 'Marked as lost' } : {}) } : {}),
       };
-      setLeads((prev) => [newLead, ...prev]);
+      if (editingLead) {
+        await crmApi.leads.update(editingLead.id, payload);
+      } else {
+        const created = await crmApi.leads.create(payload) as { id: string };
+        if (status !== 'new') {
+          await crmApi.leads.update(created.id, {
+            status: UI_STATUS_TO_API[status],
+            ...(status === 'lost' ? { lostReason: 'Marked as lost' } : {}),
+          });
+        }
+      }
+      await refreshLeads();
+      setShowAddLeadModal(false);
+      setEditingLead(null);
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : 'Unable to save the lead. Please try again.');
     }
-
-    setShowAddLeadModal(false);
-    setEditingLead(null);
   };
 
   const handleUpdateStatus = (id: string, newStatus: LeadStatus, finalAmt?: number, advAmt?: number) => {
     if (!canChangeLeadStatus) return;
+    void crmApi.leads.update(id, {
+      status: UI_STATUS_TO_API[newStatus],
+      ...(newStatus === 'lost' ? { lostReason: 'Marked as lost' } : {}),
+      ...(finalAmt !== undefined ? { estimatedValue: finalAmt } : {}),
+    }).then(refreshLeads).catch((error) => {
+      window.alert(error instanceof Error ? error.message : 'Unable to update lead status.');
+    });
     setLeads((prev) =>
       prev.map((l) => {
         if (l.id === id) {
@@ -571,6 +544,11 @@ export const LeadsManagement: React.FC<LeadsManagementProps> = ({ currentUser })
 
   const handleUpdateAssignedTo = (id: string, newAssignedTo: string) => {
     if (!canAssignLead) return;
+    const ownerId = assigneeIdByLabel.get(newAssignedTo);
+    if (!ownerId) return;
+    void crmApi.leads.update(id, { ownerId }).then(refreshLeads).catch((error) => {
+      window.alert(error instanceof Error ? error.message : 'Unable to reassign this lead.');
+    });
     const today = new Date().toISOString().split('T')[0];
     setLeads((prev) =>
       prev.map((l) => {
@@ -597,6 +575,9 @@ export const LeadsManagement: React.FC<LeadsManagementProps> = ({ currentUser })
     if (!canEditLead || !noteModalLead) return;
 
     const trimmed = quickNoteText.trim();
+    void crmApi.leads.update(noteModalLead.id, { notes: trimmed || undefined }).then(refreshLeads).catch((error) => {
+      window.alert(error instanceof Error ? error.message : 'Unable to save the note.');
+    });
     setLeads((prev) =>
       prev.map((l) => {
         if (l.id === noteModalLead.id) {
@@ -629,6 +610,20 @@ export const LeadsManagement: React.FC<LeadsManagementProps> = ({ currentUser })
       } else {
         setLeads((prev) => prev.filter((l) => l.id !== leadOrId));
       }
+    }
+  };
+
+  const handleConfirmDeleteLead = async () => {
+    if (!canDeleteLead || !leadToDelete) return;
+
+    try {
+      // Do not only hide the row locally: a successful API deletion is what
+      // keeps it gone after refresh or the next visit to this page.
+      if (usingBackend) await crmApi.leads.remove(leadToDelete.id);
+      setLeads((prev) => prev.filter((lead) => lead.id !== leadToDelete.id));
+      setLeadToDelete(null);
+    } catch {
+      window.alert('Unable to delete this lead. Please try again.');
     }
   };
 
@@ -1074,7 +1069,7 @@ export const LeadsManagement: React.FC<LeadsManagementProps> = ({ currentUser })
               </h4>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                {SALES_TEAM_OPTIONS.map((staffName) => {
+                {teamOptions.map((staffName) => {
                   const staffLeads = leads.filter((l) => l.assignedTo && l.assignedTo.includes(staffName.split(' ')[0]));
                   const staffBooked = staffLeads.filter((l) => l.status === 'booked').length;
                   const staffActive = staffLeads.filter((l) => l.status !== 'booked' && l.status !== 'lost').length;
@@ -1140,7 +1135,7 @@ export const LeadsManagement: React.FC<LeadsManagementProps> = ({ currentUser })
         </div>
       ) : (
         <>
-          <LeadsFilterBar search={searchQuery} status={statusFilter} source={sourceFilter} assignee={assigneeFilter} teamOptions={SALES_TEAM_OPTIONS} onSearchChange={setSearchQuery} onStatusChange={setStatusFilter} onSourceChange={setSourceFilter} onAssigneeChange={setAssigneeFilter} />
+          <LeadsFilterBar search={searchQuery} status={statusFilter} source={sourceFilter} assignee={assigneeFilter} teamOptions={teamOptions} onSearchChange={setSearchQuery} onStatusChange={setStatusFilter} onSourceChange={setSourceFilter} onAssigneeChange={setAssigneeFilter} />
 
           {/* Leads Data Table */}
           <div className="h-fit">
@@ -1217,12 +1212,12 @@ export const LeadsManagement: React.FC<LeadsManagementProps> = ({ currentUser })
                               className="min-w-0 flex-1 bg-transparent p-0 text-xs font-extrabold text-indigo-900 outline-none disabled:cursor-not-allowed"
                             >
                               <option value="">-- Unassigned --</option>
-                              {SALES_TEAM_OPTIONS.map((member) => (
+                              {teamOptions.map((member) => (
                                 <option key={member} value={member}>
                                   {member}
                                 </option>
                               ))}
-                              {lead.assignedTo && !SALES_TEAM_OPTIONS.includes(lead.assignedTo) && (
+                              {lead.assignedTo && !teamOptions.includes(lead.assignedTo) && (
                                 <option value={lead.assignedTo}>{lead.assignedTo}</option>
                               )}
                             </select>
@@ -1444,12 +1439,12 @@ export const LeadsManagement: React.FC<LeadsManagementProps> = ({ currentUser })
                                   className="bg-transparent border-none p-0 focus:outline-none font-extrabold text-indigo-900 text-xs cursor-pointer w-full disabled:cursor-not-allowed truncate"
                                 >
                                   <option value="">-- Unassigned --</option>
-                                  {SALES_TEAM_OPTIONS.map((member) => (
+                                  {teamOptions.map((member) => (
                                     <option key={member} value={member}>
                                       {member}
                                     </option>
                                   ))}
-                                  {lead.assignedTo && !SALES_TEAM_OPTIONS.includes(lead.assignedTo) && (
+                                  {lead.assignedTo && !teamOptions.includes(lead.assignedTo) && (
                                     <option value={lead.assignedTo}>{lead.assignedTo}</option>
                                   )}
                                 </select>
@@ -1614,7 +1609,7 @@ export const LeadsManagement: React.FC<LeadsManagementProps> = ({ currentUser })
         source={source}
         assignedTo={assignedTo}
         notes={notes}
-        teamOptions={SALES_TEAM_OPTIONS}
+        teamOptions={teamOptions}
         onClientNameChange={setClientName}
         onMobileChange={setMobile}
         onEmailChange={setEmail}
@@ -1679,11 +1674,7 @@ export const LeadsManagement: React.FC<LeadsManagementProps> = ({ currentUser })
         title="Delete Lead Record"
         itemTitle={leadToDelete?.clientName || 'Inquiry Record'}
         message={`Are you sure you want to delete lead "${leadToDelete?.clientName || 'Inquiry Record'}"? This action cannot be undone.`}
-        onConfirm={() => {
-          if (!canDeleteLead || !leadToDelete) return;
-          setLeads((prev) => prev.filter((l) => l.id !== leadToDelete.id));
-          setLeadToDelete(null);
-        }}
+        onConfirm={handleConfirmDeleteLead}
         onCancel={() => setLeadToDelete(null)}
       />
 

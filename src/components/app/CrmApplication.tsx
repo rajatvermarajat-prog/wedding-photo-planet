@@ -1070,7 +1070,7 @@ export default function App() {
           {/* Leads & Inquiries Management (Visible ONLY to Owner, Manager, and Sales) */}
           {activeTab === 'leads' && (
             hasPermission(currentUser, accessRoles, 'leads.view') ? (
-              <LeadsManagement currentUser={currentUser} />
+              <LeadsManagement currentUser={currentUser} team={team} />
             ) : (
               <AccessDenied />
             )
