@@ -1,4 +1,4 @@
-import { BarChart3, CheckCircle2, FileText, LockKeyhole, Plus, ShieldCheck, Sparkles, Target } from 'lucide-react';
+import { BarChart3, CheckCircle2, FileText, LockKeyhole, Plus, ShieldCheck, Target } from 'lucide-react';
 
 interface LeadsHeaderProps {
   userName: string;
@@ -62,13 +62,12 @@ export function LeadsHeader({ userName, userRole, isOwner, canAddLead, activeVie
           {canAddLead && (
             <button
               onClick={onAddLead}
-              className="group relative flex items-center justify-center gap-2.5 overflow-hidden rounded-2xl border border-white/60 bg-gradient-to-r from-[#f9eee7] to-[#edcfc3] px-5 py-3 text-sm font-extrabold text-[#6d2f45] shadow-[0_10px_24px_rgba(28,13,19,.22)] transition hover:-translate-y-0.5 hover:shadow-xl"
+              className="group inline-flex min-h-[52px] items-center justify-center gap-2.5 rounded-xl border border-[#f3d7b0]/45 bg-[#8f3655] px-4 py-2.5 text-sm font-extrabold text-white shadow-[0_10px_22px_rgba(28,13,19,.28)] transition hover:-translate-y-0.5 hover:bg-[#a34768] hover:shadow-[0_14px_28px_rgba(28,13,19,.36)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#f4d3a2] focus-visible:ring-offset-2 focus-visible:ring-offset-[#55333f]"
             >
-              <span className="grid size-8 place-items-center rounded-xl bg-[#7d3650] text-white transition group-hover:rotate-6">
-                <Plus className="size-5" />
+              <span className="grid size-7 place-items-center rounded-lg bg-[#fff7ed] text-[#8f3655] shadow-sm transition group-hover:scale-105">
+                <Plus className="size-4" strokeWidth={3} />
               </span>
-              <span>Add Lead</span>
-              <Sparkles className="size-4 text-[#aa7251]" />
+              <span>Add lead</span>
             </button>
           )}
         </div>
