@@ -167,13 +167,18 @@ export const TeamAttendance: React.FC<TeamAttendanceProps> = ({
 }) => {
   const { can } = usePermission();
   const canViewTeam = can('employees.view') || can('employees.view_self') || can('employees.view_profile');
+  const canViewAllTeam = can('employees.view');
+  const canViewOwnTeam = can('employees.view_self') || can('employees.view_profile');
+  const canViewEmployeeProfiles = can('employees.view_profile');
   const canCreateMember = can('employees.create');
   const canEditMember = can('employees.edit');
   const canDeleteMember = can('employees.delete');
   const canViewAttendance = can('attendance.view') || can('attendance.view_self');
+  const canViewAllAttendance = can('attendance.view');
   const canManageAttendance =
     can('attendance.manage') ||
     can('employees.manage_attendance') ||
+    can('attendance.mark') ||
     can('attendance.create') ||
     can('attendance.update');
   const canViewSalary = can('employees.view_salary') || can('employees.manage_salary');
@@ -200,13 +205,28 @@ export const TeamAttendance: React.FC<TeamAttendanceProps> = ({
   const { showToast } = useToast();
   const today = getTodayDateString();
   const [activeTab, setActiveTab] = useState<TeamTabId>('team');
+  const currentUserId = currentUser?.id;
+  const canOnlySeeSelf = Boolean(currentUserId) && !canViewAllTeam && canViewOwnTeam;
 
   // The studio owner administers the roster; they are not themselves a team
   // member. Keep that account out of the Team directory without hiding a
   // different employee who happens to have an Admin role.
+  const scopedTeam = useMemo(() => (
+    canOnlySeeSelf ? team.filter((member) => member.id === currentUserId) : team
+  ), [canOnlySeeSelf, team, currentUserId]);
+  const scopedAttendance = useMemo(() => (
+    canViewAllAttendance || canManageAttendance
+      ? attendance
+      : attendance.filter((record) => record.teamMemberId === currentUserId)
+  ), [attendance, canManageAttendance, canViewAllAttendance, currentUserId]);
+  const scopedLeaves = useMemo(() => (
+    can('leave.view') || canApproveLeave
+      ? leaves
+      : leaves.filter((leave) => leave.teamMemberId === currentUserId)
+  ), [can, canApproveLeave, currentUserId, leaves]);
   const rosterMembers = useMemo(
-    () => team.filter((member) => member.id !== currentUser?.id),
-    [team, currentUser?.id]
+    () => (canOnlySeeSelf ? scopedTeam : scopedTeam.filter((member) => member.id !== currentUserId)),
+    [canOnlySeeSelf, scopedTeam, currentUserId]
   );
 
   // Modal / drawer state
@@ -226,14 +246,14 @@ export const TeamAttendance: React.FC<TeamAttendanceProps> = ({
   /** Keep an open profile in sync when its member record changes elsewhere. */
   useEffect(() => {
     if (!profileMember) return;
-    const fresh = team.find((m) => m.id === profileMember.id);
+    const fresh = scopedTeam.find((m) => m.id === profileMember.id);
     if (fresh && fresh !== profileMember) setProfileMember(fresh);
     if (!fresh) setProfileMember(null);
-  }, [team, profileMember]);
+  }, [scopedTeam, profileMember]);
 
   const kpis = useMemo(
-    () => getTeamKpis(team, attendance, projects, leaves, freelancers.length, today),
-    [team, attendance, projects, leaves, freelancers.length, today]
+    () => getTeamKpis(scopedTeam, scopedAttendance, projects, scopedLeaves, freelancers.length, today),
+    [scopedTeam, scopedAttendance, projects, scopedLeaves, freelancers.length, today]
   );
 
   // --------------------------------------------------------------------------
@@ -342,6 +362,12 @@ export const TeamAttendance: React.FC<TeamAttendanceProps> = ({
     setProfileMember(null);
   };
 
+  const canOpenMemberProfile = (member: TeamMember) =>
+    member.id === currentUserId ? canViewOwnTeam || canViewEmployeeProfiles : canViewEmployeeProfiles;
+  const openProfileIfAllowed = (member: TeamMember) => {
+    if (canOpenMemberProfile(member)) setProfileMember(member);
+  };
+
   const togglePayStatus = (recordId: string) => {
     if (!canManageAttendance) return;
     onUpdateAttendance(
@@ -352,13 +378,13 @@ export const TeamAttendance: React.FC<TeamAttendanceProps> = ({
   };
 
   const totalPendingPayout = useMemo(
-    () => attendance.filter((a) => a.paidStatus === 'pending').reduce((sum, a) => sum + (a.payAmount || 0), 0),
-    [attendance]
+    () => scopedAttendance.filter((a) => a.paidStatus === 'pending').reduce((sum, a) => sum + (a.payAmount || 0), 0),
+    [scopedAttendance]
   );
 
   // --------------------------------------------------------------------------
 
-  const pendingLeaveCount = leaves.filter((l) => l.status === 'pending').length;
+  const pendingLeaveCount = scopedLeaves.filter((l) => l.status === 'pending').length;
 
   return (
     <div className="space-y-6 pb-12">
@@ -401,7 +427,7 @@ export const TeamAttendance: React.FC<TeamAttendanceProps> = ({
         </div>
       </section>
 
-      <section className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5">
+      <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <KpiCard label="Total Team" value={kpis.totalMembers} hint="All studio staff on roster" icon={Users} tone="rose" onClick={() => goTab('team')} />
         <KpiCard label="Active" value={kpis.activeMembers} hint={`${kpis.inactiveMembers} inactive`} icon={ShieldCheck} tone="emerald" />
         <KpiCard label="Available Today" value={kpis.availableToday} hint="Ready for assignment" icon={UserCheck} tone="emerald" onClick={() => goTab('availability')} />
@@ -438,10 +464,10 @@ export const TeamAttendance: React.FC<TeamAttendanceProps> = ({
 
       {/* Software-guard alert banners stay visible across the module */}
       <TeamMonitoringPanel
-        team={team}
+        team={scopedTeam}
         softwareOptions={SOFTWARE_OPTIONS}
         onUpdateTeamMember={canEditMember ? onUpdateTeamMember : undefined}
-        onOpenMember={canEditMember ? setDashboardMember : setProfileMember}
+        onOpenMember={canEditMember ? setDashboardMember : openProfileIfAllowed}
         onEditMember={canEditMember ? openEditMember : undefined}
         bannersOnly
       />
@@ -450,11 +476,11 @@ export const TeamAttendance: React.FC<TeamAttendanceProps> = ({
       {activeTab === 'team' && canViewTeam && (
         <TeamDirectory
           team={rosterMembers}
-          attendance={attendance}
+          attendance={scopedAttendance}
           projects={projects}
-          leaves={leaves}
+          leaves={scopedLeaves}
           today={today}
-          onOpenProfile={setProfileMember}
+          onOpenProfile={canViewEmployeeProfiles || canOnlySeeSelf ? openProfileIfAllowed : undefined}
           onEditMember={canEditMember ? openEditMember : undefined}
           onToggleActive={canEditMember || canDeleteMember ? handleToggleActive : undefined}
           onMarkAttendance={canManageAttendance ? (member) => openMarkAttendance(member) : undefined}
@@ -475,14 +501,14 @@ export const TeamAttendance: React.FC<TeamAttendanceProps> = ({
               </summary>
               <div className="px-5 pb-5 space-y-4">
                 <TeamMonitoringPanel
-                  team={team}
+                  team={scopedTeam}
                   softwareOptions={SOFTWARE_OPTIONS}
                   onUpdateTeamMember={onUpdateTeamMember}
                   onOpenMember={setDashboardMember}
                   onEditMember={openEditMember}
                 />
                 <TeamMonitoringPanel
-                  team={team}
+                  team={scopedTeam}
                   softwareOptions={SOFTWARE_OPTIONS}
                   onUpdateTeamMember={onUpdateTeamMember}
                   onReorderTeam={onReorderTeam}
@@ -500,43 +526,43 @@ export const TeamAttendance: React.FC<TeamAttendanceProps> = ({
 
       {activeTab === 'attendance' && canViewAttendance && (
         <AttendanceDashboard
-          team={team}
-          attendance={attendance}
+          team={scopedTeam}
+          attendance={scopedAttendance}
           projects={projects}
-          leaves={leaves}
+          leaves={scopedLeaves}
           onSaveAttendance={handleSaveAttendance}
           onOpenMarkAttendance={openMarkAttendance}
-          onOpenProfile={setProfileMember}
+          onOpenProfile={openProfileIfAllowed}
           canManage={canManageAttendance}
         />
       )}
 
       {activeTab === 'schedule' && (canViewTeam || canViewAttendance) && (
         <TeamScheduleView
-          team={team}
-          attendance={attendance}
+          team={scopedTeam}
+          attendance={scopedAttendance}
           projects={projects}
-          leaves={leaves}
-          onOpenProfile={setProfileMember}
+          leaves={scopedLeaves}
+          onOpenProfile={openProfileIfAllowed}
         />
       )}
 
       {activeTab === 'availability' && canViewTeam && (
         <TeamAvailabilityView
-          team={team}
-          attendance={attendance}
+          team={scopedTeam}
+          attendance={scopedAttendance}
           projects={projects}
-          leaves={leaves}
+          leaves={scopedLeaves}
           onUpdateMember={canEditMember ? onUpdateTeamMember : undefined}
           onAssignShoot={canAssignShoot ? openAssignShoot : undefined}
-          onOpenProfile={setProfileMember}
+          onOpenProfile={openProfileIfAllowed}
         />
       )}
 
       {activeTab === 'leave' && canViewLeave && (
         <LeaveManagementView
-          team={team}
-          leaves={leaves}
+          team={scopedTeam}
+          leaves={scopedLeaves}
           projects={projects}
           currentUserName={currentUser?.name}
           onSaveLeave={handleSaveLeave}
@@ -551,14 +577,14 @@ export const TeamAttendance: React.FC<TeamAttendanceProps> = ({
       {activeTab === 'assignments' && canAssignShoot && (
         onUpdateProject ? (
           <ShootAssignmentView
-            team={team}
+            team={scopedTeam}
             projects={projects}
-            attendance={attendance}
-            leaves={leaves}
+            attendance={scopedAttendance}
+            leaves={scopedLeaves}
             onUpdateProject={onUpdateProject}
             focusMember={assignFocusMember}
             onClearFocusMember={() => setAssignFocusMember(null)}
-            onOpenProfile={setProfileMember}
+            onOpenProfile={openProfileIfAllowed}
           />
         ) : (
           <div className={CARD}>
@@ -573,31 +599,31 @@ export const TeamAttendance: React.FC<TeamAttendanceProps> = ({
 
       {activeTab === 'performance' && canViewTeam && canViewSalary && (
         <TeamPerformanceView
-          team={team}
-          attendance={attendance}
+          team={scopedTeam}
+          attendance={scopedAttendance}
           projects={projects}
-          leaves={leaves}
-          onOpenProfile={setProfileMember}
+          leaves={scopedLeaves}
+          onOpenProfile={openProfileIfAllowed}
         />
       )}
 
       {activeTab === 'reports' && (canViewAttendance || canViewTeam) && (
         <div className="space-y-5">
           <AttendanceReportsView
-            team={team}
-            attendance={attendance}
+            team={scopedTeam}
+            attendance={scopedAttendance}
             projects={projects}
-            leaves={leaves}
+            leaves={scopedLeaves}
             dailyWidgetSlot={
               <TeamDailyReportingWidget
-                team={team}
-                attendance={attendance}
+                team={scopedTeam}
+                attendance={scopedAttendance}
                 tasks={tasks}
                 projects={projects}
                 onUpdateTask={onUpdateTask}
                 onDeleteTask={onDeleteTask}
                 onAddTask={onAddTask}
-                onOpenMemberModal={canEditMember ? setDashboardMember : setProfileMember}
+                onOpenMemberModal={canEditMember ? setDashboardMember : openProfileIfAllowed}
               />
             }
           />
@@ -615,7 +641,7 @@ export const TeamAttendance: React.FC<TeamAttendanceProps> = ({
               </div>
             </header>
 
-            {attendance.length === 0 ? (
+            {scopedAttendance.length === 0 ? (
               <EmptyState
                 icon={IndianRupee}
                 title="No payout entries yet"
@@ -637,7 +663,7 @@ export const TeamAttendance: React.FC<TeamAttendanceProps> = ({
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {attendance
+                    {scopedAttendance
                       .slice()
                       .sort((a, b) => String(b.date).localeCompare(String(a.date)))
                       .slice(0, 200)
@@ -690,7 +716,7 @@ export const TeamAttendance: React.FC<TeamAttendanceProps> = ({
       <TeamMemberFormModal
         isOpen={isFormOpen}
         member={formMember}
-        team={team}
+        team={scopedTeam}
         softwareOptions={SOFTWARE_OPTIONS}
         defaultEmploymentType={formDefaultType}
         accessRoles={accessRoles}
@@ -704,10 +730,10 @@ export const TeamAttendance: React.FC<TeamAttendanceProps> = ({
 
       <TeamMemberProfileDrawer
         member={profileMember}
-        team={team}
-        attendance={attendance}
+        team={scopedTeam}
+        attendance={scopedAttendance}
         projects={projects}
-        leaves={leaves}
+        leaves={scopedLeaves}
         onClose={() => setProfileMember(null)}
         onEdit={canEditMember ? openEditMember : undefined}
         onUpdateMember={
@@ -737,10 +763,10 @@ export const TeamAttendance: React.FC<TeamAttendanceProps> = ({
         isOpen={!!attendanceTarget}
         member={attendanceTarget?.member || null}
         defaultDate={attendanceTarget?.date || today}
-        team={team}
-        attendance={attendance}
+        team={scopedTeam}
+        attendance={scopedAttendance}
         projects={projects}
-        leaves={leaves}
+        leaves={scopedLeaves}
         onSave={handleSaveAttendance}
         onClose={() => setAttendanceTarget(null)}
         onChangeMember={(member) => setAttendanceTarget((prev) => (prev ? { ...prev, member } : { member, date: today }))}
@@ -751,7 +777,7 @@ export const TeamAttendance: React.FC<TeamAttendanceProps> = ({
       {canEditMember && dashboardMember && (
         <MemberDashboardModal
           member={dashboardMember}
-          attendance={attendance}
+          attendance={scopedAttendance}
           tasks={tasks}
           projects={projects}
           onClose={() => setDashboardMember(null)}

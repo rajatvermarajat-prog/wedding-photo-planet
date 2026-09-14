@@ -26,6 +26,7 @@ import { LoginInput } from '@/lib/api/auth';
 import { useProjectMutation, useProjects } from '@/hooks/useProjects';
 import { useTeam, useTeamMutation } from '@/hooks/useTeam';
 import { useAttendance } from '@/hooks/useAttendance';
+import { useLeaveRequests } from '@/hooks/useLeaveRequests';
 import { useTaskMutations, useTasks } from '@/hooks/useTasks';
 import { useDashboardSummary } from '@/hooks/useDashboardSummary';
 import { useDeferredLoad } from '@/hooks/useDeferredLoad';
@@ -49,6 +50,7 @@ function toShiftValue(value?: string): string | undefined {
   return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
 }
 import { shootsApi } from '@/lib/api/shoots';
+import { attendanceApi, type BackendLeaveRequest } from '@/lib/api/attendance';
 import { paymentMethodLabel, paymentsApi } from '@/lib/api/payments';
 import { normalizeTask, taskCreateInput, taskStatusInput } from '@/features/tasks/taskViewModel';
 import { useAuthSession } from '@/components/auth/AuthSessionProvider';
@@ -152,6 +154,33 @@ function isEmployeeAttendanceUser(user: { role?: string; roles?: string[] } | nu
   if (!user) return false;
   const roleNames = user.roles?.length ? user.roles : [user.role ?? ''];
   return !roleNames.some((role) => /(^|\W)(admin|owner)(\W|$)/i.test(role));
+}
+
+function normalizeLeaveRequest(row: BackendLeaveRequest, team: TeamMember[]): LeaveRequest {
+  const member = team.find((item) => item.id === row.userId);
+  const leaveType = row.type === 'UNPAID' ? 'Other' : row.type.charAt(0) + row.type.slice(1).toLowerCase();
+  return {
+    id: row.id,
+    teamMemberId: row.userId,
+    teamMemberName: row.user?.fullName ?? member?.name ?? 'Employee',
+    role: member?.role ?? 'Unassigned',
+    leaveType,
+    startDate: row.startDate.slice(0, 10),
+    endDate: row.endDate.slice(0, 10),
+    days: row.days,
+    reason: row.reason ?? '',
+    status: row.status.toLowerCase() as LeaveRequest['status'],
+    appliedOn: row.createdAt.slice(0, 10),
+    reviewedBy: row.reviewer?.fullName,
+    reviewedOn: row.reviewedAt?.slice(0, 10),
+    reviewNote: row.reviewNote ?? undefined,
+  };
+}
+
+function leaveTypeInput(value: string): BackendLeaveRequest['type'] {
+  const normalized = value.trim().toUpperCase();
+  if (['CASUAL', 'SICK', 'PERSONAL', 'EMERGENCY', 'OTHER'].includes(normalized)) return normalized as BackendLeaveRequest['type'];
+  return 'OTHER';
 }
 
 export default function App() {
@@ -266,8 +295,13 @@ export default function App() {
   const [team, setTeam] = useState<TeamMember[]>([]);
   const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
   const canManageTeamAttendance = Boolean(
+    currentUser?.permissions?.includes('ATTENDANCE_VIEW_SELF') ||
+    currentUser?.permissions?.includes('TEAM_VIEW_ALL') ||
     currentUser?.permissions?.includes('TEAM_VIEW') ||
-    currentUser?.permissions?.includes('ATTENDANCE_VIEW') ||
+    currentUser?.permissions?.includes('ATTENDANCE_VIEW_ALL') ||
+    currentUser?.permissions?.includes('ATTENDANCE_MARK') ||
+    currentUser?.permissions?.includes('ATTENDANCE_CREATE') ||
+    currentUser?.permissions?.includes('ATTENDANCE_UPDATE') ||
     currentUser?.permissions?.includes('ATTENDANCE_MANAGE')
   );
   const shouldLoadTeam = Boolean(currentUser) && secondaryReady;
@@ -326,7 +360,14 @@ export default function App() {
     description: role.description || '',
     type: role.type === 'SYSTEM' ? 'system' as const : 'custom' as const,
     status: role.status === 'INACTIVE' ? 'inactive' as const : 'active' as const,
-    grants: Object.fromEntries(role.rolePermissions.map(({ permission }) => [permission.key, { enabled: true }])),
+    grants: Object.fromEntries(role.rolePermissions.map(({ permission }) => {
+      const key = permission.key === 'TEAM_VIEW_ALL'
+        ? 'TEAM_VIEW'
+        : permission.key === 'ATTENDANCE_VIEW'
+          ? 'ATTENDANCE_VIEW_ALL'
+          : permission.key;
+      return [key, { enabled: true }];
+    })),
     createdAt: role.createdAt.slice(0, 10),
     updatedAt: role.updatedAt.slice(0, 10),
     userCount: role._count.userRoles,
@@ -394,6 +435,21 @@ export default function App() {
   }, [currentUser, taskQuery.data, taskQuery.error, taskQuery.loading]);
 
   const [leaves, setLeaves] = useState<LeaveRequest[]>([]);
+  const canUseLeave = Boolean(
+    currentUser?.permissions?.includes('LEAVE_REQUEST') ||
+    currentUser?.permissions?.includes('LEAVE_VIEW_SELF') ||
+    currentUser?.permissions?.includes('LEAVE_VIEW') ||
+    currentUser?.permissions?.includes('LEAVE_APPROVE')
+  );
+  const leaveQuery = useLeaveRequests(
+    { page: 1, limit: 100 },
+    Boolean(currentUser) && secondaryReady && canUseLeave && pathname === '/team',
+  );
+
+  useEffect(() => {
+    if (!currentUser || leaveQuery.loading || leaveQuery.error) return;
+    setLeaves(leaveQuery.data.map((row) => normalizeLeaveRequest(row, team)));
+  }, [currentUser, leaveQuery.data, leaveQuery.error, leaveQuery.loading, team]);
 
   // Freelancer Module Persistent States
   const [freelancerCategories, setFreelancerCategories] = useState<FreelancerCategory[]>(INITIAL_FREELANCER_CATEGORIES);
@@ -721,10 +777,27 @@ export default function App() {
 
   /** Upsert a leave request — new applications and approve/reject reviews. */
   const handleSaveLeave = (leave: LeaveRequest) => {
-    setLeaves((prev) => {
-      const exists = prev.some((l) => l.id === leave.id);
-      return exists ? prev.map((l) => (l.id === leave.id ? leave : l)) : [leave, ...prev];
-    });
+    const existing = leaves.find((item) => item.id === leave.id);
+    const operation = existing && existing.status === 'pending' && leave.status !== 'pending'
+      ? attendanceApi.reviewLeave(leave.id, { decision: leave.status === 'approved' ? 'APPROVE' : 'REJECT', note: leave.reviewNote })
+      : attendanceApi.requestLeave({
+          type: leaveTypeInput(leave.leaveType),
+          startDate: leave.startDate,
+          endDate: leave.endDate,
+          reason: leave.reason,
+        });
+    void operation
+      .then((saved) => {
+        const normalized = normalizeLeaveRequest(saved, team);
+        setLeaves((prev) => {
+          const exists = prev.some((item) => item.id === normalized.id);
+          return exists ? prev.map((item) => (item.id === normalized.id ? normalized : item)) : [normalized, ...prev];
+        });
+        void leaveQuery.refresh();
+      })
+      .catch((error: unknown) => {
+        window.alert(apiErrorMessage(error, 'Unable to save leave request.'));
+      });
   };
 
   // Freelancer Handlers

@@ -69,7 +69,7 @@ interface Props {
   projects: Project[];
   leaves: LeaveRequest[];
   today: string;
-  onOpenProfile: (member: TeamMember) => void;
+  onOpenProfile?: (member: TeamMember) => void;
   onEditMember?: (member: TeamMember) => void;
   onToggleActive?: (member: TeamMember) => void;
   onMarkAttendance?: (member: TeamMember) => void;
@@ -111,7 +111,7 @@ function MemberActions({
   onToggleActive,
 }: {
   member: TeamMember;
-  onOpenProfile: (member: TeamMember) => void;
+  onOpenProfile?: (member: TeamMember) => void;
   onEditMember?: (member: TeamMember) => void;
   onMarkAttendance?: (member: TeamMember) => void;
   onAssignShoot?: (member: TeamMember) => void;
@@ -170,9 +170,11 @@ function MemberActions({
 
   return (
     <div className="flex w-full flex-wrap items-center gap-1.5 sm:w-auto sm:justify-end">
+      {onOpenProfile && (
       <button type="button" onClick={() => onOpenProfile(member)} className={`${btn} border border-[#ded5cf] bg-white text-slate-700 hover:border-rose-300 hover:bg-[#fbfaf8]`}>
         <Users className="size-3.5 text-[#8f3655]" /> View
       </button>
+      )}
       {onEditMember && (
       <button type="button" onClick={() => onEditMember(member)} className={`${btn} border border-[#ded5cf] bg-white text-slate-700 hover:border-rose-300 hover:bg-[#fbfaf8]`}>
         <Pencil className="size-3.5" /> Edit
@@ -533,7 +535,7 @@ export const TeamDirectory: React.FC<Props> = ({
               <article key={member.id} className={`${CARD} space-y-3 p-4 transition hover:-translate-y-0.5 hover:border-rose-200 hover:shadow-md`}>
                 <button
                   type="button"
-                  onClick={() => onOpenProfile(member)}
+                  onClick={() => onOpenProfile?.(member)}
                   className="flex items-start gap-3 w-full text-left cursor-pointer group"
                 >
                   <Avatar member={member} size="lg" />
@@ -617,7 +619,7 @@ export const TeamDirectory: React.FC<Props> = ({
                   return (
                     <tr key={member.id} className="transition hover:bg-[#fbfaf8]">
                       <td className="p-3.5">
-                        <button type="button" onClick={() => onOpenProfile(member)} className="group flex cursor-pointer items-center gap-2.5 text-left">
+                        <button type="button" onClick={() => onOpenProfile?.(member)} disabled={!onOpenProfile} className={`group flex items-center gap-2.5 text-left ${onOpenProfile ? 'cursor-pointer' : 'cursor-default'}`}>
                           <Avatar member={member} size="md" />
                           <div className="min-w-0">
                             <p className="truncate font-extrabold text-slate-900 transition group-hover:text-[#8f3655]">{member.name}</p>
