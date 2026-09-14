@@ -271,7 +271,7 @@ export interface TeamMember {
   skills?: string[];
 
   // ---- Identity & HR profile (all optional; older records stay valid) ----
-  employeeId?: string;            // e.g. "WPP-007" — falls back to a derived code
+  employeeId?: string;            // Backend employee code, e.g. "EMP-S01"
   profilePhoto?: string;          // Base64 data URL or image link
   department?: TeamDepartment;
   employmentType?: EmploymentType;

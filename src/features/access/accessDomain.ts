@@ -133,14 +133,24 @@ const LEGACY_PERMISSION_KEYS: Record<string, string> = {
   'finance.delete_invoice': 'INVOICE_CANCEL',
   'finance.view_reports': 'REPORT_VIEW',
   'finance.export': 'REPORT_EXPORT',
-  'employees.view': 'TEAM_VIEW',
+  'employees.view_self': 'TEAM_VIEW_SELF',
+  'employees.view': 'TEAM_VIEW_ALL',
+  'employees.view_profile': 'EMPLOYEE_PROFILE_VIEW',
+  'employees.view_sensitive': 'EMPLOYEE_PROFILE_VIEW_SENSITIVE',
+  'employees.view_contact': 'EMPLOYEE_CONTACT_VIEW',
+  'employees.view_salary': 'EMPLOYEE_SALARY_VIEW',
+  'employees.manage_salary': 'EMPLOYEE_SALARY_MANAGE',
   'employees.create': 'USER_CREATE',
   'employees.edit': 'USER_UPDATE',
   'employees.delete': 'USER_DELETE',
   'employees.assign': 'USER_MANAGE',
   'employees.manage_attendance': 'ATTENDANCE_MANAGE',
-  'attendance.view': 'ATTENDANCE_VIEW',
+  'attendance.view_self': 'ATTENDANCE_VIEW_SELF',
+  'attendance.view': 'ATTENDANCE_VIEW_ALL',
   'attendance.mark': 'ATTENDANCE_MARK',
+  'attendance.create': 'ATTENDANCE_CREATE',
+  'attendance.update': 'ATTENDANCE_UPDATE',
+  'attendance.delete': 'ATTENDANCE_DELETE',
   'attendance.manage': 'ATTENDANCE_MANAGE',
   'leave.view': 'LEAVE_VIEW',
   'leave.request': 'LEAVE_REQUEST',
@@ -171,5 +181,7 @@ const LEGACY_PERMISSION_KEYS: Record<string, string> = {
 
 function backendKeysFor(key: string): string[] {
   if (key === 'employees.edit') return ['USER_UPDATE', 'TEAM_MANAGE'];
+  if (key === 'employees.view') return ['TEAM_VIEW_ALL', 'TEAM_VIEW'];
+  if (key === 'attendance.view') return ['ATTENDANCE_VIEW_ALL'];
   return [LEGACY_PERMISSION_KEYS[key] || key];
 }

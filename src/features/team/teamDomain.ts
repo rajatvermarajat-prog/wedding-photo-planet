@@ -145,11 +145,10 @@ export function getDepartmentForRole(role?: string): TeamDepartment {
   return 'Other';
 }
 
-/** Employee code shown in the UI. Uses the saved id, else a stable derived code. */
+/** Employee code shown in the UI. Uses only the saved backend employee id. */
 export function getEmployeeCode(member: TeamMember): string {
   if (member.employeeId && member.employeeId.trim()) return member.employeeId.trim();
-  const tail = (member.id || '').replace(/[^a-zA-Z0-9]/g, '').slice(-4).toUpperCase();
-  return `WPP-${tail || '0000'}`;
+  return '';
 }
 
 export function getEmploymentType(member: TeamMember): EmploymentType {
