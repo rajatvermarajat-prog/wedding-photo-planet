@@ -349,25 +349,48 @@ export const RoleColumnCrewManager: React.FC<RoleColumnCrewManagerProps> = ({
                                   #{idx + 1}
                                 </span>
 
-                                {/* Direct Input to type Team Member Name with datalist auto-complete */}
-                                <input
-                                  type="text"
-                                  list="datalist-active-team-members"
-                                  placeholder={`Enter ${role} Name...`}
-                                  value={crew.name || ''}
-                                  onChange={(e) => {
-                                    const val = e.target.value;
-                                    const matched = activeTeamMembers.find(
-                                      (m) => m.name.toLowerCase() === val.trim().toLowerCase()
-                                    );
-                                    onUpdateMember(crew.id, {
-                                      name: val,
-                                      userId: matched?.id || '',
-                                      ...(matched?.phone ? { mobile: matched.phone } : {}),
-                                    });
-                                  }}
-                                  className="flex-1 min-w-0 bg-white border border-slate-200 rounded px-2 py-1 text-xs font-bold text-slate-900 focus:ring-2 focus:ring-indigo-500 outline-none truncate"
-                                />
+                                {(() => {
+                                  const matchedName = activeTeamMembers.some((m) => m.name === crew.name) ? crew.name : '';
+                                  const selectValue = matchedName || (crew.name ? '__custom__' : '');
+                                  return (
+                                    <div className="flex-1 min-w-0 space-y-1">
+                                      <select
+                                        value={selectValue}
+                                        onChange={(e) => {
+                                          const val = e.target.value;
+                                          if (val === '__custom__') {
+                                            onUpdateMember(crew.id, { userId: '' });
+                                            return;
+                                          }
+                                          const matched = activeTeamMembers.find((m) => m.name === val);
+                                          onUpdateMember(crew.id, {
+                                            name: val,
+                                            userId: matched?.id || '',
+                                            mobile: matched?.phone || '',
+                                          });
+                                        }}
+                                        className="w-full min-w-0 bg-white border border-slate-200 rounded px-2 py-1 text-xs font-bold text-slate-900 focus:ring-2 focus:ring-indigo-500 outline-none"
+                                      >
+                                        <option value="">Enter {role} Name...</option>
+                                        {activeTeamMembers.map((m) => (
+                                          <option key={m.id || m.name} value={m.name}>
+                                            {m.name}{m.role ? ` (${m.role})` : ''}
+                                          </option>
+                                        ))}
+                                        <option value="__custom__">Custom name</option>
+                                      </select>
+                                      {selectValue === '__custom__' && (
+                                        <input
+                                          type="text"
+                                          placeholder={`Type ${role} name`}
+                                          value={crew.name || ''}
+                                          onChange={(e) => onUpdateMember(crew.id, { name: e.target.value, userId: '' })}
+                                          className="w-full min-w-0 bg-white border border-slate-200 rounded px-2 py-1 text-xs font-bold text-slate-900 focus:ring-2 focus:ring-indigo-500 outline-none"
+                                        />
+                                      )}
+                                    </div>
+                                  );
+                                })()}
 
                                 <button
                                   type="button"
@@ -414,14 +437,6 @@ export const RoleColumnCrewManager: React.FC<RoleColumnCrewManagerProps> = ({
         </>
       )}
       </fieldset>
-      {/* Datalist for team member name auto-complete */}
-      <datalist id="datalist-active-team-members">
-        {(activeTeamMembers || []).map((m) => (
-          <option key={m.id || m.name} value={m.name}>
-            {m.role ? `${m.role}` : ''}
-          </option>
-        ))}
-      </datalist>
     </div>
   );
 };

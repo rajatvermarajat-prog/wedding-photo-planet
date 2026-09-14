@@ -126,6 +126,13 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
   const canInvoice = can('finance.view_invoices');
   const canViewPayments = can('finance.view_payments');
   const canRecordPayment = can('finance.record_payment');
+  const canUpdatePayment = can('finance.update_payment');
+  const canViewPaymentMilestones = can('finance.view_payment_milestones');
+  const canManagePaymentMilestones = can('finance.manage_payment_milestones');
+  const canViewFinancials = can('weddings.view_financial');
+  const canViewClientAssets = can('media.view_photos') || can('media.view_videos');
+  const canUploadClientAssets = can('media.upload_photos') || can('media.upload_videos');
+  const canDeleteClientAssets = can('media.delete_photos') || can('media.delete_videos');
   const canAddShoot = can('shoots.create');
   const canEditShoot = can('shoots.edit');
   const canDeleteShoot = can('shoots.delete');
@@ -142,8 +149,8 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
 
   const effectiveRole = currentUser?.role || userRole || '';
   const isOwner = effectiveRole === 'Owner';
-  const isFullAdmin = canEditProject || canViewPayments;
-  const isVideoEditor = !canEditProject && !canViewPayments;
+  const isFullAdmin = canEditProject || canViewPayments || canViewFinancials;
+  const isVideoEditor = !canEditProject && !canViewPayments && !canViewFinancials;
 
   const teamQuery = useTeam({ page: 1, limit: 100 }, Boolean(project));
   const activeTeamMembers = mergeAssignees(team, teamQuery.data.map(normalizeTeamMember));
@@ -160,7 +167,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
   // this workspace from the authoritative, project-scoped endpoint so its
   // Shoots tab never depends on which global page happened to load first.
   useEffect(() => {
-    if (!isPersistedProjectId(project.id)) return;
+    if (!isPersistedProjectId(project.id) || !can('shoots.view')) return;
     let active = true;
     void shootsApi.list({
       projectId: project.id,
@@ -179,13 +186,16 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
     // Project ID is the data boundary.  Depending on `project` or the update
     // callback would turn this hydration into a render/update request loop.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [project.id]);
+  }, [project.id, can]);
 
   useEffect(() => {
-    if (activeTab === 'vault' && !canEditProject) setActiveTab('overview');
+    if (activeTab === 'vault' && !canViewClientAssets) setActiveTab('overview');
+    if (activeTab === 'shoots' && !can('shoots.view')) setActiveTab('overview');
+    if (activeTab === 'data' && !canViewDeliveries) setActiveTab('overview');
+    if (activeTab === 'tasks' && !canViewTasks) setActiveTab('overview');
     if (activeTab === 'payments' && !canViewPayments) setActiveTab('overview');
     if (activeTab === 'deliveries' && !canViewDeliveries) setActiveTab('overview');
-  }, [activeTab, canEditProject, canViewPayments, canViewDeliveries]);
+  }, [activeTab, canViewClientAssets, canViewPayments, canViewDeliveries, canViewTasks, can]);
 
   // Always hydrate Client Vault from the project-scoped client-assets API.
   const [vaultDocs, setVaultDocs] = useState<ClientVaultDocument[]>([]);
@@ -194,6 +204,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
   const [vaultCategory, setVaultCategory] = useState('Client reference');
   const [vaultDocName, setVaultDocName] = useState('');
   const refreshClientAssets = async () => {
+    if (!canViewClientAssets) return;
     setVaultLoading(true);
     try {
       const assets = await clientAssetsApi.getProjectClientAssets(project.id);
@@ -215,10 +226,11 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
     finally { setVaultLoading(false); }
   };
 
-  useEffect(() => { void refreshClientAssets(); }, [project.id]);
+  useEffect(() => { if (canViewClientAssets) void refreshClientAssets(); }, [project.id, canViewClientAssets]);
 
   /** Opens a client asset with a URL signed right now. */
   const openAsset = async (assetId: string) => {
+    if (!canViewClientAssets) return;
     try {
       const url = await clientAssetsApi.getProjectClientAssetDownloadUrl(project.id, assetId);
       if (!url) throw new Error('The server did not return a download link.');
@@ -238,6 +250,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
 
   /** Same, for the inline image preview. */
   const previewAsset = async (assetId: string) => {
+    if (!canViewClientAssets) return;
     try {
       setSelectedImage(await clientAssetsApi.getProjectClientAssetDownloadUrl(project.id, assetId));
     } catch (error) {
@@ -247,6 +260,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
 
   const handleVaultFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []); e.currentTarget.value = '';
+    if (!canUploadClientAssets) return;
     if (!files.length) return;
     const invalid = files.find((file) => !CLIENT_ASSET_ACCEPT.includes(file.type as typeof CLIENT_ASSET_ACCEPT[number]) || !file.size || file.size > CLIENT_ASSET_MAX_BYTES);
     if (invalid) { showToast(`${invalid.name} must be a supported file under 10MB.`, { variant: 'error' }); return; }
@@ -264,6 +278,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
   const [paymentSchedules, setPaymentSchedules] = useState<ScheduledPayment[]>([]);
 
   useEffect(() => {
+    if (!canViewPaymentMilestones) return;
     let active = true;
     void projectsApi.listPaymentMilestones(project.id).then((items) => {
       if (!active) return;
@@ -273,7 +288,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
       })));
     }).catch(() => undefined);
     return () => { active = false; };
-  }, [project.id]);
+  }, [project.id, canViewPaymentMilestones]);
 
   // Payments are hydrated from the DB-backed finance resource, never from
   // generated browser ids or a project-local fallback.
@@ -331,6 +346,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
   };
 
   useEffect(() => {
+    if (!canViewPayments) return;
     let active = true;
     setPaymentsLoading(true);
     void paymentsApi.getProjectPayments(project.id)
@@ -343,7 +359,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
       })
       .finally(() => { if (active) setPaymentsLoading(false); });
     return () => { active = false; };
-  }, [project.id]);
+  }, [project.id, canViewPayments]);
 
   const [showAddScheduleModal, setShowAddScheduleModal] = useState(false);
   const [editingScheduleItem, setEditingScheduleItem] = useState<ScheduledPayment | null>(null);
@@ -356,6 +372,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
 
   const handleSaveScheduleItem = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!canManagePaymentMilestones) return;
     if (!schedStageName.trim()) {
       showToast('Please enter a stage or milestone name.', { variant: 'error' });
       return;
@@ -424,6 +441,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
   };
 
   const handleDeleteScheduleItem = (item: ScheduledPayment) => {
+    if (!canManagePaymentMilestones) return;
     setGenericDeleteModal({
       isOpen: true,
       title: 'Delete Payment Milestone',
@@ -685,6 +703,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
   } | null>(null);
 
   const handleDeleteVaultDoc = (id: string) => {
+    if (!canDeleteClientAssets) return;
     const targetDoc = vaultDocs.find((d) => d.id === id);
     setGenericDeleteModal({
       isOpen: true,
@@ -1454,7 +1473,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
           >
             Overview
           </button>
-          {canEditProject && (
+          {canViewClientAssets && (
             <button
               onClick={() => setActiveTab('vault')}
               className={`min-h-9 px-3.5 py-2 font-bold border-b-2 uppercase tracking-wider text-[11px] transition whitespace-nowrap shrink-0 flex items-center gap-1.5 rounded-t-md ${
@@ -1465,6 +1484,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
               Client Vault ({vaultDocs.length})
             </button>
           )}
+          {can('shoots.view') && (
           <button
             onClick={() => setActiveTab('shoots')}
             className={`min-h-9 px-3.5 py-2 font-bold border-b-2 uppercase tracking-wider text-[11px] transition whitespace-nowrap shrink-0 flex items-center gap-1.5 rounded-t-md ${
@@ -1474,6 +1494,8 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
             <Calendar className="w-3.5 h-3.5" />
             Shoots ({project.shoots.length})
           </button>
+          )}
+          {canViewDeliveries && (
           <button
             onClick={() => setActiveTab('data')}
             className={`min-h-9 px-3.5 py-2 font-bold border-b-2 uppercase tracking-wider text-[11px] transition whitespace-nowrap shrink-0 flex items-center gap-1.5 rounded-t-md ${
@@ -1483,6 +1505,8 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
             <HardDrive className="w-3.5 h-3.5" />
             RAW Data
           </button>
+          )}
+          {canViewTasks && (
           <button
             onClick={() => setActiveTab('tasks')}
             className={`min-h-9 px-3.5 py-2 font-bold border-b-2 uppercase tracking-wider text-[11px] transition whitespace-nowrap shrink-0 flex items-center gap-1.5 rounded-t-md ${
@@ -1492,7 +1516,8 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
             <CheckSquare className="w-3.5 h-3.5" />
             Tasks ({taskList.length})
           </button>
-          {canViewPayments && (
+          )}
+          {(canViewPayments || canViewPaymentMilestones || canViewFinancials) && (
             <button
               onClick={() => setActiveTab('payments')}
               className={`min-h-9 px-3.5 py-2 font-bold border-b-2 uppercase tracking-wider text-[11px] transition whitespace-nowrap shrink-0 flex items-center gap-1.5 rounded-t-md ${
@@ -1500,7 +1525,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
               }`}
             >
               <IndianRupee className="w-3.5 h-3.5 text-emerald-600" />
-              Payments ({balanceDue > 0 ? `Due: ₹${balanceDue.toLocaleString('en-IN')}` : 'Paid'})
+              Payments {canViewFinancials ? `(${balanceDue > 0 ? `Due: ₹${balanceDue.toLocaleString('en-IN')}` : 'Paid'})` : ''}
             </button>
           )}
           {canViewDeliveries && (
@@ -1524,7 +1549,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
             <div className="space-y-5">
               
               {/* Financial Box */}
-              {!isVideoEditor && (
+              {canViewFinancials && (
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                   <div className="p-3.5 rounded-lg bg-slate-50 border border-slate-200">
                     <span className="text-[10px] text-slate-500 uppercase font-bold tracking-wider">Total Budget</span>
@@ -1546,7 +1571,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
               )}
 
               {/* PAYMENT SCHEDULE CARD (Right above DATES & SCHEDULE) */}
-              {!isVideoEditor && (
+              {canViewPaymentMilestones && (
                 <div className="p-4 rounded-xl bg-white border border-slate-200 space-y-3 shadow-xs">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-2.5">
                     <div className="flex items-center gap-2">
@@ -1564,7 +1589,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
                     </div>
 
                     <div className="flex items-center gap-2 self-end sm:self-auto">
-                      <button
+                      {canManagePaymentMilestones && <button
                         type="button"
                         onClick={handleShareScheduleWhatsApp}
                         className="px-2.5 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold text-xs flex items-center gap-1 border border-emerald-200 transition cursor-pointer"
@@ -1572,9 +1597,9 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
                       >
                         <Send className="w-3.5 h-3.5" />
                         <span className="hidden sm:inline">WhatsApp Schedule</span>
-                      </button>
+                      </button>}
 
-                      <button
+                      {canManagePaymentMilestones && <button
                         type="button"
                         onClick={handleDownloadSchedulePDF}
                         className="px-2.5 py-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold text-xs flex items-center gap-1 border border-indigo-200 transition cursor-pointer"
@@ -1582,9 +1607,9 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
                       >
                         <Download className="w-3.5 h-3.5" />
                         <span className="hidden sm:inline">Download PDF</span>
-                      </button>
+                      </button>}
 
-                      <button
+                      {canManagePaymentMilestones && <button
                         type="button"
                         onClick={() => {
                           const defaults: ScheduledPayment[] = [
@@ -1621,9 +1646,9 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
                       >
                         <Sparkles className="w-3.5 h-3.5 text-amber-600" />
                         <span className="hidden md:inline">Set 30%-60%-10% Plan</span>
-                      </button>
+                      </button>}
 
-                      <button
+                      {canManagePaymentMilestones && <button
                         type="button"
                         onClick={() => {
                           setEditingScheduleItem(null);
@@ -1638,7 +1663,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
                       >
                         <Plus className="w-3.5 h-3.5" />
                         <span>Add Milestone</span>
-                      </button>
+                      </button>}
                     </div>
                   </div>
 
@@ -1646,7 +1671,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
                   {paymentSchedules.length === 0 ? (
                     <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 text-center space-y-3">
                       <p className="text-xs font-bold text-slate-500">No payment schedule defined yet.</p>
-                      <div className="flex flex-wrap justify-center gap-2">
+                      {canManagePaymentMilestones && <div className="flex flex-wrap justify-center gap-2">
                         <button
                           type="button"
                           onClick={() => {
@@ -1721,7 +1746,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
                         >
                           <span>Alternate 25%-50%-25% Plan</span>
                         </button>
-                      </div>
+                      </div>}
                     </div>
                   ) : (
                     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
@@ -1783,7 +1808,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
                               <p className="text-[10px] text-slate-500 truncate italic">{item.notes}</p>
                             )}
 
-                            <div className="flex items-center justify-between border-t border-slate-200/60 pt-2 gap-1 mt-auto">
+                            {canManagePaymentMilestones && <div className="flex items-center justify-between border-t border-slate-200/60 pt-2 gap-1 mt-auto">
                               <button
                                 type="button"
                                 onClick={() => handleToggleScheduleStatus(item.id)}
@@ -1823,7 +1848,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
                                   <Trash2 className="w-3.5 h-3.5" />
                                 </button>
                               </div>
-                            </div>
+                            </div>}
                           </div>
                         );
                       })}
@@ -2234,7 +2259,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
               </div>
 
               {/* Upload New Client Document Card */}
-              <div className="p-4 bg-white rounded-xl border border-slate-200 shadow-xs space-y-3">
+              {canUploadClientAssets && <div className="p-4 bg-white rounded-xl border border-slate-200 shadow-xs space-y-3">
                 <h5 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
                   <FolderPlus className="w-4 h-4 text-indigo-600" />
                   Upload New Client Asset
@@ -2283,7 +2308,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
                     </label>
                   </div>
                 </div>
-              </div>
+              </div>}
 
               {/* All Documents Grid */}
               <div className="space-y-2">
@@ -2317,13 +2342,13 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
                             </div>
                           </div>
 
-                          <button
+                          {canDeleteClientAssets && <button
                             onClick={() => handleDeleteVaultDoc(doc.id)}
                             className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition"
                             title="Delete file"
                           >
                             <Trash2 className="w-4 h-4" />
-                          </button>
+                          </button>}
                         </div>
 
                         <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs">
@@ -3683,7 +3708,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
                   <h4 className="text-sm font-bold text-slate-900 uppercase tracking-tight">Payment Receipts & Installment Log</h4>
                   <p className="text-xs text-slate-500">Log new payment installments, upload receipt slips/screenshots, and track client balance</p>
                 </div>
-                <button
+                {(canViewFinancials || canViewPayments || canViewPaymentMilestones) && <button
                   type="button"
                   onClick={handleDownloadSchedulePDF}
                   className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-xs inline-flex items-center gap-1.5 shadow-xs transition cursor-pointer shrink-0"
@@ -3691,20 +3716,20 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
                 >
                   <Download className="w-3.5 h-3.5" />
                   <span>Download PDF Statement</span>
-                </button>
+                </button>}
               </div>
 
               {/* Persisted schedule context belongs alongside the collection log,
                   so the person recording a payment can see every due item. */}
-              <div className="order-2 rounded-xl border border-slate-200 bg-slate-50 p-3.5">
+              {canViewPaymentMilestones && <div className="order-2 rounded-xl border border-slate-200 bg-slate-50 p-3.5">
                 <div className="mb-2.5 flex items-center justify-between gap-3">
                   <div>
                     <h5 className="text-[10px] font-extrabold uppercase tracking-wider text-slate-600">Payment Due Schedule</h5>
                     <p className="mt-0.5 text-[11px] text-slate-500">Milestone, due date, amount, status and payment terms</p>
                   </div>
-                  <span className="shrink-0 rounded-md border border-red-200 bg-red-50 px-2 py-1 text-[10px] font-extrabold text-red-700">
+                  {canViewFinancials && <span className="shrink-0 rounded-md border border-red-200 bg-red-50 px-2 py-1 text-[10px] font-extrabold text-red-700">
                     Due: ₹{balanceDue.toLocaleString('en-IN')}
-                  </span>
+                  </span>}
                 </div>
                 {paymentSchedules.length === 0 ? (
                   <p className="py-1 text-xs italic text-slate-400">No payment schedule defined yet.</p>
@@ -3738,7 +3763,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
                     })}
                   </div>
                 )}
-              </div>
+              </div>}
 
               {/* Add Payment Form */}
               {canRecordPayment && (
@@ -3832,7 +3857,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
                 </button>
               </form>
               )}
-              <div className="order-3 space-y-2 pt-1">
+              {canViewPayments && <div className="order-3 space-y-2 pt-1">
                 <h5 className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">Payment History</h5>
                 {paymentsLoading ? (
                   <p className="text-xs text-slate-400 italic py-2">Loading payment history…</p>
@@ -3901,19 +3926,19 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
                         )}
 
                         {/* Delete Payment Button */}
-                        <button
+                        {canUpdatePayment && <button
                           type="button"
                           onClick={() => handleDeletePayment(p.id)}
                           className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition cursor-pointer"
                           title="Delete Payment Record"
                         >
                           <Trash2 className="w-4 h-4 text-red-500" />
-                        </button>
+                        </button>}
                       </div>
                     </div>
                   ))
                 )}
-              </div>
+              </div>}
             </div>
           )}
 
