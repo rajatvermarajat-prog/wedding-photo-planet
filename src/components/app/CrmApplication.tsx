@@ -790,6 +790,7 @@ export default function App() {
     const operation = existing && existing.status === 'pending' && leave.status !== 'pending'
       ? attendanceApi.reviewLeave(leave.id, { decision: leave.status === 'approved' ? 'APPROVE' : 'REJECT', note: leave.reviewNote })
       : attendanceApi.requestLeave({
+          userId: leave.teamMemberId,
           type: leaveTypeInput(leave.leaveType),
           startDate: leave.startDate,
           endDate: leave.endDate,

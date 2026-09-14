@@ -8,6 +8,7 @@ interface ConfirmDeleteModalProps {
   itemTitle?: string;
   projectTitle?: string;
   confirmLabel?: string;
+  isConfirming?: boolean;
   onConfirm: () => void;
   onCancel: () => void;
 }
@@ -19,6 +20,7 @@ export const ConfirmDeleteModal: React.FC<ConfirmDeleteModalProps> = ({
   itemTitle,
   projectTitle,
   confirmLabel = 'Delete',
+  isConfirming = false,
   onConfirm,
   onCancel,
 }) => {
@@ -86,6 +88,7 @@ export const ConfirmDeleteModal: React.FC<ConfirmDeleteModalProps> = ({
           <button
             type="button"
             onClick={onCancel}
+            disabled={isConfirming}
             className="px-4 py-2 rounded bg-white hover:bg-slate-100 border border-slate-300 text-slate-700 font-bold text-xs uppercase tracking-wider transition cursor-pointer"
           >
             Cancel
@@ -94,10 +97,16 @@ export const ConfirmDeleteModal: React.FC<ConfirmDeleteModalProps> = ({
           <button
             type="button"
             onClick={onConfirm}
-            className="px-4 py-2 rounded bg-red-600 hover:bg-red-700 text-white font-bold text-xs uppercase tracking-wider shadow-xs transition flex items-center gap-1.5 cursor-pointer font-black"
+            disabled={isConfirming}
+            aria-busy={isConfirming}
+            className="px-4 py-2 rounded bg-red-600 hover:bg-red-700 text-white font-bold text-xs uppercase tracking-wider shadow-xs transition flex items-center gap-1.5 cursor-pointer font-black disabled:cursor-not-allowed disabled:opacity-70"
           >
-            <ConfirmIcon className="w-3.5 h-3.5" />
-            <span>{confirmLabel}</span>
+            {isConfirming ? (
+              <span className="h-3.5 w-3.5 rounded-full border-2 border-white/40 border-t-white animate-spin" />
+            ) : (
+              <ConfirmIcon className="w-3.5 h-3.5" />
+            )}
+            <span>{isConfirming ? 'Deleting…' : confirmLabel}</span>
           </button>
         </div>
 
@@ -105,4 +114,3 @@ export const ConfirmDeleteModal: React.FC<ConfirmDeleteModalProps> = ({
     </div>
   );
 };
-

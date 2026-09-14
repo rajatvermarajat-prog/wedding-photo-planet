@@ -452,9 +452,11 @@ export const TeamMemberProfileDrawer: React.FC<Props> = ({
               <h3 className="text-xs font-extrabold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
                 <Plane className="w-3.5 h-3.5 text-[#8f3655]" /> Leave history ({memberLeaves.length})
               </h3>
-              <button type="button" onClick={() => onApplyLeave(member)} className={BTN_GHOST}>
-                <CalendarPlus className="w-3.5 h-3.5" /> Apply leave
-              </button>
+              {onApplyLeave && (
+                <button type="button" onClick={() => onApplyLeave(member)} className={BTN_GHOST}>
+                  <CalendarPlus className="w-3.5 h-3.5" /> Apply leave
+                </button>
+              )}
             </div>
             {memberLeaves.length === 0 ? (
               <EmptyState icon={Plane} title="No leave records" message="Leave applied for this member will appear here." />

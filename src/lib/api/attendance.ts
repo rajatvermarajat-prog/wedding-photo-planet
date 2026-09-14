@@ -73,7 +73,7 @@ export const attendanceApi = {
     const response = await apiRequest<BackendLeaveRequest[]>(`/attendance/leave${queryString(query)}`);
     return { items: response.data, meta: response.meta };
   },
-  async requestLeave(input: { type?: BackendLeaveRequest['type']; startDate: string; endDate: string; reason?: string }): Promise<BackendLeaveRequest> {
+  async requestLeave(input: { userId?: string; type?: BackendLeaveRequest['type']; startDate: string; endDate: string; reason?: string }): Promise<BackendLeaveRequest> {
     const { data } = await apiRequest<BackendLeaveRequest>('/attendance/leave', { method: 'POST', body: JSON.stringify(input) });
     return data;
   },
