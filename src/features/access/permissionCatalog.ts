@@ -319,10 +319,12 @@ export const BACKEND_MODULE_META: Record<string, { label: string; description: s
 
 export const BACKEND_MODULE_ORDER = [
   'dashboard', 'lead', 'client', 'project', 'event', 'shoot',
-  'finance', 'team', 'user', 'attendance', 'freelancer', 'task',
+  'finance', 'team', 'attendance', 'freelancer', 'task',
   'quotation', 'invoice', 'payment', 'expense', 'delivery',
-  'file', 'notification', 'report', 'organization', 'branch', 'role', 'audit', 'setting',
+  'file', 'notification', 'report', 'organization', 'audit', 'setting',
 ];
+
+export const ROLE_UI_HIDDEN_MODULES = new Set(['user', 'branch', 'role']);
 
 /** Roles UI groups these under Team even if the API still stores them on user/attendance. */
 export const ROLE_UI_MODULE_OVERRIDE: Record<string, string> = {

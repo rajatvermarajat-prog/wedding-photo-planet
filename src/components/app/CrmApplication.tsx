@@ -72,7 +72,7 @@ import { EmployeeDashboardTasks } from '@/features/tasks/EmployeeDashboardTasks'
 import { DeliveriesManager } from '@/features/deliveries';
 import { FreelancerTeamManager } from '@/features/freelancers';
 import { INITIAL_FREELANCER_CATEGORIES, INITIAL_FREELANCERS } from '@/data/mockFreelancers';
-import { BACKEND_MODULE_META, BACKEND_MODULE_ORDER, FINANCE_PERMISSION_ORDER, hasAnyPermission, hasPermission, PermissionProvider, ROLE_UI_HIDDEN_KEYS, ROLE_UI_MODULE_OVERRIDE, RolesPermissionsManager, TAB_PERMISSIONS, TEAM_PERMISSION_ORDER } from '@/features/access';
+import { BACKEND_MODULE_META, BACKEND_MODULE_ORDER, FINANCE_PERMISSION_ORDER, hasAnyPermission, hasPermission, PermissionProvider, ROLE_UI_HIDDEN_KEYS, ROLE_UI_HIDDEN_MODULES, ROLE_UI_MODULE_OVERRIDE, RolesPermissionsManager, TAB_PERMISSIONS, TEAM_PERMISSION_ORDER } from '@/features/access';
 import { ExpenseManagement } from '@/features/expenses';
 import { expenseService } from '@/features/expenses/services/expenseService';
 import type { Expense } from '@/features/expenses/types';
@@ -356,6 +356,7 @@ export default function App() {
     rbacQuery.permissions.forEach((permission) => {
       if (ROLE_UI_HIDDEN_KEYS.has(permission.key)) return;
       const moduleId = ROLE_UI_MODULE_OVERRIDE[permission.key] ?? permission.module;
+      if (ROLE_UI_HIDDEN_MODULES.has(moduleId)) return;
       const meta = BACKEND_MODULE_META[moduleId];
       const current = modules.get(moduleId) ?? {
         id: moduleId,
