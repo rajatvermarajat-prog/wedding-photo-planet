@@ -76,6 +76,8 @@ interface Props {
   onAssignShoot?: (member: TeamMember) => void;
   onApplyLeave?: (member: TeamMember) => void;
   onAddMember?: () => void;
+  canViewSalary?: boolean;
+  canViewContact?: boolean;
   /** Rendered above the roster — keeps the existing software-guard panel in place. */
   monitoringSlot?: React.ReactNode;
 }
@@ -223,6 +225,8 @@ export const TeamDirectory: React.FC<Props> = ({
   onAssignShoot,
   onApplyLeave,
   onAddMember,
+  canViewSalary = false,
+  canViewContact = false,
   monitoringSlot,
 }) => {
   const [view, setView] = useState<'table' | 'cards'>('cards');
@@ -561,19 +565,19 @@ export const TeamDirectory: React.FC<Props> = ({
                       {upcomingShoot ? `${formatDayLabel(upcomingShoot.date)} · ${upcomingShoot.shootTitle}` : 'None booked'}
                     </span>
                   </div>
-                  <div className="flex items-center justify-between gap-2 border-t border-slate-200 pt-2">
+                  {canViewSalary && <div className="flex items-center justify-between gap-2 border-t border-slate-200 pt-2">
                     <span className="font-bold text-slate-500 uppercase tracking-wider text-[9px]">Pay structure</span>
                     <div className="text-right"><PayStructure member={member} /></div>
-                  </div>
+                  </div>}
                 </div>
 
-                <div className="flex items-center gap-1.5 text-[11px] text-slate-500 font-medium">
+                {canViewContact && <div className="flex items-center gap-1.5 text-[11px] text-slate-500 font-medium">
                   <Phone className="w-3 h-3" />
                   <span className="truncate">{getMemberPhone(member) || 'No phone'}</span>
                   <span className="text-slate-300">|</span>
                   <Mail className="w-3 h-3" />
                   <span className="truncate">{member.email || 'No email'}</span>
-                </div>
+                </div>}
 
                 <MemberActions
                   member={member}
@@ -597,12 +601,12 @@ export const TeamDirectory: React.FC<Props> = ({
                   <th className="p-3.5">Member</th>
                   <th className="hidden p-3.5 xl:table-cell">Role / Department</th>
                   <th className="hidden p-3.5 2xl:table-cell">Employment</th>
-                  <th className="hidden p-3.5 2xl:table-cell">Contact</th>
+                  {canViewContact && <th className="hidden p-3.5 2xl:table-cell">Contact</th>}
                   <th className="hidden p-3.5 lg:table-cell">Status</th>
                   <th className="p-3.5">Today</th>
                   <th className="hidden p-3.5 xl:table-cell">Assignment</th>
                   <th className="hidden p-3.5 xl:table-cell">Availability</th>
-                  <th className="hidden p-3.5 xl:table-cell">Salary / Rate</th>
+                  {canViewSalary && <th className="hidden p-3.5 xl:table-cell">Salary / Rate</th>}
                   <th className="p-3.5 text-right">Actions</th>
                 </tr>
               </thead>
@@ -629,10 +633,10 @@ export const TeamDirectory: React.FC<Props> = ({
                       <td className="hidden p-3.5 2xl:table-cell">
                         <Badge className="border-[#ded5cf] bg-[#f6f1ee] text-slate-700">{getEmploymentType(member)}</Badge>
                       </td>
-                      <td className="hidden p-3.5 2xl:table-cell">
+                      {canViewContact && <td className="hidden p-3.5 2xl:table-cell">
                         <p className="font-mono text-xs text-slate-700">{phone || '—'}</p>
                         <p className="max-w-[160px] truncate text-[11px] text-slate-500">{member.email || '—'}</p>
-                      </td>
+                      </td>}
                       <td className="hidden p-3.5 lg:table-cell"><Badge className={statusBadge.className}>{statusBadge.label}</Badge></td>
                       <td className="p-3.5">
                         <Badge className={day.badgeClass}>{day.label}</Badge>
@@ -659,7 +663,7 @@ export const TeamDirectory: React.FC<Props> = ({
                       <td className="hidden p-3.5 xl:table-cell">
                         <Badge className={availability.badgeClass} title={availability.reason}>{availability.status}</Badge>
                       </td>
-                      <td className="hidden p-3.5 xl:table-cell"><PayStructure member={member} /></td>
+                      {canViewSalary && <td className="hidden p-3.5 xl:table-cell"><PayStructure member={member} /></td>}
                       <td className="p-3.5 text-right">
                         <MemberActions
                           member={member}

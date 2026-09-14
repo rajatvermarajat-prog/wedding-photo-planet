@@ -9,7 +9,7 @@ export const TAB_PERMISSIONS: Partial<Record<TabType, string | string[]>> = {
   shoots: ['shoots.view', 'SHOOT_VIEW'],
   expenses: ['finance.view_expenses', 'EXPENSE_VIEW', 'finance.view_payments', 'finance.view_invoices', 'finance.view_reports'],
   data: ['data.view', 'DATA_MANAGEMENT_VIEW'],
-  team: ['employees.view', 'TEAM_VIEW', 'attendance.view', 'ATTENDANCE_VIEW'],
+  team: ['employees.view_self', 'TEAM_VIEW_SELF', 'employees.view', 'TEAM_VIEW_ALL', 'TEAM_VIEW', 'attendance.view_self', 'ATTENDANCE_VIEW_SELF', 'attendance.view', 'ATTENDANCE_VIEW_ALL'],
   freelancers: 'freelancers.view',
   clients: 'clients.view',
   deliveries: ['media.view_photos', 'media.view_videos'],

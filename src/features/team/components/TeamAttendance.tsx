@@ -166,12 +166,18 @@ export const TeamAttendance: React.FC<TeamAttendanceProps> = ({
   accessPermissions = [],
 }) => {
   const { can } = usePermission();
-  const canViewTeam = can('employees.view');
+  const canViewTeam = can('employees.view') || can('employees.view_self') || can('employees.view_profile');
   const canCreateMember = can('employees.create');
   const canEditMember = can('employees.edit');
   const canDeleteMember = can('employees.delete');
-  const canViewAttendance = can('attendance.view');
-  const canManageAttendance = can('attendance.manage') || can('employees.manage_attendance');
+  const canViewAttendance = can('attendance.view') || can('attendance.view_self');
+  const canManageAttendance =
+    can('attendance.manage') ||
+    can('employees.manage_attendance') ||
+    can('attendance.create') ||
+    can('attendance.update');
+  const canViewSalary = can('employees.view_salary') || can('employees.manage_salary');
+  const canViewContact = can('employees.view_contact') || can('employees.view');
   const canViewLeave = can('leave.view') || can('leave.request') || can('leave.approve');
   const canRequestLeave = can('leave.request');
   const canApproveLeave = can('leave.approve');
@@ -181,14 +187,15 @@ export const TeamAttendance: React.FC<TeamAttendanceProps> = ({
     can('shoots.assign_freelancer');
   const allowedTabs = useMemo(() => {
     const ids: TeamTabId[] = [];
-    if (canViewTeam) ids.push('team', 'schedule', 'availability', 'performance');
+    if (canViewTeam) ids.push('team', 'schedule', 'availability');
+    if (canViewTeam && canViewSalary) ids.push('performance');
     if (canViewAttendance) ids.push('attendance');
     if (canViewAttendance && !ids.includes('schedule')) ids.push('schedule');
     if (canViewLeave) ids.push('leave');
     if (canAssignShoot) ids.push('assignments');
     if (canViewAttendance || canViewTeam) ids.push('reports');
     return [...new Set(ids)];
-  }, [canViewTeam, canViewAttendance, canViewLeave, canAssignShoot]);
+  }, [canViewTeam, canViewAttendance, canViewLeave, canAssignShoot, canViewSalary]);
 
   const { showToast } = useToast();
   const today = getTodayDateString();
@@ -454,6 +461,8 @@ export const TeamAttendance: React.FC<TeamAttendanceProps> = ({
           onAssignShoot={canAssignShoot ? openAssignShoot : undefined}
           onApplyLeave={canRequestLeave ? openApplyLeave : undefined}
           onAddMember={canCreateMember ? () => openAddMember() : undefined}
+          canViewSalary={canViewSalary}
+          canViewContact={canViewContact}
           monitoringSlot={
             canEditMember ? (
             <details className={`${CARD} group`}>
@@ -562,7 +571,7 @@ export const TeamAttendance: React.FC<TeamAttendanceProps> = ({
         )
       )}
 
-      {activeTab === 'performance' && canViewTeam && (
+      {activeTab === 'performance' && canViewTeam && canViewSalary && (
         <TeamPerformanceView
           team={team}
           attendance={attendance}
@@ -594,7 +603,7 @@ export const TeamAttendance: React.FC<TeamAttendanceProps> = ({
           />
 
           {/* Payout ledger — preserved from the original module */}
-          <section className={`${CARD} p-5 space-y-3`}>
+          {canViewSalary && <section className={`${CARD} p-5 space-y-3`}>
             <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
               <div>
                 <h3 className="text-sm font-extrabold text-slate-900 uppercase tracking-tight flex items-center gap-2">
@@ -672,7 +681,7 @@ export const TeamAttendance: React.FC<TeamAttendanceProps> = ({
                 </table>
               </ScrollArea>
             )}
-          </section>
+          </section>}
         </div>
       )}
 
