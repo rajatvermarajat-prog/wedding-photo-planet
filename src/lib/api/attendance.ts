@@ -16,6 +16,24 @@ export interface BackendAttendance {
 
 export interface AttendanceListQuery { userId?: string; page?: number; limit?: number; from?: string; to?: string; }
 
+export interface BackendLeaveRequest {
+  id: string;
+  userId: string;
+  type: 'CASUAL' | 'SICK' | 'PERSONAL' | 'EMERGENCY' | 'UNPAID' | 'OTHER';
+  startDate: string;
+  endDate: string;
+  days: number;
+  reason: string | null;
+  status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELLED';
+  createdAt: string;
+  reviewedAt: string | null;
+  reviewNote: string | null;
+  user?: { id: string; fullName: string };
+  reviewer?: { id: string; fullName: string } | null;
+}
+
+export interface LeaveListQuery { userId?: string; page?: number; limit?: number; status?: BackendLeaveRequest['status']; }
+
 export interface EmployeePerformanceReport {
   month: string;
   employee: {
@@ -29,7 +47,7 @@ export interface EmployeePerformanceReport {
   performance: { assignedTasks: number; completedTasks: number; completionRate: number; trackedWorkSessions: number; trackedWorkMinutes: number; shootAssignments: number };
 }
 
-function queryString(query: AttendanceListQuery): string {
+function queryString(query: object): string {
   const params = new URLSearchParams();
   Object.entries(query).forEach(([key, value]) => { if (value !== undefined && value !== '') params.set(key, String(value)); });
   return `?${params.toString()}`;
@@ -50,5 +68,17 @@ export const attendanceApi = {
   },
   async downloadPerformanceReport(userId: string, month: string): Promise<{ blob: Blob; filename: string | null }> {
     return apiBlobRequest(`/attendance/performance/${userId}/pdf?month=${encodeURIComponent(month)}`);
+  },
+  async listLeave(query: LeaveListQuery = {}): Promise<{ items: BackendLeaveRequest[]; meta: ApiMeta }> {
+    const response = await apiRequest<BackendLeaveRequest[]>(`/attendance/leave${queryString(query)}`);
+    return { items: response.data, meta: response.meta };
+  },
+  async requestLeave(input: { type?: BackendLeaveRequest['type']; startDate: string; endDate: string; reason?: string }): Promise<BackendLeaveRequest> {
+    const { data } = await apiRequest<BackendLeaveRequest>('/attendance/leave', { method: 'POST', body: JSON.stringify(input) });
+    return data;
+  },
+  async reviewLeave(id: string, input: { decision: 'APPROVE' | 'REJECT'; note?: string }): Promise<BackendLeaveRequest> {
+    const { data } = await apiRequest<BackendLeaveRequest>(`/attendance/leave/${id}/review`, { method: 'POST', body: JSON.stringify(input) });
+    return data;
   },
 };

@@ -35,7 +35,7 @@ interface SidebarProps {
   setActiveTab: (tab: TabType) => void;
   isOpenOnMobile: boolean;
   setIsOpenOnMobile: (open: boolean) => void;
-  currentUser?: TeamMember | { id: string; name: string; role: string; email: string } | null;
+  currentUser?: TeamMember | { id: string; name: string; role: string; email: string; roles?: string[]; permissions?: string[] } | null;
   onLogout?: () => void;
   canAccessTab?: (tab: TabType) => boolean;
 }
@@ -49,8 +49,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onLogout,
   canAccessTab,
 }) => {
-  const isOwner = currentUser?.role === 'Owner';
-  const isFullAdmin = isOwner || currentUser?.role === 'Studio Manager' || currentUser?.role === 'Manager' || currentUser?.role === 'Account Manager';
+  const userRoles = currentUser && 'roles' in currentUser ? currentUser.roles ?? [] : [];
+  const userPermissions = currentUser && 'permissions' in currentUser ? currentUser.permissions ?? [] : [];
+  const roleNames = [currentUser?.role, ...userRoles]
+    .filter(Boolean)
+    .map((role) => String(role).trim().toLowerCase().replace(/[\s-]+/g, '_'));
+  const isFullAdmin =
+    roleNames.some((role) => ['owner', 'studio_owner', 'admin', 'super_admin'].includes(role)) ||
+    (userPermissions.includes('USER_MANAGE') && userPermissions.includes('PERMISSION_ASSIGN'));
   const allowed = (tab: TabType) => (canAccessTab ? canAccessTab(tab) : true);
 
   const navItems = [

@@ -157,7 +157,7 @@ export const PERMISSION_MODULES: PermissionModule[] = [
     description: 'Studio roster and attendance.',
     permissions: [
       p('employees.view_self', 'View Own Team/Profile', OWN),
-      p('employees.view', 'View All Team Members'),
+      p('employees.view', 'View Team Directory'),
       p('employees.view_profile', 'View Employee Profile'),
       p('employees.view_sensitive', 'View Sensitive Information', ALL, true),
       p('employees.view_contact', 'View Contact Information', ALL, true),
@@ -344,6 +344,7 @@ export const ROLE_UI_MODULE_OVERRIDE: Record<string, string> = {
   USER_UPDATE: 'team',
   USER_DELETE: 'team',
   TEAM_VIEW_SELF: 'team',
+  TEAM_VIEW: 'team',
   TEAM_VIEW_ALL: 'team',
   EMPLOYEE_PROFILE_VIEW: 'team',
   EMPLOYEE_PROFILE_VIEW_SENSITIVE: 'team',
@@ -360,6 +361,7 @@ export const ROLE_UI_MODULE_OVERRIDE: Record<string, string> = {
   ATTENDANCE_UPDATE: 'team',
   ATTENDANCE_DELETE: 'team',
   ATTENDANCE_MANAGE: 'team',
+  LEAVE_VIEW_SELF: 'team',
   LEAVE_VIEW: 'team',
   LEAVE_REQUEST: 'team',
   LEAVE_APPROVE: 'team',
@@ -381,12 +383,11 @@ export const ROLE_UI_MODULE_OVERRIDE: Record<string, string> = {
   INVOICE_CANCEL: 'finance',
 };
 
-export const ROLE_UI_HIDDEN_KEYS = new Set(['TEAM_MANAGE', 'PERSONAL_TODO']);
+export const ROLE_UI_HIDDEN_KEYS = new Set(['TEAM_MANAGE', 'PERSONAL_TODO', 'TEAM_VIEW_ALL', 'ATTENDANCE_VIEW']);
 
 export const TEAM_PERMISSION_ORDER = [
   'TEAM_VIEW_SELF',
   'TEAM_VIEW',
-  'TEAM_VIEW_ALL',
   'EMPLOYEE_PROFILE_VIEW',
   'EMPLOYEE_PROFILE_VIEW_SENSITIVE',
   'EMPLOYEE_CONTACT_VIEW',
@@ -398,15 +399,15 @@ export const TEAM_PERMISSION_ORDER = [
   'USER_UPDATE',
   'USER_DELETE',
   'ATTENDANCE_VIEW_SELF',
-  'ATTENDANCE_VIEW',
   'ATTENDANCE_VIEW_ALL',
   'ATTENDANCE_MARK',
   'ATTENDANCE_CREATE',
   'ATTENDANCE_UPDATE',
   'ATTENDANCE_DELETE',
   'ATTENDANCE_MANAGE',
-  'LEAVE_VIEW',
   'LEAVE_REQUEST',
+  'LEAVE_VIEW_SELF',
+  'LEAVE_VIEW',
   'LEAVE_APPROVE',
 ];
 

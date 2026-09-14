@@ -68,9 +68,14 @@ export function assignableRoles(roles: AccessRole[], forUserId?: string): Access
 }
 
 export function enabledPermissionKeys(role: Pick<AccessRole, 'grants'>): string[] {
-  return Object.entries(role.grants)
+  const keys = Object.entries(role.grants)
     .filter(([, grant]) => grant.enabled)
     .map(([key]) => key);
+  return [...new Set(keys.map((key) => {
+    if (key === 'TEAM_VIEW_ALL') return 'TEAM_VIEW';
+    if (key === 'ATTENDANCE_VIEW') return 'ATTENDANCE_VIEW_ALL';
+    return key;
+  }))];
 }
 
 /** Module-level summary of a role's grant, for the permission preview. */
