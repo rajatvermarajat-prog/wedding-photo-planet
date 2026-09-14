@@ -146,6 +146,7 @@ export interface Project {
   weddingFunctionDates: string; // Wedding Function Date(s)
   finalDeliveryDeadline: string; // Final Delivery Deadline
   totalBudget: number; // Total Budget (₹)
+  totalStorageCapacityGB?: number; // Project-specific storage capacity in GB
   advanceReceived: number; // Advance Received (₹)
   balanceDue: number; // Balance Due (₹) - computed
   quotationLink?: string; // Legacy / quotation link

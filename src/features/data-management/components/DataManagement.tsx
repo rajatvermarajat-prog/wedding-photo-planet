@@ -1,7 +1,6 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Project } from '@/types';
 import { HardDrive, Cloud, ChevronDown, ChevronRight, CheckCircle2, Clock, Database, Search, SlidersHorizontal, Upload, ShieldCheck, AlertTriangle, MapPin, CalendarDays, BarChart3 } from 'lucide-react';
-import { settingsApi } from '@/lib/api/settings';
 
 interface DataManagementProps {
   projects: Project[];
@@ -10,8 +9,13 @@ interface DataManagementProps {
 
 type StorageUnit = 'MB' | 'GB' | 'TB';
 const storageUnitFactor: Record<StorageUnit, number> = { MB: 1 / 1_000, GB: 1, TB: 1_000 };
-const storageValue = (gb: number | undefined, unit: StorageUnit) => !gb ? '' : Number((gb / storageUnitFactor[unit]).toFixed(6)).toString();
+const storageValue = (gb: number | undefined, unit: StorageUnit) => {
+  if (gb === undefined || gb === null || Number.isNaN(Number(gb))) return '';
+  return Number((Number(gb) / storageUnitFactor[unit]).toFixed(6)).toString();
+};
 const storageToGB = (value: string, unit: StorageUnit) => Number(value || 0) * storageUnitFactor[unit];
+const DEFAULT_PROJECT_STORAGE_GB = 5000;
+const formatStorage = (gb: number) => gb >= 1000 ? `${parseFloat((gb / 1000).toFixed(2))} TB` : `${parseFloat(gb.toFixed(2))} GB`;
 
 export const DataManagement: React.FC<DataManagementProps> = ({ projects = [], onUpdateProject }) => {
   const [expandedProjectId, setExpandedProjectId] = useState<string | null>(null);
@@ -19,10 +23,12 @@ export const DataManagement: React.FC<DataManagementProps> = ({ projects = [], o
   const [backupFilter, setBackupFilter] = useState<'all' | 'data_received' | 'pending_data' | 'backup_pending' | 'cloud_synced'>('all');
   const [storageUnits, setStorageUnits] = useState<Record<string, StorageUnit>>({});
   const [draftProjects, setDraftProjects] = useState<Record<string, Project>>({});
-  const [totalStorageGb, setTotalStorageGb] = useState<number | null>(null);
-  const [storageInput, setStorageInput] = useState('');
   const unitFor = (key: string): StorageUnit => storageUnits[key] || 'GB';
   const setUnitFor = (key: string, unit: StorageUnit) => setStorageUnits((current) => ({ ...current, [key]: unit }));
+  const projectCapacityGB = (project: Project) => {
+    const value = Number(project.totalStorageCapacityGB ?? DEFAULT_PROJECT_STORAGE_GB);
+    return Number.isFinite(value) && value >= 0 ? value : DEFAULT_PROJECT_STORAGE_GB;
+  };
 
   const totalGB = (projects || []).reduce((acc, p) => {
     const backup: Partial<Project['dataBackup']> = p.dataBackup || {};
@@ -33,28 +39,8 @@ export const DataManagement: React.FC<DataManagementProps> = ({ projects = [], o
     return acc + (backup.totalDataSizeGB || projectShootsGB);
   }, 0);
   const totalTB = (totalGB / 1000).toFixed(2);
-  const availableStorageGb = totalStorageGb === null ? null : Math.max(0, totalStorageGb - totalGB);
-
-  useEffect(() => {
-    let active = true;
-    void settingsApi.list().then((settings) => {
-      const value = settings.find((setting) => setting.key === 'storage.total-gb.v1')?.value;
-      const gb = typeof value === 'number' ? value : Number(value);
-      if (active && Number.isFinite(gb) && gb >= 0) {
-        setTotalStorageGb(gb);
-        setStorageInput(String(gb >= 1000 ? gb / 1000 : gb));
-      }
-    }).catch(() => undefined);
-    return () => { active = false; };
-  }, []);
-
-  const saveStorageCapacity = () => {
-    const value = Number(storageInput);
-    if (!Number.isFinite(value) || value < 0) return;
-    const totalGb = value * 1000;
-    void settingsApi.upsert('storage.total-gb.v1', totalGb, 'Total RAW storage capacity across all studio drives (GB)')
-      .then(() => setTotalStorageGb(totalGb));
-  };
+  const totalProjectCapacityGB = (projects || []).reduce((acc, project) => acc + projectCapacityGB(project), 0);
+  const availableStorageGb = Math.max(0, totalProjectCapacityGB - totalGB);
 
   // Logical workflow statistics
   const dataReceivedCount = (projects || []).filter(p => p.dataBackup?.offloadedFromCards || p.dataBackup?.hardDrive1Done).length;
@@ -154,6 +140,29 @@ export const DataManagement: React.FC<DataManagementProps> = ({ projects = [], o
     setDraftProjects((current) => ({ ...current, [projectId]: { ...project, shoots, dataBackup: { ...(project.dataBackup || fallback), ...updates } } }));
   };
 
+  const handleUpdateProjectCapacity = (projectId: string, value: string, unit: StorageUnit) => {
+    const capacityGb = storageToGB(value, unit);
+    if (!Number.isFinite(capacityGb) || capacityGb < 0) return;
+    const project = draftProjects[projectId] || projects.find((item) => item.id === projectId);
+    if (!project) return;
+    setDraftProjects((current) => ({ ...current, [projectId]: { ...project, totalStorageCapacityGB: capacityGb } }));
+  };
+
+  const handleUpdateProjectUsedStorage = (projectId: string, value: string, unit: StorageUnit) => {
+    const usedGb = storageToGB(value, unit);
+    if (!Number.isFinite(usedGb) || usedGb < 0) return;
+    const project = draftProjects[projectId] || projects.find((item) => item.id === projectId);
+    if (!project) return;
+    const fallback = { offloadedFromCards: false, hardDrive1: 'Primary drive', hardDrive1Done: false, hardDrive2: 'Mirror drive', hardDrive2Done: false, cloudBackupDone: false, totalDataSizeGB: 0, rawCleanupStatus: 'not_cleaned' as const };
+    setDraftProjects((current) => ({
+      ...current,
+      [projectId]: {
+        ...project,
+        dataBackup: { ...(project.dataBackup || fallback), totalDataSizeGB: usedGb },
+      },
+    }));
+  };
+
   const saveDraftChanges = (projectId?: string) => {
     const entries = projectId
       ? (draftProjects[projectId] ? [[projectId, draftProjects[projectId]] as const] : [])
@@ -183,7 +192,7 @@ export const DataManagement: React.FC<DataManagementProps> = ({ projects = [], o
   return (
     <div className="space-y-5 pb-8 w-full">
       
-      <section className="relative overflow-hidden rounded-3xl border border-[#ddc89c]/35 bg-[radial-gradient(circle_at_88%_8%,rgba(221,200,156,.2),transparent_30%),linear-gradient(125deg,#704758,#55333f_50%,#38262d)] p-5 text-white shadow-xl sm:p-7"><div className="absolute -bottom-20 -right-10 size-64 rounded-full border-[34px] border-white/[.04]" /><div className="relative flex flex-col justify-between gap-5 xl:flex-row xl:items-center"><div className="max-w-3xl"><span className="flex w-fit items-center gap-1.5 rounded-full border border-white/20 bg-white/10 px-3 py-1 text-xs font-extrabold uppercase tracking-[.14em] text-[#f0dce3]"><ShieldCheck className="size-4 text-emerald-300" />Storage control centre</span><h1 className="mt-3 flex items-center gap-3 text-2xl font-black tracking-tight sm:text-3xl"><span className="grid size-11 place-items-center rounded-2xl bg-white/10"><Database className="size-6 text-[#f1c8d5]" /></span>Data Management</h1><p className="mt-2 text-sm font-medium leading-relaxed text-[#eadfe2] sm:text-base">Track every RAW-data handover from memory card to primary drive, mirror drive, and cloud backup.</p></div><div className="rounded-2xl border border-white/20 bg-black/10 px-4 py-3 text-sm"><p className="text-[10px] font-black uppercase tracking-[.14em] text-rose-200">Studio storage</p><p className="mt-1 flex items-baseline gap-1 text-2xl font-black">{totalTB}<span className="text-sm text-[#eadfe2]">TB</span></p><p className="text-xs font-medium text-[#eadfe2]">{totalGB.toLocaleString()} GB logged</p></div></div></section>
+      <section className="relative overflow-hidden rounded-3xl border border-[#ddc89c]/35 bg-[radial-gradient(circle_at_88%_8%,rgba(221,200,156,.2),transparent_30%),linear-gradient(125deg,#704758,#55333f_50%,#38262d)] p-5 text-white shadow-xl sm:p-7"><div className="absolute -bottom-20 -right-10 size-64 rounded-full border-[34px] border-white/[.04]" /><div className="relative flex flex-col justify-between gap-5 xl:flex-row xl:items-center"><div className="max-w-3xl"><span className="flex w-fit items-center gap-1.5 rounded-full border border-white/20 bg-white/10 px-3 py-1 text-xs font-extrabold uppercase tracking-[.14em] text-[#f0dce3]"><ShieldCheck className="size-4 text-emerald-300" />Storage control centre</span><h1 className="mt-3 flex items-center gap-3 text-2xl font-black tracking-tight sm:text-3xl"><span className="grid size-11 place-items-center rounded-2xl bg-white/10"><Database className="size-6 text-[#f1c8d5]" /></span>Data Management</h1><p className="mt-2 text-sm font-medium leading-relaxed text-[#eadfe2] sm:text-base">Track every RAW-data handover from memory card to primary drive, mirror drive, and cloud backup.</p></div><div className="rounded-2xl border border-white/20 bg-black/10 px-4 py-3 text-sm"><p className="text-[10px] font-black uppercase tracking-[.14em] text-rose-200">Project storage used</p><p className="mt-1 flex items-baseline gap-1 text-2xl font-black">{totalTB}<span className="text-sm text-[#eadfe2]">TB</span></p><p className="text-xs font-medium text-[#eadfe2]">{formatStorage(totalProjectCapacityGB)} total across projects</p></div></div></section>
 
       <section className="grid grid-cols-2 gap-3 sm:grid-cols-6">{[
         { label: 'All Shoots / Projects', value: `${projects.length}`, hint: `${totalTB} TB (${totalGB.toLocaleString()} GB)`, icon: Database, tone: 'text-slate-700 bg-white border-[#e2d9d3]', key: 'all' },
@@ -191,7 +200,7 @@ export const DataManagement: React.FC<DataManagementProps> = ({ projects = [], o
         { label: 'Pending Data', value: `${pendingDataCount}`, hint: 'Awaiting card offload', icon: AlertTriangle, tone: 'text-[#8f3655] bg-rose-50 border-rose-200', key: 'pending_data' },
         { label: 'Backup Pending', value: `${backupPendingCount}`, hint: 'Needs HD-2 mirror copy', icon: Clock, tone: 'text-amber-800 bg-amber-50 border-amber-200', key: 'backup_pending' },
         { label: 'Cloud Synced', value: `${cloudDoneCount}`, hint: 'Off-site backup complete', icon: Cloud, tone: 'text-emerald-800 bg-emerald-50 border-emerald-200', key: 'cloud_synced' },
-        { label: 'Available Space', value: availableStorageGb === null ? '—' : `${(availableStorageGb / 1000).toFixed(2)} TB`, hint: availableStorageGb === null ? 'Set total capacity below' : `${availableStorageGb.toLocaleString()} GB remaining`, icon: HardDrive, tone: 'text-cyan-800 bg-cyan-50 border-cyan-200', key: 'available_space' },
+        { label: 'Available Space', value: formatStorage(availableStorageGb), hint: `${availableStorageGb.toLocaleString()} GB remaining across projects`, icon: HardDrive, tone: 'text-cyan-800 bg-cyan-50 border-cyan-200', key: 'available_space' },
       ].map(({ label, value, hint, icon: Icon, tone, key }) => (
         <button
           key={label}
@@ -211,13 +220,6 @@ export const DataManagement: React.FC<DataManagementProps> = ({ projects = [], o
           </div>
         </button>
       ))}</section>
-
-      <section className="flex flex-wrap items-end gap-2 rounded-2xl border border-[#e2d9d3] bg-white p-3 shadow-[0_8px_24px_rgba(48,44,46,.05)]">
-        <label className="text-xs font-extrabold text-slate-700">Total Storage Capacity (TB)
-          <input type="number" min="0" step="0.01" value={storageInput} onChange={(event) => setStorageInput(event.target.value)} placeholder="e.g. 5" className="mt-1 block w-40 rounded-lg border border-slate-200 bg-slate-50 px-2 py-1.5 font-bold text-slate-900 outline-none focus:bg-white" />
-        </label>
-        <button type="button" onClick={saveStorageCapacity} className="rounded-lg bg-[#8f3655] px-3 py-2 text-xs font-black text-white hover:bg-[#713048]">Save Capacity</button>
-      </section>
 
       <section className="rounded-2xl border border-[#e2d9d3] bg-white p-4 shadow-[0_8px_24px_rgba(48,44,46,.05)] sm:p-5">
         <div className="flex flex-wrap items-start justify-between gap-3">
@@ -270,8 +272,9 @@ export const DataManagement: React.FC<DataManagementProps> = ({ projects = [], o
                 <th className="px-5 py-4">Client project</th>
                 <th className="px-5 py-4">Primary copy drive</th>
                 <th className="px-5 py-4">Mirror backup drive</th>
-                <th className="px-5 py-4">RAW data size</th>
-                <th className="px-5 py-4">Available space</th>
+                <th className="px-5 py-4">Total storage</th>
+                <th className="px-5 py-4">Used</th>
+                <th className="px-5 py-4">Available</th>
                 <th className="px-5 py-4">Crew handover status</th>
                 <th className="px-5 py-4">Handover progress</th>
               </tr>
@@ -330,7 +333,8 @@ export const DataManagement: React.FC<DataManagementProps> = ({ projects = [], o
                     .filter((crew) => !crew?.role?.toLowerCase().includes('assistant'))
                     .reduce((crewSum, crew) => crewSum + (crew?.dataSizeGB || 0), 0), 0);
                 const projectUsedGB = backup.totalDataSizeGB || projectShootsGB;
-                const projectAvailableGB = totalStorageGb === null ? null : Math.max(0, totalStorageGb - projectUsedGB);
+                const projectTotalStorageGB = projectCapacityGB(p);
+                const projectAvailableGB = Math.max(0, projectTotalStorageGB - projectUsedGB);
 
                 return (
                   <React.Fragment key={p.id}>
@@ -365,17 +369,16 @@ export const DataManagement: React.FC<DataManagementProps> = ({ projects = [], o
                         </span>
                       </td>
 
-                      {/* Size GB */}
                       <td className="px-5 py-4 font-mono text-base font-black text-[#8f3655]">
-                        <div>{projectUsedGB >= 1000 ? `${parseFloat((projectUsedGB / 1000).toFixed(2))} TB` : `${projectUsedGB} GB`}</div>
+                        <div>{formatStorage(projectTotalStorageGB)}</div>
+                      </td>
+
+                      <td className="px-5 py-4 font-mono text-base font-black text-[#8f3655]">
+                        <div>{formatStorage(projectUsedGB)}</div>
                       </td>
 
                       <td className="px-5 py-4">
-                        {projectAvailableGB === null ? (
-                          <span className="text-xs font-bold text-amber-700">Set capacity first</span>
-                        ) : (
-                          <div className="font-mono text-base font-black text-cyan-700">{(projectAvailableGB / 1000).toFixed(2)} TB<span className="ml-1 text-[10px] font-bold text-slate-500">free</span></div>
-                        )}
+                        <div className="font-mono text-base font-black text-cyan-700">{formatStorage(projectAvailableGB)}<span className="ml-1 text-[10px] font-bold text-slate-500">free</span></div>
                       </td>
 
                       {/* Team Data Received Summary */}
@@ -418,7 +421,7 @@ export const DataManagement: React.FC<DataManagementProps> = ({ projects = [], o
                     {/* EXPANDED EVENT-WISE TEAM MEMBER DATA LEDGER */}
                     {isExpanded && (
                       <tr className="bg-slate-50/80">
-                        <td colSpan={7} className="p-4">
+                        <td colSpan={8} className="p-4">
                           <div className="space-y-5 rounded-2xl border border-[#e2d9d3] bg-white p-5 shadow-sm">
                             <div className="flex items-center justify-between border-b border-slate-100 pb-2">
                               <h4 className="flex items-center gap-2 text-sm font-black uppercase tracking-[.08em] text-slate-900">
@@ -426,10 +429,65 @@ export const DataManagement: React.FC<DataManagementProps> = ({ projects = [], o
                                 <span>Events & Shooter Data Received Log — {p.clientWeddingTitle}</span>
                               </h4>
                               <div className="flex items-center gap-3">
-                                {projectAvailableGB !== null && <span className="rounded-full border border-cyan-200 bg-cyan-50 px-2.5 py-1 text-xs font-black text-cyan-800">Available Space: {(projectAvailableGB / 1000).toFixed(2)} TB</span>}
+                                <span className="rounded-full border border-cyan-200 bg-cyan-50 px-2.5 py-1 text-xs font-black text-cyan-800">Available: {formatStorage(projectAvailableGB)}</span>
                                 <span className="text-xs font-bold text-slate-500">{p.shoots?.length || 0} Event(s) Configured</span>
                                 <button type="button" disabled={!draftProjects[p.id]} onClick={() => saveDraftChanges(p.id)} className="rounded-lg bg-[#8f3655] px-3 py-1.5 text-xs font-black text-white shadow-sm transition hover:bg-[#713048] disabled:cursor-not-allowed disabled:opacity-45">Save Changes</button>
                               </div>
+                            </div>
+
+                            <div className="grid gap-3 rounded-2xl border border-[#e2d9d3] bg-[#fbfaf8] p-3 sm:grid-cols-2 xl:grid-cols-4">
+                              <label className="text-xs font-extrabold text-slate-700">Total Storage Capacity
+                                <div className="mt-1 flex gap-1">
+                                  <input
+                                    type="number"
+                                    min="0.001"
+                                    step="any"
+                                    value={storageValue(projectTotalStorageGB, unitFor(`capacity-${p.id}`))}
+                                    onChange={(event) => handleUpdateProjectCapacity(p.id, event.target.value, unitFor(`capacity-${p.id}`))}
+                                    className="w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5 font-bold text-slate-900 outline-none focus:border-[#8f3655]"
+                                  />
+                                  <select
+                                    aria-label={`${p.clientWeddingTitle} capacity unit`}
+                                    value={unitFor(`capacity-${p.id}`)}
+                                    onChange={(event) => setUnitFor(`capacity-${p.id}`, event.target.value as StorageUnit)}
+                                    className="w-[72px] rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs font-bold text-slate-700 outline-none"
+                                  >
+                                    <option value="MB">MB</option><option value="GB">GB</option><option value="TB">TB</option>
+                                  </select>
+                                </div>
+                              </label>
+                              <label className="text-xs font-extrabold text-slate-700">Used Storage / RAW Data Size
+                                <div className="mt-1 flex gap-1">
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    step="any"
+                                    value={storageValue(projectUsedGB, unitFor(`used-${p.id}`))}
+                                    onChange={(event) => handleUpdateProjectUsedStorage(p.id, event.target.value, unitFor(`used-${p.id}`))}
+                                    className="w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5 font-bold text-slate-900 outline-none focus:border-[#8f3655]"
+                                  />
+                                  <select
+                                    aria-label={`${p.clientWeddingTitle} used storage unit`}
+                                    value={unitFor(`used-${p.id}`)}
+                                    onChange={(event) => setUnitFor(`used-${p.id}`, event.target.value as StorageUnit)}
+                                    className="w-[72px] rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs font-bold text-slate-700 outline-none"
+                                  >
+                                    <option value="MB">MB</option><option value="GB">GB</option><option value="TB">TB</option>
+                                  </select>
+                                </div>
+                              </label>
+                              {[
+                                ['Available Storage', formatStorage(projectAvailableGB)],
+                                ['Primary Copy Drive', effectiveHD1 || 'Pending Shoot'],
+                                ['Mirror Backup Drive', effectiveHD2 || 'Pending Shoot'],
+                                ['Crew Data Handover', totalCrewSlots > 0 ? `${receivedCrewSlots} / ${totalCrewSlots} received` : 'No crew assigned'],
+                                ['Handover Progress', `${totalCrewSlots > 0 ? Math.round((receivedCrewSlots / totalCrewSlots) * 100) : 0}%`],
+                              ].map(([label, value]) => (
+                                <div key={label} className="rounded-xl border border-[#e2d9d3] bg-white p-3">
+                                  <p className="text-[10px] font-black uppercase tracking-[.1em] text-slate-400">{label}</p>
+                                  <p className="mt-1 break-words text-sm font-black text-slate-800">{value}</p>
+                                </div>
+                              ))}
                             </div>
 
                             <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
