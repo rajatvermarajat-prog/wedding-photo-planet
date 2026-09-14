@@ -186,6 +186,8 @@ function crewUserId(crew: CrewMemberAssignment, team: TeamMember[]) {
 export function normalizeProject(dto: any): Project {
   const budget = Number(dto.totalQuotation) || 0;
   const parsedMeta = readMetadata(dto.otherClientDetails);
+  const metadataCapacity = Number((parsedMeta.dataBackup as any)?.totalStorageCapacityGB ?? (parsedMeta.dataBackup as any)?.totalStorageCapacityGb);
+  const projectCapacity = Number(dto.totalStorageCapacityGb);
 
   const payments = (dto.payments || []).map((p: any) => ({
     id: p.id,
@@ -217,6 +219,7 @@ export function normalizeProject(dto: any): Project {
     weddingFunctionDates: parsedMeta.weddingFunctionDates || dto.weddingDate?.slice(0, 10) || '',
     finalDeliveryDeadline: dto.deliveryDueDate?.slice(0, 10) ?? '',
     totalBudget: budget,
+    totalStorageCapacityGB: Number.isFinite(projectCapacity) ? projectCapacity : Number.isFinite(metadataCapacity) ? metadataCapacity : 5000,
     advanceReceived: received,
     balanceDue: Math.max(0, budget - received),
     specialNotesMusicPreferences: dto.notes ?? '',
@@ -282,6 +285,7 @@ function projectCoreInput(project: Project) {
     venueName: venue.venueName,
     venueCity: venue.venueCity,
     totalQuotation: Number.isFinite(project.totalBudget) ? String(project.totalBudget) : undefined,
+    totalStorageCapacityGb: Number.isFinite(project.totalStorageCapacityGB ?? NaN) && (project.totalStorageCapacityGB ?? -1) >= 0 ? project.totalStorageCapacityGB : undefined,
     customServiceType: project.primaryServiceType === 'Other' ? project.customServiceType : undefined,
     otherClientDetails: writeMetadata(project),
     notes: project.specialNotesMusicPreferences || undefined,

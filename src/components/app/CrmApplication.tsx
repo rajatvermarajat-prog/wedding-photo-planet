@@ -657,7 +657,16 @@ export default function App() {
     dataHandoverTimer.current = setTimeout(() => {
       // Data Management's Save Changes is intentionally a single project-level
       // request. Do not fan out to every shoot/assignment from this screen.
-      void projectsApi.updateDataBackup(updatedProject.id, updatedProject.dataBackup || {})
+      const dataBackupPayload = {
+        ...(updatedProject.dataBackup || {}),
+        totalStorageCapacityGB: updatedProject.totalStorageCapacityGB,
+      };
+      void Promise.all([
+        projectsApi.updateDataBackup(updatedProject.id, dataBackupPayload),
+        updatedProject.totalStorageCapacityGB !== undefined
+          ? projectsApi.update(updatedProject.id, { totalStorageCapacityGb: updatedProject.totalStorageCapacityGB })
+          : Promise.resolve(undefined),
+      ])
         .then(() => setProjects((prev) => prev.map((p) => (p.id === updatedProject.id ? updatedProject : p))))
         .catch((error: unknown) => {
           window.alert(apiErrorMessage(error, 'Unable to save data handover.'));
@@ -781,6 +790,7 @@ export default function App() {
     const operation = existing && existing.status === 'pending' && leave.status !== 'pending'
       ? attendanceApi.reviewLeave(leave.id, { decision: leave.status === 'approved' ? 'APPROVE' : 'REJECT', note: leave.reviewNote })
       : attendanceApi.requestLeave({
+          userId: leave.teamMemberId,
           type: leaveTypeInput(leave.leaveType),
           startDate: leave.startDate,
           endDate: leave.endDate,

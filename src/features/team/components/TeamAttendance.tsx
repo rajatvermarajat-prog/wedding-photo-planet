@@ -186,6 +186,7 @@ export const TeamAttendance: React.FC<TeamAttendanceProps> = ({
   const canViewLeave = can('leave.view') || can('leave.request') || can('leave.approve');
   const canRequestLeave = can('leave.request');
   const canApproveLeave = can('leave.approve');
+  const canApplyLeave = canViewLeave;
   const canAssignShoot =
     can('shoots.assign_photographer') ||
     can('shoots.assign_cinematographer') ||
@@ -193,7 +194,7 @@ export const TeamAttendance: React.FC<TeamAttendanceProps> = ({
   const allowedTabs = useMemo(() => {
     const ids: TeamTabId[] = [];
     if (canViewTeam) ids.push('team', 'schedule', 'availability');
-    if (canViewTeam && canViewSalary) ids.push('performance');
+    if (canViewTeam && canViewAttendance && canViewSalary) ids.push('performance');
     if (canViewAttendance) ids.push('attendance');
     if (canViewAttendance && !ids.includes('schedule')) ids.push('schedule');
     if (canViewLeave) ids.push('leave');
@@ -329,7 +330,7 @@ export const TeamAttendance: React.FC<TeamAttendanceProps> = ({
 
   const handleSaveLeave = (leave: LeaveRequest) => {
     const isDecision = leave.status === 'approved' || leave.status === 'rejected';
-    if (isDecision ? !canApproveLeave : !canRequestLeave) return;
+    if (isDecision ? !canApproveLeave : !canApplyLeave) return;
     if (onSaveLeave) {
       onSaveLeave(leave);
       return;
@@ -354,7 +355,7 @@ export const TeamAttendance: React.FC<TeamAttendanceProps> = ({
   };
 
   const openApplyLeave = (member?: TeamMember) => {
-    if (!canRequestLeave) return;
+    if (!canApplyLeave) return;
     setLeaveTarget(member || ({ id: '__any__' } as TeamMember));
     setActiveTab('leave');
     // The apply-leave form renders inside the Leave tab, so the drawer has to
@@ -485,7 +486,7 @@ export const TeamAttendance: React.FC<TeamAttendanceProps> = ({
           onToggleActive={canEditMember || canDeleteMember ? handleToggleActive : undefined}
           onMarkAttendance={canManageAttendance ? (member) => openMarkAttendance(member) : undefined}
           onAssignShoot={canAssignShoot ? openAssignShoot : undefined}
-          onApplyLeave={canRequestLeave ? openApplyLeave : undefined}
+          onApplyLeave={canApplyLeave ? openApplyLeave : undefined}
           onAddMember={canCreateMember ? () => openAddMember() : undefined}
           canViewSalary={canViewSalary}
           canViewContact={canViewContact}
@@ -569,7 +570,7 @@ export const TeamAttendance: React.FC<TeamAttendanceProps> = ({
           applyForMember={leaveTarget}
           onCloseApplyForm={() => setLeaveTarget(null)}
           onOpenApplyForm={(member) => openApplyLeave(member)}
-          canRequest={canRequestLeave}
+          canRequest={canApplyLeave}
           canApprove={canApproveLeave}
         />
       )}
@@ -597,7 +598,7 @@ export const TeamAttendance: React.FC<TeamAttendanceProps> = ({
         )
       )}
 
-      {activeTab === 'performance' && canViewTeam && canViewSalary && (
+      {activeTab === 'performance' && canViewTeam && canViewAttendance && canViewSalary && (
         <TeamPerformanceView
           team={scopedTeam}
           attendance={scopedAttendance}
@@ -746,7 +747,7 @@ export const TeamAttendance: React.FC<TeamAttendanceProps> = ({
         }
         onMarkAttendance={canManageAttendance ? (member) => openMarkAttendance(member) : undefined}
         onAssignShoot={canAssignShoot ? openAssignShoot : undefined}
-        onApplyLeave={canRequestLeave ? (member) => openApplyLeave(member) : undefined}
+        onApplyLeave={canApplyLeave ? (member) => openApplyLeave(member) : undefined}
         onToggleActive={canEditMember || canDeleteMember ? handleToggleActive : undefined}
         onOpenFullDashboard={
           canEditMember

@@ -176,7 +176,7 @@ export const RolesPermissionsManager: React.FC<Props> = ({
   const [pending, setPending] = useState(false);
 
   const handleDelete = async () => {
-    if (!deleting) return;
+    if (!deleting || pending) return;
     setPending(true);
     try { await onDeleteRole(deleting.id); showToast(`Deleted ${deleting.name}.`); setDeleting(null); }
     catch (error) { showToast(error instanceof Error ? error.message : 'Unable to delete role.', { variant: 'error' }); }
@@ -455,6 +455,12 @@ export const RolesPermissionsManager: React.FC<Props> = ({
                     <button type="button" className={BTN_PRIMARY} onClick={() => openEditor(role)}>Edit</button>
                   )}
                   <button type="button" className={BTN_GHOST} onClick={() => openEditor(role, true)}>View</button>
+                  {role.type === 'custom' && capabilities.remove && (
+                    <button type="button" className={BTN_GHOST} onClick={() => setDeleting(role)}>
+                      <Trash2 className="size-3.5 text-red-600" />
+                      Delete
+                    </button>
+                  )}
                 </div>
               </article>
             ))}
@@ -491,8 +497,11 @@ export const RolesPermissionsManager: React.FC<Props> = ({
         title="Delete Role"
         itemTitle={deleting?.name}
         message={deleting ? `Delete custom role “${deleting.name}”? This cannot be undone.` : ''}
+        isConfirming={pending}
         onConfirm={handleDelete}
-        onCancel={() => setDeleting(null)}
+        onCancel={() => {
+          if (!pending) setDeleting(null);
+        }}
       />
     </div>
   );
