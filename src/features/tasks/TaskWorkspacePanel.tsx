@@ -12,6 +12,9 @@ interface Props {
   onUpdate: (task: TeamTask) => void;
   /** Keeps the employee dashboard balanced when there are no assignments. */
   compactEmpty?: boolean;
+  panelClassName?: string;
+  contentClassName?: string;
+  listLimit?: number | null;
 }
 
 const STATUS_OPTIONS: Array<{ value: TeamTask['status']; label: string }> = [
@@ -25,13 +28,14 @@ function dueLabel(task: TeamTask): string {
   return task.dueDate ? `Due ${task.dueDate}` : 'No due date';
 }
 
-export function TaskWorkspacePanel({ tasks, title, description, showAssignee = false, canUpdate, onUpdate, compactEmpty = false }: Props) {
+export function TaskWorkspacePanel({ tasks, title, description, showAssignee = false, canUpdate, onUpdate, compactEmpty = false, panelClassName = '', contentClassName = '', listLimit = 12 }: Props) {
   const openCount = tasks.filter((task) => task.status !== 'completed').length;
   const completedCount = tasks.length - openCount;
+  const visibleTasks = listLimit === null ? tasks : tasks.slice(0, listLimit);
 
   return (
-    <section className="overflow-hidden rounded-3xl border border-[#e9deda] bg-white shadow-sm">
-      <div className="flex flex-wrap items-start justify-between gap-4 border-b border-[#f0e9e5] bg-[linear-gradient(115deg,#fff8fa,#fff)] px-5 py-4">
+    <section className={`flex flex-col overflow-hidden rounded-3xl border border-[#e9deda] bg-white shadow-sm ${panelClassName}`}>
+      <div className="shrink-0 flex flex-wrap items-start justify-between gap-4 border-b border-[#f0e9e5] bg-[linear-gradient(115deg,#fff8fa,#fff)] px-5 py-4">
         <div className="flex gap-3">
           <div className="flex size-10 shrink-0 items-center justify-center rounded-2xl bg-[#8f3655] text-white"><ClipboardList className="size-5" /></div>
           <div>
@@ -47,14 +51,14 @@ export function TaskWorkspacePanel({ tasks, title, description, showAssignee = f
       </div>
 
       {tasks.length === 0 ? (
-        <div className={`px-5 text-center ${compactEmpty ? 'py-6' : 'py-9'}`}>
+        <div className={`min-h-0 flex-1 px-5 text-center ${compactEmpty ? 'py-6' : 'py-9'} ${contentClassName}`}>
           <CheckCircle2 className="mx-auto size-7 text-[#b8a4ac]" />
           <p className="mt-2 text-sm font-bold text-slate-700">No tasks assigned yet.</p>
           <p className="mt-1 text-xs text-slate-500">New assignments will appear here as soon as they are created.</p>
         </div>
       ) : (
-        <div className="divide-y divide-[#f0e9e5]">
-          {tasks.slice(0, 12).map((task) => (
+        <div className={`min-h-0 flex-1 divide-y divide-[#f0e9e5] overflow-y-auto ${contentClassName}`}>
+          {visibleTasks.map((task) => (
             <article key={task.id} className="flex flex-wrap items-center justify-between gap-3 px-5 py-3.5">
               <div className="min-w-0">
                 <p className="truncate text-sm font-extrabold text-slate-900">{task.title}</p>

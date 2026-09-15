@@ -167,10 +167,10 @@ export const FreelancerPaymentsView: React.FC<FreelancerPaymentsViewProps> = ({
           {onSavePayment && (
           <button
             onClick={() => setShowPaymentModal(true)}
-            className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl transition shadow-xs flex items-center gap-1.5 whitespace-nowrap"
+            className="flex items-center gap-1.5 whitespace-nowrap rounded-xl border border-[#7d4e53]/20 bg-[#8f3655] px-4 py-2 text-xs font-extrabold text-white shadow-xs transition hover:bg-[#6d2f45] focus-visible:ring-2 focus-visible:ring-[#9b4865]/35"
           >
             <Plus className="w-4 h-4 stroke-[3]" />
-            <span>+ Record Freelancer Payment</span>
+            <span>Record Freelancer Payment</span>
           </button>
           )}
         </div>

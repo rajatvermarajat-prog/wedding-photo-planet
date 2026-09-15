@@ -3,8 +3,8 @@ import { MemberSalaryRecord } from './dashboardTypes';
 interface Props { records: MemberSalaryRecord[]; totalMonthlyPayroll: number; totalPaidPayroll: number; totalPendingPayroll: number; onTeam: () => void; onEdit: (record: MemberSalaryRecord) => void; }
 export function MonthlyStaffSalary({ records: salaryRecords, totalMonthlyPayroll, totalPaidPayroll, totalPendingPayroll, onTeam, onEdit: handleOpenEditModal }: Props) {
   return (
-  <div className="lg:col-span-1">
-    <section className="flex h-full min-h-[460px] flex-col gap-4 rounded-2xl border border-[#dfd9d2] bg-white p-4 shadow-[0_10px_30px_rgba(48,44,46,.07)] sm:p-5">
+  <div className="min-w-0 lg:col-span-1">
+    <section className="flex h-[34rem] flex-col gap-4 overflow-hidden rounded-2xl border border-[#dfd9d2] bg-white p-4 shadow-[0_10px_30px_rgba(48,44,46,.07)] sm:p-5">
       <div className="flex items-center justify-between border-b border-slate-100 pb-2.5 shrink-0">
         <div className="flex items-center gap-2">
           <div className="p-2 bg-emerald-100 text-emerald-800 rounded-xl">

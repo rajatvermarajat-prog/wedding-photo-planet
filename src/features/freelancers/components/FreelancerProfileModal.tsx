@@ -116,37 +116,38 @@ export const FreelancerProfileModal: React.FC<FreelancerProfileModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-[80] bg-[#24171c]/75 backdrop-blur-xs flex items-center justify-center p-3 sm:p-6 overflow-y-auto">
-      <div className="bg-white rounded-[2rem] shadow-[0_30px_90px_rgba(26,13,19,.42)] border border-white/50 w-full max-w-5xl overflow-hidden my-6">
-        <div className="relative overflow-hidden bg-[radial-gradient(circle_at_86%_10%,rgba(236,190,169,.24),transparent_32%),linear-gradient(125deg,#704758,#55333f_52%,#38262d)] text-white p-6">
+    <div className="fixed inset-0 z-[80] flex items-center justify-center overflow-hidden bg-[#24171c]/75 p-3 backdrop-blur-xs sm:p-5">
+      <div className="flex h-[min(820px,92vh)] w-full max-w-5xl flex-col overflow-hidden rounded-[1.5rem] border border-white/50 bg-white shadow-[0_30px_90px_rgba(26,13,19,.42)]">
+        <div className="relative shrink-0 overflow-hidden bg-[radial-gradient(circle_at_86%_10%,rgba(236,190,169,.20),transparent_30%),linear-gradient(125deg,#704758,#55333f_52%,#38262d)] px-4 py-4 text-white sm:px-5">
           <button
             onClick={onClose}
-            className="absolute top-4 right-4 p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition"
+            className="absolute right-3 top-3 grid size-9 place-items-center rounded-xl border border-white/10 bg-[#302c2e]/80 text-slate-300 transition hover:bg-[#211e20] hover:text-white"
+            aria-label="Close freelancer profile"
           >
             <X className="w-5 h-5" />
           </button>
 
-          <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
-            <div className="flex items-center gap-4">
+          <div className="grid gap-4 pr-10 lg:grid-cols-[minmax(0,1fr)_minmax(18rem,22rem)] lg:items-start">
+            <div className="flex min-w-0 items-start gap-3">
               {freelancer.profilePhoto ? (
                 <img
                   src={freelancer.profilePhoto}
                   alt={freelancer.name}
-                  className="w-20 h-20 rounded-2xl object-cover border-2 border-white/40 shadow-md flex-shrink-0"
+                  className="h-16 w-16 flex-shrink-0 rounded-2xl border-2 border-white/35 object-cover shadow-md sm:h-[4.5rem] sm:w-[4.5rem]"
                 />
               ) : (
-                <div className="grid h-20 w-20 place-items-center rounded-2xl border-2 border-white/40 bg-white/15 text-xl font-black">
+                <div className="grid h-16 w-16 flex-shrink-0 place-items-center rounded-2xl border-2 border-white/35 bg-white/15 text-lg font-black sm:h-[4.5rem] sm:w-[4.5rem]">
                   {freelancer.name.slice(0, 2).toUpperCase()}
                 </div>
               )}
-              <div>
-                <div className="flex items-center gap-2">
-                  <h2 className="text-xl font-black tracking-tight">{freelancer.name}</h2>
-                  <span className="px-2.5 py-0.5 bg-[#9b4865]/20 text-[#eadfe2] border border-[#c48a9a]/30 rounded-md font-mono text-xs font-bold">
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <h2 className="text-lg font-black tracking-tight sm:text-xl">{freelancer.name}</h2>
+                  <span className="rounded-md border border-[#c48a9a]/30 bg-[#9b4865]/20 px-2 py-0.5 font-mono text-[11px] font-bold text-[#eadfe2]">
                     {freelancer.freelancerId}
                   </span>
                   <span
-                    className={`px-2 py-0.5 text-[10px] font-black rounded-full uppercase ${
+                    className={`rounded-full px-2 py-0.5 text-[10px] font-black uppercase ${
                       freelancer.status === 'active'
                         ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-400/30'
                         : 'bg-red-500/20 text-red-300 border border-red-400/30'
@@ -155,13 +156,13 @@ export const FreelancerProfileModal: React.FC<FreelancerProfileModalProps> = ({
                     {freelancer.status}
                   </span>
                   {freelancer.preferredTier === 'preferred' && (
-                    <span className="px-2 py-0.5 text-[10px] font-black rounded-full uppercase bg-amber-500/20 text-amber-200 border border-amber-400/30">
+                    <span className="rounded-full border border-amber-400/30 bg-amber-500/20 px-2 py-0.5 text-[10px] font-black uppercase text-amber-200">
                       Preferred
                     </span>
                   )}
                 </div>
 
-                <p className="text-xs text-slate-300 mt-1 flex items-center gap-2">
+                <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-300">
                   <span className="font-bold text-[#eadfe2]">{freelancer.mainCategory}</span>
                   <span>•</span>
                   <span>{freelancer.subCategory}</span>
@@ -169,7 +170,7 @@ export const FreelancerProfileModal: React.FC<FreelancerProfileModalProps> = ({
                   <span>{freelancer.experienceYears} Yrs Experience</span>
                 </p>
 
-                <div className="flex flex-wrap items-center gap-3 text-xs text-slate-400 mt-2">
+                <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs text-slate-300/80">
                   <span className="flex items-center gap-1">
                     <Phone className="w-3.5 h-3.5 text-[#c48a9a]" />
                     <span>{freelancer.mobile}</span>
@@ -187,11 +188,11 @@ export const FreelancerProfileModal: React.FC<FreelancerProfileModalProps> = ({
             </div>
 
             {/* Quick Action Buttons */}
-            <div className="flex flex-wrap md:flex-col gap-2 w-full md:w-auto">
+            <div className="grid w-full grid-cols-2 gap-2 text-xs">
               {onEdit && (
               <button
                 onClick={() => onEdit(freelancer)}
-                className="flex-1 md:flex-none px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold rounded-xl border border-slate-700 transition flex items-center justify-center gap-1.5"
+                className="flex min-h-9 items-center justify-center gap-1.5 rounded-xl border border-white/10 bg-[#302c2e]/85 px-3 py-2 font-bold text-white transition hover:bg-[#211e20]"
               >
                 <Edit3 className="w-3.5 h-3.5 text-[#c48a9a]" />
                 <span>Edit Profile</span>
@@ -201,7 +202,7 @@ export const FreelancerProfileModal: React.FC<FreelancerProfileModalProps> = ({
               {onAssignShootClick && (
                 <button
                   onClick={() => onAssignShootClick(freelancer.id)}
-                  className="flex-1 md:flex-none px-4 py-2 bg-[#8f3655] hover:bg-[#6d2f45] text-white text-xs font-bold rounded-xl transition shadow-xs flex items-center justify-center gap-1.5"
+                  className="flex min-h-9 items-center justify-center gap-1.5 rounded-xl bg-[#8f3655] px-3 py-2 font-bold text-white shadow-xs transition hover:bg-[#6d2f45]"
                 >
                   <Plus className="w-3.5 h-3.5" />
                   <span>Assign to Shoot</span>
@@ -211,7 +212,7 @@ export const FreelancerProfileModal: React.FC<FreelancerProfileModalProps> = ({
               {onAddPaymentClick && (
                 <button
                   onClick={() => onAddPaymentClick(freelancer.id)}
-                  className="flex-1 md:flex-none px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl transition shadow-xs flex items-center justify-center gap-1.5"
+                  className="flex min-h-9 items-center justify-center gap-1.5 rounded-xl border border-emerald-300/20 bg-[#527a68] px-3 py-2 font-bold text-white shadow-xs transition hover:bg-[#40725b]"
                 >
                   <DollarSign className="w-3.5 h-3.5" />
                   <span>Record Payment</span>
@@ -227,7 +228,7 @@ export const FreelancerProfileModal: React.FC<FreelancerProfileModalProps> = ({
                       preferredTier: freelancer.preferredTier === 'preferred' ? 'new' : 'preferred',
                     })
                   }
-                  className="flex-1 md:flex-none px-4 py-2 bg-white/10 hover:bg-white/20 text-white text-xs font-bold rounded-xl border border-white/20 transition flex items-center justify-center"
+                  className="flex min-h-9 items-center justify-center rounded-xl border border-white/20 bg-white/10 px-3 py-2 font-bold text-white transition hover:bg-white/20"
                 >
                   {freelancer.preferredTier === 'preferred' ? 'Remove Preferred' : 'Mark Preferred'}
                 </button>
@@ -242,7 +243,7 @@ export const FreelancerProfileModal: React.FC<FreelancerProfileModalProps> = ({
                       workingStatus: freelancer.status === 'active' ? 'inactive' : 'active',
                     })
                   }
-                  className="flex-1 md:flex-none px-4 py-2 bg-white/10 hover:bg-white/20 text-white text-xs font-bold rounded-xl border border-white/20 transition flex items-center justify-center"
+                  className="flex min-h-9 items-center justify-center rounded-xl border border-white/20 bg-white/10 px-3 py-2 font-bold text-white transition hover:bg-white/20"
                 >
                   {freelancer.status === 'active' ? 'Deactivate' : 'Activate'}
                 </button>
@@ -250,7 +251,7 @@ export const FreelancerProfileModal: React.FC<FreelancerProfileModalProps> = ({
               {onDeleteFreelancer && (
                 <button
                   onClick={() => setShowConfirmDelete(true)}
-                  className="flex-1 md:flex-none px-4 py-2 bg-red-600/20 hover:bg-red-600 text-red-400 hover:text-white text-xs font-bold rounded-xl border border-red-500/30 transition shadow-xs flex items-center justify-center gap-1.5"
+                  className="flex min-h-9 items-center justify-center gap-1.5 rounded-xl border border-red-400/30 bg-red-600/15 px-3 py-2 font-bold text-red-200 shadow-xs transition hover:bg-red-600 hover:text-white"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
                   <span>Delete Profile</span>
@@ -260,41 +261,42 @@ export const FreelancerProfileModal: React.FC<FreelancerProfileModalProps> = ({
           </div>
 
           {/* Quick Metrics Strip */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mt-6 pt-5 border-t border-slate-800">
-            <div className="bg-slate-800/80 p-2.5 rounded-xl border border-slate-700">
-              <span className="text-[10px] font-bold text-slate-400 uppercase block">Total Shoots</span>
+          <div className="mt-4 grid grid-cols-2 gap-2 border-t border-white/10 pt-3 sm:grid-cols-3 lg:grid-cols-6">
+            <div className="rounded-xl border border-white/10 bg-[#302c2e]/75 p-2.5">
+              <span className="block text-[10px] font-bold uppercase text-slate-400">Total Shoots</span>
               <span className="text-lg font-black text-white">{totalShoots}</span>
             </div>
 
-            <div className="bg-slate-800/80 p-2.5 rounded-xl border border-slate-700">
-              <span className="text-[10px] font-bold text-slate-400 uppercase block">Upcoming</span>
+            <div className="rounded-xl border border-white/10 bg-[#302c2e]/75 p-2.5">
+              <span className="block text-[10px] font-bold uppercase text-slate-400">Upcoming</span>
               <span className="text-lg font-black text-[#c48a9a]">{upcomingShoots}</span>
             </div>
 
-            <div className="bg-slate-800/80 p-2.5 rounded-xl border border-slate-700">
-              <span className="text-[10px] font-bold text-slate-400 uppercase block">Completed</span>
+            <div className="rounded-xl border border-white/10 bg-[#302c2e]/75 p-2.5">
+              <span className="block text-[10px] font-bold uppercase text-slate-400">Completed</span>
               <span className="text-lg font-black text-emerald-400">{completedShoots}</span>
             </div>
 
-            <div className="bg-slate-800/80 p-2.5 rounded-xl border border-slate-700">
-              <span className="text-[10px] font-bold text-slate-400 uppercase block">Total Earnings</span>
+            <div className="rounded-xl border border-white/10 bg-[#302c2e]/75 p-2.5">
+              <span className="block text-[10px] font-bold uppercase text-slate-400">Total Earnings</span>
               <span className="text-lg font-black text-white font-mono">₹{totalEarnings.toLocaleString('en-IN')}</span>
             </div>
 
-            <div className="bg-slate-800/80 p-2.5 rounded-xl border border-slate-700">
-              <span className="text-[10px] font-bold text-slate-400 uppercase block">Paid Amount</span>
+            <div className="rounded-xl border border-white/10 bg-[#302c2e]/75 p-2.5">
+              <span className="block text-[10px] font-bold uppercase text-slate-400">Paid Amount</span>
               <span className="text-lg font-black text-emerald-400 font-mono">₹{paidAmount.toLocaleString('en-IN')}</span>
             </div>
 
-            <div className="bg-slate-800/80 p-2.5 rounded-xl border border-slate-700">
-              <span className="text-[10px] font-bold text-slate-400 uppercase block">Pending Amount</span>
+            <div className="rounded-xl border border-white/10 bg-[#302c2e]/75 p-2.5">
+              <span className="block text-[10px] font-bold uppercase text-slate-400">Pending Amount</span>
               <span className="text-lg font-black text-red-400 font-mono">₹{pendingAmount.toLocaleString('en-IN')}</span>
             </div>
           </div>
         </div>
 
         {/* Profile Navigation Tabs */}
-        <div className="bg-slate-100 px-6 border-b border-slate-200 flex items-center gap-2 overflow-x-auto">
+        <div className="shrink-0 overflow-x-auto border-b border-[#e6ded8] bg-[#fbfaf8] px-3 sm:px-5">
+          <div className="flex w-max min-w-full items-center gap-1">
           {[
             { id: 'about', label: 'Overview' },
             { id: 'overview', label: 'Skills & Equipment' },
@@ -308,19 +310,20 @@ export const FreelancerProfileModal: React.FC<FreelancerProfileModalProps> = ({
             <button
               key={tab.id}
               onClick={() => setActiveProfileTab(tab.id as any)}
-              className={`py-3 px-3 text-xs font-bold border-b-2 transition whitespace-nowrap ${
+              className={`whitespace-nowrap border-b-2 px-3 py-3 text-xs font-extrabold transition ${
                 activeProfileTab === tab.id
                   ? 'border-[#8f3655] text-[#8f3655]'
-                  : 'border-transparent text-slate-600 hover:text-slate-900'
+                  : 'border-transparent text-slate-500 hover:text-slate-900'
               }`}
             >
               {tab.label}
             </button>
           ))}
+          </div>
         </div>
 
         {/* Profile Content Body */}
-        <div className="p-6 max-h-[55vh] overflow-y-auto">
+        <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-5">
           {activeProfileTab === 'about' && (
             <div className="space-y-4">
               <p className="text-sm font-medium text-slate-700">{freelancer.bio || 'No professional bio yet.'}</p>
@@ -900,13 +903,13 @@ export const FreelancerProfileModal: React.FC<FreelancerProfileModalProps> = ({
         </div>
 
         {/* Modal Footer */}
-        <div className="bg-slate-50 border-t border-slate-200 p-4 flex justify-between items-center">
-          <div className="text-xs text-slate-500 font-medium">
+        <div className="flex shrink-0 items-center justify-between gap-3 border-t border-[#e6ded8] bg-[#fbfaf8] p-3 sm:p-4">
+          <div className="min-w-0 truncate text-xs font-medium text-slate-500">
             Category: <strong className="text-slate-800">{freelancer.mainCategory} ({freelancer.subCategory})</strong>
           </div>
           <button
             onClick={onClose}
-            className="px-5 py-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl transition shadow-xs"
+            className="shrink-0 rounded-xl bg-[#302c2e] px-5 py-2 text-xs font-bold text-white shadow-xs transition hover:bg-[#211e20]"
           >
             Close
           </button>
