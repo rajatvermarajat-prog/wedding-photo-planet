@@ -72,7 +72,7 @@ import { DataManagement } from '@/features/data-management';
 import { TeamAttendance, MemberDashboardModal } from '@/features/team';
 import { EmployeeDashboardTasks } from '@/features/tasks/EmployeeDashboardTasks';
 import { DeliveriesManager } from '@/features/deliveries';
-import { FreelancerTeamManager } from '@/features/freelancers';
+import { FreelancerTeamManager, readStoredFreelancerApplications, saveStoredFreelancerApplications } from '@/features/freelancers';
 import { INITIAL_FREELANCER_CATEGORIES, INITIAL_FREELANCERS } from '@/data/mockFreelancers';
 import { BACKEND_MODULE_META, BACKEND_MODULE_ORDER, FINANCE_PERMISSION_ORDER, hasAnyPermission, hasPermission, PermissionProvider, ROLE_UI_HIDDEN_KEYS, ROLE_UI_HIDDEN_MODULES, ROLE_UI_MODULE_OVERRIDE, RolesPermissionsManager, TAB_PERMISSIONS, TEAM_PERMISSION_ORDER } from '@/features/access';
 import { ExpenseManagement } from '@/features/expenses';
@@ -181,6 +181,14 @@ function leaveTypeInput(value: string): BackendLeaveRequest['type'] {
   const normalized = value.trim().toUpperCase();
   if (['CASUAL', 'SICK', 'PERSONAL', 'EMERGENCY', 'OTHER'].includes(normalized)) return normalized as BackendLeaveRequest['type'];
   return 'OTHER';
+}
+
+function freelancerIdentityKey(freelancer: Freelancer): string {
+  const mobile = freelancer.mobile?.replace(/\D/g, '');
+  if (mobile) return `mobile:${mobile}`;
+  const email = freelancer.email?.trim().toLowerCase();
+  if (email) return `email:${email}`;
+  return `id:${freelancer.id}`;
 }
 
 export default function App() {
@@ -465,6 +473,19 @@ export default function App() {
   const [freelancerDataReceived, setFreelancerDataReceived] = useState<FreelancerDataReceived[]>([]);
 
   const [freelancerActivityLogs, setFreelancerActivityLogs] = useState<FreelancerActivityLog[]>([]);
+
+  useEffect(() => {
+    const storedApplications = readStoredFreelancerApplications();
+    if (storedApplications.length === 0) return;
+    setFreelancers((current) => {
+      const byIdentity = new Map(current.map((item) => [freelancerIdentityKey(item), item]));
+      storedApplications.forEach((application) => {
+        const key = freelancerIdentityKey(application);
+        byIdentity.set(key, { ...(byIdentity.get(key) || {}), ...application });
+      });
+      return [...byIdentity.values()];
+    });
+  }, []);
 
   // Tab, Sidebar & Filter States
   const [activeTab, setActiveTabState] = useState<TabType>(() => ROUTE_TABS[pathname] || (pathname.startsWith('/projects/') ? 'projects' : 'dashboard'));
@@ -815,17 +836,23 @@ export default function App() {
     const existing = freelancers.find((f) => f.id === freelancer.id);
     if (existing ? !hasPermission(currentUser, accessRoles, 'freelancers.edit') : !hasPermission(currentUser, accessRoles, 'freelancers.create')) return;
     const merged: Freelancer = existing ? { ...existing, ...freelancer } : freelancer;
-    if (existing) {
-      setFreelancers(freelancers.map((f) => (f.id === freelancer.id ? merged : f)));
-    } else {
-      setFreelancers([merged, ...freelancers]);
-    }
+    setFreelancers((current) => {
+      const updated = current.some((f) => f.id === freelancer.id)
+        ? current.map((f) => (f.id === freelancer.id ? merged : f))
+        : [merged, ...current];
+      saveStoredFreelancerApplications(updated.filter((f) => f.id.startsWith('fl-public-')));
+      return updated;
+    });
   };
 
   const handleDeleteFreelancer = (freelancerId: string) => {
     if (!hasPermission(currentUser, accessRoles, 'freelancers.delete')) return;
-    setFreelancers(freelancers.filter((f) => f.id !== freelancerId));
-    setFreelancerAssignments(freelancerAssignments.filter((a) => a.freelancerId !== freelancerId));
+    setFreelancers((current) => {
+      const updated = current.filter((f) => f.id !== freelancerId);
+      saveStoredFreelancerApplications(updated.filter((f) => f.id.startsWith('fl-public-')));
+      return updated;
+    });
+    setFreelancerAssignments((current) => current.filter((a) => a.freelancerId !== freelancerId));
   };
 
   const handleDeleteAssignment = (assignmentId: string) => {
