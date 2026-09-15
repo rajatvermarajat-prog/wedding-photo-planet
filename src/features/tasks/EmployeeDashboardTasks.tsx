@@ -28,7 +28,7 @@ export function EmployeeDashboardTasks({
   if (!showTasks && !showAttendanceCard) return null;
 
   return (
-    <div className="grid gap-5 lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)]">
+    <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)]">
       {showAttendanceCard && <MyAttendanceCard userId={userId} canView={canViewAttendance} />}
       {showTasks && (
         <TaskWorkspacePanel
@@ -38,6 +38,8 @@ export function EmployeeDashboardTasks({
           canUpdate={canUpdate}
           onUpdate={onUpdate}
           compactEmpty
+          panelClassName="h-[30rem] max-h-[72vh]"
+          listLimit={null}
         />
       )}
     </div>

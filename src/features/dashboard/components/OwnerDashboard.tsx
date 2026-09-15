@@ -501,7 +501,7 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
       {attendanceSlot}
       {can('dashboard.view_quick_actions') && <QuickActionsPanel />}
       {(can('dashboard.view_projects') || can('dashboard.view_upcoming')) && (
-        <div className="grid grid-cols-1 gap-5 xl:grid-cols-3">
+        <div className="grid grid-cols-1 items-start gap-5 xl:grid-cols-3">
           {can('dashboard.view_projects') && (
             <div className={can('dashboard.view_upcoming') && can('shoots.view') ? 'xl:col-span-2' : 'xl:col-span-3'}>
               {projectsPending ? (
@@ -520,8 +520,8 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
         <>
           <FinancialFilterBar fromDate={finFromDate} toDate={finToDate} setFromDate={setFinFromDate} setToDate={setFinToDate} />
           <MonthlyProfitLoss fromDate={finFromDate} toDate={finToDate} totalPayments={totalMonthlyPaymentsReceived} paymentCount={filteredClientPaymentLogs.length} totalExpenses={totalMonthlyExpenses} totalPaidPayroll={totalPaidPayroll} formatDate={formatDateDots} onAddExpense={() => router.push('/expenses/new')} onRecordPayment={() => router.push('/payments/new')} />
-          <div className="grid grid-cols-1 gap-5 pt-1 xl:grid-cols-3">
-            <div className="space-y-5 xl:col-span-2">
+          <div className="grid grid-cols-1 items-start gap-5 pt-1 xl:grid-cols-3">
+            <div className="grid min-w-0 gap-5 xl:col-span-2 xl:grid-cols-2">
               <MonthlyPayments payments={filteredClientPaymentLogs} totalReceived={totalMonthlyPaymentsReceived} totalRevenue={totalRevenue} fromDate={finFromDate} toDate={finToDate} formatDate={formatDateDots} onRecordPayment={() => setActiveTab('expenses')} />
               <MonthlyOfficeExpenses expenses={filteredOfficeExpenses} allExpenses={officeExpenses} totalExpenses={totalMonthlyExpenses} totalPaidPayroll={totalPaidPayroll} categoryFilter={expenseCategoryFilter} setCategoryFilter={setExpenseCategoryFilter} spentByFilter={expenseSpentByFilter} setSpentByFilter={setExpenseSpentByFilter} fromDate={finFromDate} toDate={finToDate} formatDate={formatDateDots} onAdd={() => setActiveTab('expenses')} onEdit={handleOpenEditExpense} onDelete={setExpenseToDelete} />
             </div>

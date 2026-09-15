@@ -3,8 +3,8 @@ export interface ClientPaymentLog { id: string; clientTitle: string; amount: num
 interface Props { payments: ClientPaymentLog[]; totalReceived: number; totalRevenue: number; fromDate: string; toDate: string; formatDate: (value: string) => string; onRecordPayment: () => void; }
 export function MonthlyPayments({ payments: filteredClientPaymentLogs, totalReceived: totalMonthlyPaymentsReceived, totalRevenue, fromDate: finFromDate, toDate: finToDate, formatDate: formatDateDots, onRecordPayment }: Props) {
   return (
-  <section className="space-y-4 rounded-2xl border border-[#dfd9d2] bg-white p-4 shadow-[0_10px_30px_rgba(48,44,46,.07)] sm:p-5">
-    <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
+  <section className="flex h-[34rem] flex-col overflow-hidden rounded-2xl border border-[#dfd9d2] bg-white p-4 shadow-[0_10px_30px_rgba(48,44,46,.07)] sm:p-5">
+    <div className="flex shrink-0 items-center justify-between border-b border-slate-100 pb-2.5">
       <div className="flex items-center gap-2">
         <div className="p-2 bg-emerald-100 text-emerald-800 rounded-xl">
           <CreditCard className="w-4 h-4" />
@@ -31,12 +31,12 @@ export function MonthlyPayments({ payments: filteredClientPaymentLogs, totalRece
     </div>
 
     {/* Slim context line — full totals already live in the Monthly P&L snapshot above */}
-    <p className="text-xs font-semibold text-slate-500">
+    <p className="mt-4 shrink-0 text-xs font-semibold text-slate-500">
       <span className="font-black text-emerald-600">{filteredClientPaymentLogs.length}</span> payment{filteredClientPaymentLogs.length === 1 ? '' : 's'} logged this period, totalling <span className="font-black text-emerald-600">₹{totalMonthlyPaymentsReceived.toLocaleString('en-IN')}</span> of <span className="font-bold text-slate-700">₹{totalRevenue.toLocaleString('en-IN')}</span> booked lifetime.
     </p>
 
     {/* Recent Collections Table / List */}
-    <div className="space-y-2 max-h-[220px] overflow-y-auto pr-1">
+    <div className="mt-4 min-h-0 flex-1 space-y-2 overflow-y-auto pr-1">
       {filteredClientPaymentLogs.length === 0 ? (
         <p className="text-xs text-slate-400 py-4 text-center italic">No client payments recorded for selected date range ({formatDateDots(finFromDate)} to {formatDateDots(finToDate)}).</p>
       ) : (

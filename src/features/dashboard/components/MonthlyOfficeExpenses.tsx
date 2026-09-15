@@ -3,8 +3,8 @@ import { OfficeExpense } from '@/types';
 interface Props { expenses: OfficeExpense[]; allExpenses: OfficeExpense[]; totalExpenses: number; totalPaidPayroll: number; categoryFilter: string; setCategoryFilter: (value: string) => void; spentByFilter: string; setSpentByFilter: (value: string) => void; fromDate: string; toDate: string; formatDate: (value: string) => string; onAdd: () => void; onEdit: (expense: OfficeExpense) => void; onDelete: (expense: OfficeExpense) => void; }
 export function MonthlyOfficeExpenses({ expenses: filteredOfficeExpenses, allExpenses: officeExpenses, totalExpenses: totalMonthlyExpenses, totalPaidPayroll, categoryFilter: expenseCategoryFilter, setCategoryFilter: setExpenseCategoryFilter, spentByFilter: expenseSpentByFilter, setSpentByFilter: setExpenseSpentByFilter, fromDate: finFromDate, toDate: finToDate, formatDate: formatDateDots, onAdd, onEdit: handleOpenEditExpense, onDelete: setExpenseToDelete }: Props) {
   return (
-  <section className="space-y-4 rounded-2xl border border-[#dfd9d2] bg-white p-4 shadow-[0_10px_30px_rgba(48,44,46,.07)] sm:p-5">
-    <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
+  <section className="flex h-[34rem] flex-col overflow-hidden rounded-2xl border border-[#dfd9d2] bg-white p-4 shadow-[0_10px_30px_rgba(48,44,46,.07)] sm:p-5">
+    <div className="flex shrink-0 items-center justify-between border-b border-slate-100 pb-2.5">
       <div className="flex items-center gap-2">
         <div className="p-2 bg-rose-100 text-rose-800 rounded-xl">
           <Receipt className="w-4 h-4" />
@@ -31,12 +31,12 @@ export function MonthlyOfficeExpenses({ expenses: filteredOfficeExpenses, allExp
     </div>
 
     {/* Slim context line — full totals already live in the Monthly P&L snapshot above */}
-    <p className="text-xs font-semibold text-slate-500">
+    <p className="mt-4 shrink-0 text-xs font-semibold text-slate-500">
       <span className="font-black text-rose-600">{filteredOfficeExpenses.length}</span> expense{filteredOfficeExpenses.length === 1 ? '' : 's'} logged this period, totalling <span className="font-black text-rose-600">₹{totalMonthlyExpenses.toLocaleString('en-IN')}</span>.
     </p>
 
     {/* Category & Spent By Filters */}
-    <div className="grid grid-cols-2 gap-2 bg-[#faf8f6] p-3 rounded-xl border border-[#e6ded8] text-xs">
+    <div className="mt-4 grid shrink-0 grid-cols-2 gap-2 bg-[#faf8f6] p-3 rounded-xl border border-[#e6ded8] text-xs">
       <div>
         <label className="block text-xs font-extrabold text-slate-500 uppercase mb-0.5">Filter Category</label>
         <select
@@ -89,7 +89,7 @@ export function MonthlyOfficeExpenses({ expenses: filteredOfficeExpenses, allExp
     </div>
 
     {/* Expenses List */}
-    <div className="space-y-2 max-h-[220px] overflow-y-auto pr-1">
+    <div className="mt-4 min-h-0 flex-1 space-y-2 overflow-y-auto pr-1">
       {filteredOfficeExpenses.length === 0 ? (
         <p className="text-xs text-slate-400 py-4 text-center italic">No office expenses logged for selected filters.</p>
       ) : (
