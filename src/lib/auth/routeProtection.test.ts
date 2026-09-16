@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ACCESS_COOKIE, REFRESH_COOKIE, hasAuthCookie, isFrameworkRoute, isPublicRoute, safeReturnPath } from './routeProtection';
+import { ACCESS_COOKIE, CLIENT_SESSION_COOKIE, REFRESH_COOKIE, hasAuthCookie, isFrameworkRoute, isPublicRoute, safeReturnPath } from './routeProtection';
 
 const cookies = (...names: string[]) => ({
   has: (name: string) => names.includes(name),
@@ -19,10 +19,11 @@ describe('route protection helpers', () => {
     expect(isFrameworkRoute('/projects/new')).toBe(false);
   });
 
-  it('accepts either backend auth cookie so refresh sessions can reach the app', () => {
+  it('accepts backend auth cookies or the frontend session marker so sessions can reach the app', () => {
     expect(hasAuthCookie(cookies())).toBe(false);
     expect(hasAuthCookie(cookies(ACCESS_COOKIE))).toBe(true);
     expect(hasAuthCookie(cookies(REFRESH_COOKIE))).toBe(true);
+    expect(hasAuthCookie(cookies(CLIENT_SESSION_COOKIE))).toBe(true);
   });
 
   it('allows only protected local return paths', () => {

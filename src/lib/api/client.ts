@@ -43,10 +43,14 @@ if (!/^(https?:\/\/|\/)/i.test(baseUrl)) {
 const REQUEST_TIMEOUT_MS = 15_000;
 const TOKEN_KEY = 'wpp.accessToken';
 const LEGACY_REFRESH_KEY = 'wpp.refreshToken';
+const CLIENT_SESSION_COOKIE = 'wpp_client_session';
+const DEFAULT_CLIENT_SESSION_MAX_AGE = 60 * 60 * 24 * 7;
 
 export interface AuthTokens {
   accessToken?: string;
   refreshToken?: string;
+  accessTokenExpiresIn?: number;
+  refreshTokenExpiresIn?: number;
 }
 
 /**
@@ -59,9 +63,14 @@ export function setAuthTokens(tokens: AuthTokens | null): void {
   window.localStorage.removeItem(LEGACY_REFRESH_KEY);
   if (!tokens) {
     window.localStorage.removeItem(TOKEN_KEY);
+    document.cookie = `${CLIENT_SESSION_COOKIE}=; Path=/; Max-Age=0; SameSite=Lax`;
     return;
   }
-  if (tokens.accessToken) window.localStorage.setItem(TOKEN_KEY, tokens.accessToken);
+  if (tokens.accessToken) {
+    window.localStorage.setItem(TOKEN_KEY, tokens.accessToken);
+    const maxAge = tokens.refreshTokenExpiresIn ?? tokens.accessTokenExpiresIn ?? DEFAULT_CLIENT_SESSION_MAX_AGE;
+    document.cookie = `${CLIENT_SESSION_COOKIE}=1; Path=/; Max-Age=${maxAge}; SameSite=Lax`;
+  }
 }
 
 export function getAccessToken(): string | null {
