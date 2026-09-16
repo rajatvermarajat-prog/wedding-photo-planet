@@ -128,27 +128,6 @@ export const DEFAULT_FREELANCER_CATEGORIES: FreelancerCategory[] = [
     description: 'On-location lighting, camera and production support.',
   },
   {
-    id: 'cat-5',
-    name: 'Other',
-    subCategories: ['On-Location Editor', 'Reels Maker', 'Misc Crew'],
-    isActive: true,
-    description: 'Miscellaneous production roles.',
-  },
-  {
-    id: 'cat-6',
-    name: 'Editor',
-    subCategories: ['Video Editor', 'Wedding Film Editor', 'Short-form/Reels Editor', 'Colorist', 'Retoucher', 'Photo Editor'],
-    isActive: true,
-    description: 'Post-production photo and film editing.',
-  },
-  {
-    id: 'cat-7',
-    name: 'Design',
-    subCategories: ['Album Designer', 'Graphic Designer', 'Motion Designer'],
-    isActive: true,
-    description: 'Album and motion design.',
-  },
-  {
     id: 'cat-8',
     name: 'Photo Editor',
     subCategories: ['Photo Editor', 'Retoucher', 'Color Correction Artist', 'Lightroom Editor'],
@@ -169,6 +148,13 @@ export const DEFAULT_FREELANCER_CATEGORIES: FreelancerCategory[] = [
     isActive: true,
     description: 'Wedding album layout and print-ready design.',
   },
+  {
+    id: 'cat-5',
+    name: 'Other',
+    subCategories: ['On-Location Editor', 'Reels Maker', 'Misc Crew'],
+    isActive: true,
+    description: 'Miscellaneous production roles.',
+  },
 ];
 
 export function mergeFreelancerCategories(existing: FreelancerCategory[]): FreelancerCategory[] {
@@ -182,7 +168,12 @@ export function mergeFreelancerCategories(existing: FreelancerCategory[]): Freel
     const extras = def.subCategories.filter((s) => !cur.subCategories.includes(s));
     cur.subCategories = [...cur.subCategories, ...extras];
   });
-  return [...byName.values()];
+  const categories = [...byName.values()].filter((category) => category.name !== 'Editor' && category.name !== 'Design');
+  return categories.sort((a, b) => {
+    if (a.name === 'Other') return 1;
+    if (b.name === 'Other') return -1;
+    return 0;
+  });
 }
 
 export function todayKey(): string {
