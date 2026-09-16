@@ -42,7 +42,7 @@ if (!/^(https?:\/\/|\/)/i.test(baseUrl)) {
 }
 const REQUEST_TIMEOUT_MS = 15_000;
 const TOKEN_KEY = 'wpp.accessToken';
-const REFRESH_KEY = 'wpp.refreshToken';
+const LEGACY_REFRESH_KEY = 'wpp.refreshToken';
 
 export interface AuthTokens {
   accessToken?: string;
@@ -50,20 +50,18 @@ export interface AuthTokens {
 }
 
 /**
- * The API is on a different `.vercel.app` host, so its auth cookies are
- * third-party and browsers may drop them. Holding the pair here keeps sessions
- * working, and keeping the refresh token is what lets a session outlive the
- * short-lived access token instead of dropping the user back on the login page.
+ * Access tokens may be mirrored for Authorization headers, but refresh tokens
+ * stay in the backend-issued httpOnly cookie. Older builds stored
+ * `wpp.refreshToken`; remove it whenever auth state is touched.
  */
 export function setAuthTokens(tokens: AuthTokens | null): void {
   if (typeof window === 'undefined') return;
+  window.localStorage.removeItem(LEGACY_REFRESH_KEY);
   if (!tokens) {
     window.localStorage.removeItem(TOKEN_KEY);
-    window.localStorage.removeItem(REFRESH_KEY);
     return;
   }
   if (tokens.accessToken) window.localStorage.setItem(TOKEN_KEY, tokens.accessToken);
-  if (tokens.refreshToken) window.localStorage.setItem(REFRESH_KEY, tokens.refreshToken);
 }
 
 export function getAccessToken(): string | null {
@@ -71,31 +69,25 @@ export function getAccessToken(): string | null {
   return window.localStorage.getItem(TOKEN_KEY);
 }
 
-function getRefreshToken(): string | null {
-  if (typeof window === 'undefined') return null;
-  return window.localStorage.getItem(REFRESH_KEY);
-}
-
-/** True when this browser has something to authenticate with. */
+/** True when this browser has a JavaScript-readable access token. */
 export function hasStoredSession(): boolean {
-  return Boolean(getAccessToken() ?? getRefreshToken());
+  return Boolean(getAccessToken());
 }
 
 let refreshInFlight: Promise<boolean> | null = null;
 
 /**
- * Exchanges the stored refresh token for a new pair. Single-flight, so a burst
- * of 401s from concurrent dashboard reads produces one refresh, not one each.
+ * Exchanges the httpOnly refresh cookie for a new access token. Single-flight,
+ * so a burst of 401s from concurrent dashboard reads produces one refresh.
  */
 function refreshSession(): Promise<boolean> {
   refreshInFlight ??= (async () => {
-    const refreshToken = getRefreshToken();
     try {
       const response = await fetch(`${baseUrl}/auth/refresh`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
         credentials: 'include',
-        body: JSON.stringify(refreshToken ? { refreshToken } : {}),
+        body: JSON.stringify({}),
       });
       const payload = await response.json().catch(() => null) as
         | { success?: boolean; data?: { tokens?: AuthTokens } }

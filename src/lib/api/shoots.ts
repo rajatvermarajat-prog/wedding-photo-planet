@@ -31,9 +31,13 @@ export interface BackendShoot {
   id: string;
   projectId: string;
   title: string;
+  name?: string | null;
   shootDate: string;
+  eventDate?: string | null;
   startTime?: string | null;
   endTime?: string | null;
+  venueName?: string | null;
+  venue?: string | null;
   location?: string | null;
   city?: string | null;
   notes?: string | null;

@@ -55,15 +55,15 @@ export function hasPermission(
   if (!user) return false;
   const backendPermissions = user.permissions;
   if (backendPermissions) {
-    return backendKeysFor(key).some((backendKey) => backendPermissions.includes(backendKey));
+    return hasCanonicalKey(backendPermissions, key);
   }
   const denied = user.deniedPermissions || [];
-  if (denied.includes(key)) return false;
+  if (hasCanonicalKey(denied, key)) return false;
   const extra = user.extraPermissions || [];
-  if (extra.includes(key)) return true;
+  if (hasCanonicalKey(extra, key)) return true;
   const role = resolveAccessRole(user, roles);
   if (!role || role.status !== 'active') return false;
-  const grant = role.grants[key];
+  const grant = backendKeysFor(key).map((backendKey) => role.grants[backendKey]).find((candidate) => candidate?.enabled);
   if (!grant?.enabled) return false;
   if (requiredScope && grant.scope && grant.scope !== 'all' && grant.scope !== requiredScope) {
     const rank: PermissionScope[] = ['own', 'assigned', 'team', 'custom', 'all'];
@@ -72,8 +72,8 @@ export function hasPermission(
   return true;
 }
 
-/** Maps preserved UI capability names to the backend's permission contract. */
-const LEGACY_PERMISSION_KEYS: Record<string, string> = {
+/** Preserved UI capability names. Values are the backend's canonical permission keys. */
+export const UI_PERMISSION_ALIASES: Record<string, string> = {
   'dashboard.view': 'DASHBOARD_VIEW',
   'dashboard.view_kpi': 'DASHBOARD_KPI',
   'dashboard.view_analytics': 'DASHBOARD_KPI',
@@ -180,9 +180,23 @@ const LEGACY_PERMISSION_KEYS: Record<string, string> = {
   'data.view': 'DATA_MANAGEMENT_VIEW',
 };
 
-function backendKeysFor(key: string): string[] {
-  if (key === 'employees.edit') return ['USER_UPDATE', 'TEAM_MANAGE'];
-  if (key === 'employees.view') return ['TEAM_VIEW_ALL', 'TEAM_VIEW'];
-  if (key === 'attendance.view') return ['ATTENDANCE_VIEW_ALL'];
-  return [LEGACY_PERMISSION_KEYS[key] || key];
+const CANONICAL_EQUIVALENTS: Record<string, string[]> = {
+  USER_UPDATE: ['TEAM_MANAGE'],
+  TEAM_MANAGE: ['USER_UPDATE'],
+  TEAM_VIEW: ['TEAM_VIEW_ALL'],
+  TEAM_VIEW_ALL: ['TEAM_VIEW'],
+};
+
+export function canonicalPermissionKey(key: string): string {
+  return UI_PERMISSION_ALIASES[key] || key;
+}
+
+export function backendKeysFor(key: string): string[] {
+  const canonical = canonicalPermissionKey(key);
+  return [canonical, ...(CANONICAL_EQUIVALENTS[canonical] || [])];
+}
+
+function hasCanonicalKey(keys: string[], key: string): boolean {
+  const candidates = backendKeysFor(key);
+  return candidates.some((candidate) => keys.includes(candidate));
 }

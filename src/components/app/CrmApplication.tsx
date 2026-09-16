@@ -16,7 +16,7 @@ import {
   FreelancerDataReceived,
   FreelancerActivityLog,
   FreelancerDocument,
-  LeaveRequest
+  LeaveRequest,
 } from '@/types';
 
 import { Sidebar, TopHeader, TabType } from '@/components/layout';
@@ -27,30 +27,20 @@ import { useProjectMutation, useProjects } from '@/hooks/useProjects';
 import { useTeam, useTeamMutation } from '@/hooks/useTeam';
 import { useAttendance } from '@/hooks/useAttendance';
 import { useLeaveRequests } from '@/hooks/useLeaveRequests';
+import { useFreelancerMutation, useFreelancers } from '@/hooks/useFreelancers';
 import { useTaskMutations, useTasks } from '@/hooks/useTasks';
 import { useDashboardSummary } from '@/hooks/useDashboardSummary';
 import { useDeferredLoad } from '@/hooks/useDeferredLoad';
 import { useRbac } from '@/hooks/useRbac';
 import { normalizeTeamMember } from '@/features/team/teamViewModel';
 import { normalizeAttendance } from '@/features/attendance/attendanceViewModel';
-import { ApiError } from '@/lib/api/client';
 import { rbacApi } from '@/lib/api/rbac';
 import { isPersistedProjectId, normalizeProject, toBackendProjectStatus } from '@/features/projects/projectViewModel';
 import { projectsApi } from '@/lib/api/projects';
 import { persistStudioProject } from '@/features/projects/persistProject';
 import { attachShoots, persistProjectShoots, persistSingleCrewDataHandover } from '@/features/shoots/persistShoots';
-
-function toShiftValue(value?: string): string | undefined {
-  if (!value) return undefined;
-  const match = value.trim().match(/^(\d{1,2}):(\d{2})\s*(AM|PM)?$/i);
-  if (!match) return undefined;
-  let hours = Number(match[1]);
-  const minutes = Number(match[2]);
-  if (match[3]) hours = (hours % 12) + (match[3].toUpperCase() === 'PM' ? 12 : 0);
-  return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
-}
 import { shootsApi } from '@/lib/api/shoots';
-import { attendanceApi, type BackendLeaveRequest } from '@/lib/api/attendance';
+import { attendanceApi } from '@/lib/api/attendance';
 import { paymentMethodLabel, paymentsApi } from '@/lib/api/payments';
 import { normalizeTask, taskCreateInput, taskStatusInput } from '@/features/tasks/taskViewModel';
 import { useAuthSession } from '@/components/auth/AuthSessionProvider';
@@ -72,167 +62,22 @@ import { DataManagement } from '@/features/data-management';
 import { TeamAttendance, MemberDashboardModal } from '@/features/team';
 import { EmployeeDashboardTasks } from '@/features/tasks/EmployeeDashboardTasks';
 import { DeliveriesManager } from '@/features/deliveries';
-import { FreelancerTeamManager, readStoredFreelancerApplications, saveStoredFreelancerApplications } from '@/features/freelancers';
-import { INITIAL_FREELANCER_CATEGORIES, INITIAL_FREELANCERS } from '@/data/mockFreelancers';
+import { FreelancerTeamManager } from '@/features/freelancers';
+import { backendFreelancerToView, viewFreelancerToBackend } from '@/features/freelancers/freelancerApiAdapter';
+import { INITIAL_FREELANCER_CATEGORIES } from '@/data/mockFreelancers';
 import { BACKEND_MODULE_META, BACKEND_MODULE_ORDER, FINANCE_PERMISSION_ORDER, hasAnyPermission, hasPermission, PermissionProvider, ROLE_UI_HIDDEN_KEYS, ROLE_UI_HIDDEN_MODULES, ROLE_UI_MODULE_OVERRIDE, RolesPermissionsManager, TAB_PERMISSIONS, TEAM_PERMISSION_ORDER } from '@/features/access';
 import { ExpenseManagement } from '@/features/expenses';
 import { expenseService } from '@/features/expenses/services/expenseService';
 import type { Expense } from '@/features/expenses/types';
-import { ShieldAlert, ShieldCheck, ArrowRight } from 'lucide-react';
 import { ToastProvider } from '@/components/common';
 import { SettingsManager } from '@/features/settings/SettingsManager';
-
-const TAB_ROUTES: Record<TabType, string> = {
-  dashboard: '/dashboard',
-  owner_workspace: '/owner-workspace',
-  equipment: '/equipment',
-  roles: '/workspaces',
-  leads: '/leads',
-  projects: '/projects',
-  shoots: '/shoots',
-  expenses: '/expenses',
-  data: '/data-management',
-  team: '/team',
-  freelancers: '/freelancers',
-  clients: '/clients',
-  deliveries: '/deliveries',
-  access: '/roles-permissions',
-  settings: '/settings',
-};
-
-const ROUTE_TABS = Object.fromEntries(
-  Object.entries(TAB_ROUTES).map(([tab, route]) => [route, tab])
-) as Record<string, TabType>;
-
-function AccessDenied() {
-  return (
-    <div className="mx-auto my-12 max-w-xl rounded-3xl border border-[#eee7e2] bg-white p-8 text-center shadow-xl sm:p-12">
-      <div className="mx-auto flex size-16 items-center justify-center rounded-2xl bg-rose-50 text-[#8f3655]">
-        <ShieldAlert className="size-8" />
-      </div>
-      <h3 className="mt-5 text-2xl font-black text-slate-900">You don&apos;t have permission to access this section.</h3>
-      <p className="mt-2 text-sm font-medium text-slate-500">Ask an Admin to update your role in Roles &amp; Permissions.</p>
-    </div>
-  );
-}
-
-function apiErrorMessage(error: unknown, fallback: string): string {
-  if (!(error instanceof ApiError)) return fallback;
-  const details = error.details
-    ?.filter((detail): detail is { field?: string; message?: string } => typeof detail === 'object' && detail !== null)
-    .map((detail) => `${detail.field ? `${detail.field}: ` : ''}${detail.message ?? ''}`.trim())
-    .filter(Boolean);
-  return details?.length ? `${error.message}\n${details.join('\n')}` : error.message;
-}
-
-function hasEmployeeAssignmentConflict(candidate: Project, projects: Project[], team: TeamMember[]) {
-  const assignments = (project: Project) => (project.shoots || []).flatMap((shoot) => {
-    const date = shoot.date?.slice(0, 10);
-    return (shoot.crewAssignments || []).flatMap((crew) => {
-      const name = crew.name?.trim();
-      if (!date || !name) return [];
-      const employeeId = crew.userId || team.find((member) => member.name.trim().toLowerCase() === name.toLowerCase())?.id;
-      return [{ projectId: project.id, assignmentId: crew.id, employee: employeeId || name.toLowerCase(), date }];
-    });
-  });
-
-  const nextAssignments = assignments(candidate);
-  const savedAssignments = projects.flatMap(assignments);
-  return nextAssignments.some((next, index) =>
-    savedAssignments.some((saved) =>
-      next.employee === saved.employee &&
-      next.date === saved.date &&
-      !(next.projectId === saved.projectId && next.assignmentId === saved.assignmentId),
-    ) ||
-    nextAssignments.some((other, otherIndex) =>
-      index !== otherIndex && next.employee === other.employee && next.date === other.date,
-    ),
-  );
-}
-
-function isEmployeeAttendanceUser(user: { role?: string; roles?: string[] } | null): boolean {
-  if (!user) return false;
-  const roleNames = user.roles?.length ? user.roles : [user.role ?? ''];
-  return !roleNames.some((role) => /(^|\W)(admin|owner)(\W|$)/i.test(role));
-}
-
-function normalizeLeaveRequest(row: BackendLeaveRequest, team: TeamMember[]): LeaveRequest {
-  const member = team.find((item) => item.id === row.userId);
-  const leaveType = row.type === 'UNPAID' ? 'Other' : row.type.charAt(0) + row.type.slice(1).toLowerCase();
-  return {
-    id: row.id,
-    teamMemberId: row.userId,
-    teamMemberName: row.user?.fullName ?? member?.name ?? 'Employee',
-    role: member?.role ?? 'Unassigned',
-    leaveType,
-    startDate: row.startDate.slice(0, 10),
-    endDate: row.endDate.slice(0, 10),
-    days: row.days,
-    reason: row.reason ?? '',
-    status: row.status.toLowerCase() as LeaveRequest['status'],
-    appliedOn: row.createdAt.slice(0, 10),
-    reviewedBy: row.reviewer?.fullName,
-    reviewedOn: row.reviewedAt?.slice(0, 10),
-    reviewNote: row.reviewNote ?? undefined,
-  };
-}
-
-function leaveTypeInput(value: string): BackendLeaveRequest['type'] {
-  const normalized = value.trim().toUpperCase();
-  if (['CASUAL', 'SICK', 'PERSONAL', 'EMERGENCY', 'OTHER'].includes(normalized)) return normalized as BackendLeaveRequest['type'];
-  return 'OTHER';
-}
-
-function freelancerIdentityKey(freelancer: Freelancer): string {
-  const mobile = freelancer.mobile?.replace(/\D/g, '');
-  if (mobile) return `mobile:${mobile}`;
-  const email = freelancer.email?.trim().toLowerCase();
-  if (email) return `email:${email}`;
-  return `id:${freelancer.id}`;
-}
+import { AccessDenied } from './CrmStatePanels';
+import { ROUTE_TABS, TAB_ROUTES } from './crmRoutes';
+import { apiErrorMessage, hasEmployeeAssignmentConflict, isEmployeeAttendanceUser, leaveTypeInput, normalizeLeaveRequest, toShiftValue } from './crmAppUtils';
+import { useDateInputBounds } from './useDateInputBounds';
 
 export default function App() {
-  // Guard completed native dates centrally, while allowing users to replace
-  // the year segment manually. Validating every `input` event reset the value
-  // midway through typing (for example, after entering only the first digit).
-  useEffect(() => {
-    const lastValid = new WeakMap<HTMLInputElement, string>();
-    const applyBounds = (input: HTMLInputElement) => {
-      if (!input.min) input.min = '1900-01-01';
-      if (!input.max) input.max = '2100-12-31';
-    };
-    const validateDate = (event: Event) => {
-      const input = event.target;
-      if (!(input instanceof HTMLInputElement) || input.type !== 'date') return;
-      applyBounds(input);
-      const value = input.value;
-      if (!value) return;
-      const match = /^(\d+)-(\d{2})-(\d{2})$/.exec(value);
-      const year = match?.[1] || '';
-      const valid = year.length === 4 && Number(year) >= 1900 && Number(year) <= 2100 && value >= input.min && value <= input.max;
-      if (!valid) {
-        input.value = lastValid.get(input) || '';
-        input.setCustomValidity('Enter a valid four-digit year within the allowed date range.');
-        input.title = 'Enter a valid four-digit year within the allowed date range.';
-        input.dispatchEvent(new Event('change', { bubbles: true }));
-        return;
-      }
-      lastValid.set(input, value);
-      input.setCustomValidity('');
-      input.removeAttribute('title');
-    };
-    document.querySelectorAll<HTMLInputElement>('input[type="date"]').forEach(applyBounds);
-    const observer = new MutationObserver(() => document.querySelectorAll<HTMLInputElement>('input[type="date"]').forEach(applyBounds));
-    observer.observe(document.body, { childList: true, subtree: true });
-    // Native date controls emit intermediate change events while their
-    // day/month/year segments are being edited. Validate only after focus
-    // leaves the field so entering a year never clears day or month.
-    document.addEventListener('blur', validateDate, true);
-    return () => {
-      observer.disconnect();
-      document.removeEventListener('blur', validateDate, true);
-    };
-  }, []);
+  useDateInputBounds();
   const router = useRouter();
   const pathname = usePathname();
   const { currentUser, isHydrated, login, logout, refresh } = useAuthSession();
@@ -462,7 +307,16 @@ export default function App() {
   // Freelancer Module Persistent States
   const [freelancerCategories, setFreelancerCategories] = useState<FreelancerCategory[]>(INITIAL_FREELANCER_CATEGORIES);
 
-  const [freelancers, setFreelancers] = useState<Freelancer[]>(INITIAL_FREELANCERS);
+  const canReadFreelancers = hasPermission(currentUser, accessRoles, 'freelancers.view');
+  const freelancerQuery = useFreelancers(
+    { page: 1, limit: 100, sortBy: 'createdAt', sortOrder: 'desc' },
+    Boolean(currentUser) && secondaryReady && canReadFreelancers,
+  );
+  const freelancerMutations = useFreelancerMutation(freelancerQuery.retry);
+  const freelancers = useMemo(
+    () => freelancerQuery.data.map(backendFreelancerToView),
+    [freelancerQuery.data],
+  );
 
   const [freelancerAssignments, setFreelancerAssignments] = useState<FreelancerAssignment[]>([]);
 
@@ -474,21 +328,10 @@ export default function App() {
 
   const [freelancerActivityLogs, setFreelancerActivityLogs] = useState<FreelancerActivityLog[]>([]);
 
-  useEffect(() => {
-    const storedApplications = readStoredFreelancerApplications();
-    if (storedApplications.length === 0) return;
-    setFreelancers((current) => {
-      const byIdentity = new Map(current.map((item) => [freelancerIdentityKey(item), item]));
-      storedApplications.forEach((application) => {
-        const key = freelancerIdentityKey(application);
-        byIdentity.set(key, { ...(byIdentity.get(key) || {}), ...application });
-      });
-      return [...byIdentity.values()];
-    });
-  }, []);
-
   // Tab, Sidebar & Filter States
-  const [activeTab, setActiveTabState] = useState<TabType>(() => ROUTE_TABS[pathname] || (pathname.startsWith('/projects/') ? 'projects' : 'dashboard'));
+  const routeTab = ROUTE_TABS[pathname] || (pathname.startsWith('/projects/') ? 'projects' : undefined);
+  const [activeTab, setActiveTabState] = useState<TabType>(() => routeTab || 'dashboard');
+  const visibleTab = routeTab || activeTab;
   const setActiveTab = useCallback((tab: TabType) => {
     setActiveTabState(tab);
     router.push(TAB_ROUTES[tab]);
@@ -498,10 +341,9 @@ export default function App() {
   const [freelancerFocus, setFreelancerFocus] = useState<{ date: string; projectId: string; shootId: string } | null>(null);
 
   useEffect(() => {
-    const routeTab = ROUTE_TABS[pathname];
     if (routeTab) setActiveTabState(routeTab);
     else if (pathname.startsWith('/projects/')) setActiveTabState('projects');
-  }, [pathname]);
+  }, [pathname, routeTab]);
 
   const canAccessTab = useCallback(
     (tab: TabType) => {
@@ -528,11 +370,11 @@ export default function App() {
 
   useEffect(() => {
     if (!currentUser) return;
-    if (!canAccessTab(activeTab)) {
+    if (!canAccessTab(visibleTab)) {
       const fallback = (['owner_workspace', 'dashboard', 'roles', 'leads', 'projects', 'shoots'] as TabType[]).find((tab) => canAccessTab(tab));
       if (fallback) setActiveTab(fallback);
     }
-  }, [currentUser, activeTab, canAccessTab, setActiveTab]);
+  }, [currentUser, visibleTab, canAccessTab, setActiveTab]);
 
   // Modal States
   const [isFormModalOpen, setIsFormModalOpen] = useState(false);
@@ -776,7 +618,7 @@ export default function App() {
 
   const handleDeleteTeamMember = (memberId: string) => {
     if (!hasPermission(currentUser, accessRoles, 'employees.delete')) return;
-    void teamMutations.remove(memberId).catch((error: unknown) => window.alert(error instanceof ApiError ? error.message : 'Unable to remove employee.'));
+    void teamMutations.remove(memberId).catch((error: unknown) => window.alert(apiErrorMessage(error, 'Unable to remove employee.')));
   };
 
   const handleRecordAttendance = (record: AttendanceRecord) => {
@@ -835,24 +677,24 @@ export default function App() {
   const handleSaveFreelancer = (freelancer: Freelancer) => {
     const existing = freelancers.find((f) => f.id === freelancer.id);
     if (existing ? !hasPermission(currentUser, accessRoles, 'freelancers.edit') : !hasPermission(currentUser, accessRoles, 'freelancers.create')) return;
-    const merged: Freelancer = existing ? { ...existing, ...freelancer } : freelancer;
-    setFreelancers((current) => {
-      const updated = current.some((f) => f.id === freelancer.id)
-        ? current.map((f) => (f.id === freelancer.id ? merged : f))
-        : [merged, ...current];
-      saveStoredFreelancerApplications(updated.filter((f) => f.id.startsWith('fl-public-')));
-      return updated;
+    const input = viewFreelancerToBackend(existing ? { ...existing, ...freelancer } : freelancer);
+    const operation = existing
+      ? freelancerMutations.update(freelancer.id, input)
+      : freelancerMutations.create(input);
+    void operation.catch((error: unknown) => {
+      window.alert(apiErrorMessage(error, 'Unable to save freelancer.'));
     });
   };
 
   const handleDeleteFreelancer = (freelancerId: string) => {
     if (!hasPermission(currentUser, accessRoles, 'freelancers.delete')) return;
-    setFreelancers((current) => {
-      const updated = current.filter((f) => f.id !== freelancerId);
-      saveStoredFreelancerApplications(updated.filter((f) => f.id.startsWith('fl-public-')));
-      return updated;
-    });
-    setFreelancerAssignments((current) => current.filter((a) => a.freelancerId !== freelancerId));
+    void freelancerMutations.remove(freelancerId)
+      .then(() => {
+        setFreelancerAssignments((current) => current.filter((a) => a.freelancerId !== freelancerId));
+      })
+      .catch((error: unknown) => {
+        window.alert(apiErrorMessage(error, 'Unable to archive freelancer.'));
+      });
   };
 
   const handleDeleteAssignment = (assignmentId: string) => {
@@ -921,9 +763,11 @@ export default function App() {
     status: Freelancer['availabilityStatus']
   ) => {
     if (!hasPermission(currentUser, accessRoles, 'freelancers.edit')) return;
-    setFreelancers(
-      freelancers.map((f) => (f.id === freelancerId ? { ...f, availabilityStatus: status } : f))
-    );
+    const backendStatus = status === 'Unavailable' || status === 'Leave' ? 'UNAVAILABLE' : 'ACTIVE';
+    void freelancerMutations.update(freelancerId, { status: backendStatus })
+      .catch((error: unknown) => {
+        window.alert(apiErrorMessage(error, 'Unable to update freelancer availability.'));
+      });
   };
 
   const handleSaveFreelancerDataReceived = (record: FreelancerDataReceived) => {
@@ -941,17 +785,9 @@ export default function App() {
 
   const handleUpdateFreelancerDocument = (freelancerId: string, doc: FreelancerDocument) => {
     if (!hasPermission(currentUser, accessRoles, 'freelancers.edit')) return;
-    setFreelancers(
-      freelancers.map((f) => {
-        if (f.id === freelancerId) {
-          return {
-            ...f,
-            documents: [...(f.documents || []), doc],
-          };
-        }
-        return f;
-      })
-    );
+    void freelancerId;
+    void doc;
+    window.alert('Freelancer document upload is not connected because the backend does not expose a freelancer document API yet.');
   };
 
   const handleExportData = () => {
@@ -1032,7 +868,7 @@ export default function App() {
 
       {/* Sidebar Component */}
       <Sidebar
-        activeTab={activeTab}
+        activeTab={visibleTab}
         setActiveTab={setActiveTab}
         isOpenOnMobile={isMobileSidebarOpen}
         setIsOpenOnMobile={setIsMobileSidebarOpen}
@@ -1046,7 +882,7 @@ export default function App() {
         
         {/* Top Horizontal Header Bar */}
         <TopHeader
-          activeTab={activeTab}
+          activeTab={visibleTab}
           setActiveTab={setActiveTab}
           statusFilter={statusFilter}
           setStatusFilter={setStatusFilter}
@@ -1125,7 +961,7 @@ export default function App() {
           <>
           
           {/* Tab 1: Main Dashboard */}
-          {activeTab === 'dashboard' && (
+          {visibleTab === 'dashboard' && (
               <OwnerDashboard
                 projects={scopedWeddings}
                 onSelectProject={(project) => handleSelectProject(project)}
@@ -1167,19 +1003,19 @@ export default function App() {
               />
           )}
 
-          {activeTab === 'owner_workspace' && (
+          {visibleTab === 'owner_workspace' && (
             <OwnerWorkspace
               projects={projects}
               activeTeamMembers={team}
             />
           )}
 
-          {activeTab === 'equipment' && currentUser?.role === 'Owner' && (
+          {visibleTab === 'equipment' && currentUser?.role === 'Owner' && (
             <EquipmentInventory />
           )}
 
           {/* Leads & Inquiries Management (Visible ONLY to Owner, Manager, and Sales) */}
-          {activeTab === 'leads' && (
+          {visibleTab === 'leads' && (
             hasPermission(currentUser, accessRoles, 'leads.view') ? (
               <LeadsManagement currentUser={currentUser} team={team} />
             ) : (
@@ -1188,7 +1024,7 @@ export default function App() {
           )}
 
           {/* Tab 2: Role Workspaces & Distinct Dashboards */}
-          {activeTab === 'roles' && (
+          {visibleTab === 'roles' && (
             <RoleWorkspaceHub
               team={team}
               projects={projects}
@@ -1217,12 +1053,12 @@ export default function App() {
           )}
 
           {/* Tab 2: Projects / Client Project Management */}
-          {activeTab === 'projects' && (
+          {visibleTab === 'projects' && (
             <ProjectsManager projects={scopedWeddings} statusFilter={statusFilter} setStatusFilter={setStatusFilter} onSelectProject={(project) => handleSelectProject(project, currentUser?.role)} onUpdateProject={handleUpdateProject} onEditProject={(project) => { if (!hasPermission(currentUser, accessRoles, 'weddings.edit')) return; setEditingProject(project); setIsFormModalOpen(true); }} onDeleteProject={hasPermission(currentUser, accessRoles, 'weddings.delete') ? handleDeleteProject : undefined} onOpenNewProjectModal={() => { if (!hasPermission(currentUser, accessRoles, 'weddings.create')) return; setEditingProject(null); setIsFormModalOpen(true); }} onOpenAllPaymentsModal={() => { if (hasPermission(currentUser, accessRoles, 'finance.view_payments')) setIsAllPaymentsModalOpen(true); }} onGenerateInvoice={(project) => { if (hasPermission(currentUser, accessRoles, 'finance.view_invoices')) setSelectedProjectForInvoice(project); }} currentUser={currentUser} userRole={currentUser?.role} />
           )}
 
           {/* Tab 3: Shoot Management */}
-          {activeTab === 'shoots' && (
+          {visibleTab === 'shoots' && (
             hasPermission(currentUser, accessRoles, 'shoots.view') ? (
             <ShootManagement
               projects={scopedShoots}
@@ -1235,7 +1071,7 @@ export default function App() {
             )
           )}
 
-          {activeTab === 'expenses' && (
+          {visibleTab === 'expenses' && (
             hasAnyPermission(currentUser, accessRoles, TAB_PERMISSIONS.expenses || 'EXPENSE_VIEW') ? (
             <ExpenseManagement
               projects={scopedWeddings}
@@ -1248,7 +1084,7 @@ export default function App() {
           )}
 
           {/* Tab 4: Data Management */}
-          {activeTab === 'data' && (
+          {visibleTab === 'data' && (
             hasAnyPermission(currentUser, accessRoles, ['data.view', 'DATA_MANAGEMENT_VIEW']) ? (
               <DataManagement
                 projects={projects}
@@ -1260,7 +1096,7 @@ export default function App() {
           )}
 
           {/* Tab 5: Team & Attendance */}
-          {activeTab === 'team' && (
+          {visibleTab === 'team' && (
             hasAnyPermission(currentUser, accessRoles, TAB_PERMISSIONS.team || 'employees.view') ? (
               <TeamAttendance
                 team={team}
@@ -1293,7 +1129,7 @@ export default function App() {
           )}
 
           {/* Tab 6: Deliveries */}
-          {activeTab === 'deliveries' && (
+          {visibleTab === 'deliveries' && (
             <DeliveriesManager
               projects={scopedWeddings}
               onUpdateProject={handleUpdateProject}
@@ -1302,38 +1138,55 @@ export default function App() {
           )}
 
           {/* Tab 7: Freelancer Team Module */}
-          {activeTab === 'freelancers' && (
-            <FreelancerTeamManager
-              freelancers={freelancers}
-              categories={freelancerCategories}
-              assignments={freelancerAssignments}
-              payments={freelancerPayments}
-              attendanceRecords={freelancerAttendance}
-              dataReceivedList={freelancerDataReceived}
-              activityLogs={freelancerActivityLogs}
-              projects={projects}
-              focusDate={freelancerFocus?.date}
-              focusProjectId={freelancerFocus?.projectId}
-              focusShootId={freelancerFocus?.shootId}
-              onSaveFreelancer={handleSaveFreelancer}
-              onSaveCategories={(next) => {
-                if (!hasPermission(currentUser, accessRoles, 'freelancers.edit')) return;
-                setFreelancerCategories(next);
-              }}
-              onSaveAssignments={handleSaveFreelancerAssignments}
-              onUpdateAssignmentStatus={handleUpdateAssignmentStatus}
-              onSavePayment={handleSaveFreelancerPayment}
-              onSaveAttendance={handleSaveFreelancerAttendance}
-              onUpdateAvailability={handleUpdateFreelancerAvailability}
-              onSaveDataReceived={handleSaveFreelancerDataReceived}
-              onUpdateDataStatus={handleUpdateFreelancerDataStatus}
-              onUpdateDocument={handleUpdateFreelancerDocument}
-              onDeleteFreelancer={handleDeleteFreelancer}
-              onDeleteAssignment={handleDeleteAssignment}
-            />
+          {visibleTab === 'freelancers' && (
+            !canReadFreelancers ? (
+              <AccessDenied />
+            ) : (
+              <div className="space-y-3">
+                {freelancerQuery.loading && (
+                  <p className="px-1 text-xs font-semibold text-slate-500">Updating freelancer directory…</p>
+                )}
+                {freelancerQuery.error && (
+                  <div className="flex flex-wrap items-center gap-3 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700">
+                    <span>{apiErrorMessage(freelancerQuery.error, 'Unable to load freelancers.')}</span>
+                    <button type="button" onClick={() => void freelancerQuery.retry()} className="rounded-lg bg-white px-3 py-1.5 text-xs font-black text-rose-700 shadow-sm">
+                      Retry
+                    </button>
+                  </div>
+                )}
+              <FreelancerTeamManager
+                freelancers={freelancers}
+                categories={freelancerCategories}
+                assignments={freelancerAssignments}
+                payments={freelancerPayments}
+                attendanceRecords={freelancerAttendance}
+                dataReceivedList={freelancerDataReceived}
+                activityLogs={freelancerActivityLogs}
+                projects={projects}
+                focusDate={freelancerFocus?.date}
+                focusProjectId={freelancerFocus?.projectId}
+                focusShootId={freelancerFocus?.shootId}
+                onSaveFreelancer={handleSaveFreelancer}
+                onSaveCategories={(next) => {
+                  if (!hasPermission(currentUser, accessRoles, 'freelancers.edit')) return;
+                  setFreelancerCategories(next);
+                }}
+                onSaveAssignments={handleSaveFreelancerAssignments}
+                onUpdateAssignmentStatus={handleUpdateAssignmentStatus}
+                onSavePayment={handleSaveFreelancerPayment}
+                onSaveAttendance={handleSaveFreelancerAttendance}
+                onUpdateAvailability={handleUpdateFreelancerAvailability}
+                onSaveDataReceived={handleSaveFreelancerDataReceived}
+                onUpdateDataStatus={handleUpdateFreelancerDataStatus}
+                onUpdateDocument={handleUpdateFreelancerDocument}
+                onDeleteFreelancer={handleDeleteFreelancer}
+                onDeleteAssignment={handleDeleteAssignment}
+              />
+              </div>
+            )
           )}
 
-          {activeTab === 'access' && (
+          {visibleTab === 'access' && (
             hasPermission(currentUser, accessRoles, 'ROLE_VIEW') ? (
               <RolesPermissionsManager
                 roles={effectiveAccessRoles}
@@ -1392,7 +1245,7 @@ export default function App() {
             )
           )}
 
-          {activeTab === 'settings' && (
+          {visibleTab === 'settings' && (
             <SettingsManager viewer={{
               id: currentUser.id || '',
               fullName: currentUser.name || 'User',
@@ -1406,7 +1259,7 @@ export default function App() {
             }} />
           )}
 
-          {activeTab === 'clients' && (
+          {visibleTab === 'clients' && (
             hasPermission(currentUser, accessRoles, 'clients.view') ? (
             <ClientsDirectoryView projects={scopedClients} onOpenClient={(project) => handleSelectProject(project, currentUser?.role)} onAddClient={() => { if (!hasPermission(currentUser, accessRoles, 'clients.create')) return; setEditingProject(null); setIsFormModalOpen(true); }} />
             ) : (

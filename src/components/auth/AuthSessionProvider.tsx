@@ -39,13 +39,8 @@ export function AuthSessionProvider({ children }: { children: React.ReactNode })
     // StrictMode runs mount effects twice; hydrating once avoids a second /me.
     if (hydrated.current) return;
     hydrated.current = true;
-    // With the API on another host its cookies are third-party and often
-    // dropped, so a browser holding no token has nothing to restore: asking
-    // `/me` would only return 401.
-    if (!authApi.hasSession()) {
-      setIsHydrated(true);
-      return;
-    }
+    // `/auth/me` is the authoritative session check. The refresh/access cookie
+    // is httpOnly, so JavaScript cannot infer session presence from storage.
     authApi.me().then((user) => {
       lastMeAt = Date.now();
       setCurrentUser(toAuthenticatedUser(user));

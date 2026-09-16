@@ -21,7 +21,7 @@ import {
   Users,
   Video,
 } from 'lucide-react';
-import { AttendanceRecord, FreelancerPayment, OwnerLead, Project, TeamMember, TeamTask } from '@/types';
+import { AttendanceRecord, FreelancerPayment, LeadStatus, Project, TeamMember, TeamTask } from '@/types';
 import { TabType } from '@/components/layout/Header';
 import { Badge, BTN_GHOST, BTN_PRIMARY, CARD, EmptyState, KpiCard } from '@/features/team/components/TeamUiKit';
 import { PermissionGuard, usePermission } from '@/features/access';
@@ -29,6 +29,7 @@ import { RoleDashboards } from './RoleDashboards';
 import { MyAttendanceCard } from '@/features/attendance/MyAttendanceCard';
 import { TaskWorkspacePanel } from '@/features/tasks/TaskWorkspacePanel';
 import { PersonalTodoPanel } from '@/features/tasks/PersonalTodoPanel';
+import { useLeads } from '@/hooks/useLeads';
 import { WORKSPACE_COPY, workspaceKind } from '../workspaceKind';
 import {
   myTasks,
@@ -71,14 +72,15 @@ const Denied = () => (
   </div>
 );
 
-function loadLeads(): OwnerLead[] {
-  try {
-    const raw = localStorage.getItem('wpp_owner_crm_leads');
-    return raw ? JSON.parse(raw) : [];
-  } catch {
-    return [];
-  }
-}
+const API_STATUS_TO_UI: Record<string, LeadStatus> = {
+  NEW: 'new',
+  CONTACTED: 'contacted',
+  QUALIFIED: 'meeting_fixed',
+  PROPOSAL_SENT: 'quotation_sent',
+  NEGOTIATION: 'quotation_sent',
+  WON: 'booked',
+  LOST: 'lost',
+};
 
 export const RoleWorkspaceHub: React.FC<Props> = (props) => {
   const { currentUser, projects, tasks, attendance, team, setActiveTab, onSelectProject, payments = [] } = props;
@@ -103,13 +105,18 @@ export const RoleWorkspaceHub: React.FC<Props> = (props) => {
   const canManageTeam = can('employees.view') || can('attendance.manage');
   const canManageTaskWorkspace = can('tasks.create');
   const isEmployeeAttendanceUser = !/(^|\W)(admin|owner)(\W|$)/i.test(String(user?.role || ''));
-  const leads = useMemo(() => loadLeads().filter((l) => {
-    if (!can('leads.view')) return false;
+  const leadQuery = useLeads({ limit: 100 }, can('leads.view'));
+  const leads = useMemo(() => leadQuery.data.map((lead) => ({
+    id: lead.id,
+    status: API_STATUS_TO_UI[lead.status] || 'new',
+    assignedTo: lead.owner?.fullName,
+    createdBy: lead.createdBy?.fullName,
+  })).filter((lead) => {
     const scope = role?.grants['leads.view']?.scope || 'all';
     if (scope === 'all') return true;
-    return (l.assignedTo && user?.name && l.assignedTo.toLowerCase().includes(user.name.toLowerCase())) ||
-      (l.createdBy && user?.name && l.createdBy.toLowerCase().includes(user.name.toLowerCase()));
-  }), [can, role, user]);
+    return (lead.assignedTo && user?.name && lead.assignedTo.toLowerCase().includes(user.name.toLowerCase())) ||
+      (lead.createdBy && user?.name && lead.createdBy.toLowerCase().includes(user.name.toLowerCase()));
+  }), [leadQuery.data, role, user]);
 
   const shortcuts = [
     { label: 'Dashboard', tab: 'dashboard' as TabType, icon: LayoutDashboard, key: 'dashboard.view' },
