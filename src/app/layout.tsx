@@ -13,10 +13,42 @@ export const viewport: Viewport = {
   themeColor: '#F7F6F3',
 };
 
+const chunkRecoveryScript = `
+(function () {
+  var KEY = 'wpp_next_chunk_reload';
+  function isNextChunk(url) {
+    return typeof url === 'string' && url.indexOf('/_next/static/') !== -1 && /\\.js(\\?|$)/.test(url);
+  }
+  function recover() {
+    try {
+      if (sessionStorage.getItem(KEY) === '1') return;
+      sessionStorage.setItem(KEY, '1');
+      var url = new URL(window.location.href);
+      url.searchParams.set('__refresh', Date.now().toString());
+      window.location.replace(url.toString());
+    } catch {
+      window.location.reload();
+    }
+  }
+  window.addEventListener('error', function (event) {
+    var target = event && event.target;
+    if (target && target.tagName === 'SCRIPT' && isNextChunk(target.src)) recover();
+  }, true);
+  window.addEventListener('unhandledrejection', function (event) {
+    var reason = event && event.reason;
+    var message = String((reason && (reason.message || reason.stack)) || reason || '');
+    if (/Loading chunk|ChunkLoadError|_next\\/static/.test(message)) recover();
+  });
+})();
+`;
+
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en">
-      <body><AuthSessionProvider>{children}</AuthSessionProvider></body>
+      <body>
+        <script dangerouslySetInnerHTML={{ __html: chunkRecoveryScript }} />
+        <AuthSessionProvider>{children}</AuthSessionProvider>
+      </body>
     </html>
   );
 }
