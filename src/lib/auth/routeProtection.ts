@@ -1,5 +1,6 @@
 export const ACCESS_COOKIE = 'wpp_access_token';
 export const REFRESH_COOKIE = 'wpp_refresh_token';
+export const CLIENT_SESSION_COOKIE = 'wpp_client_session';
 
 const PUBLIC_PREFIXES = [
   '/login',
@@ -26,7 +27,7 @@ export function isFrameworkRoute(pathname: string): boolean {
 }
 
 export function hasAuthCookie(cookies: { has: (name: string) => boolean }): boolean {
-  return cookies.has(ACCESS_COOKIE) || cookies.has(REFRESH_COOKIE);
+  return cookies.has(ACCESS_COOKIE) || cookies.has(REFRESH_COOKIE) || cookies.has(CLIENT_SESSION_COOKIE);
 }
 
 export function safeReturnPath(value: string | null): string {

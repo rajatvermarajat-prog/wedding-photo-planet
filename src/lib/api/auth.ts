@@ -23,7 +23,7 @@ export const authApi = {
   async login(input: LoginInput): Promise<SessionUser> {
     const { data } = await apiRequest<{
       user: SessionUser;
-      tokens?: { accessToken?: string; refreshToken?: string };
+      tokens?: { accessToken?: string; refreshToken?: string; accessTokenExpiresIn?: number; refreshTokenExpiresIn?: number };
     }>('/auth/login', { method: 'POST', body: JSON.stringify(input) });
     setAuthTokens(data.tokens ?? null);
     return data.user;
