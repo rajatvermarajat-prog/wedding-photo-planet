@@ -28,8 +28,6 @@ interface AllFreelancersViewProps {
   initialCategory?: string;
 }
 
-type SortKey = 'name' | 'rating' | 'experience' | 'joining' | 'shoots' | 'availability' | 'pending';
-
 export const AllFreelancersView: React.FC<AllFreelancersViewProps> = ({
   freelancers,
   categories,
@@ -46,25 +44,14 @@ export const AllFreelancersView: React.FC<AllFreelancersViewProps> = ({
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState(initialCategory || 'all');
-  const [subFilter, setSubFilter] = useState('all');
   const [cityFilter, setCityFilter] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all');
-  const [availabilityFilter, setAvailabilityFilter] = useState('all');
-  const [minExp, setMinExp] = useState('');
-  const [minRating, setMinRating] = useState('');
-  const [maxRate, setMaxRate] = useState('');
   const [dateFilter, setDateFilter] = useState('');
-  const [sortKey, setSortKey] = useState<SortKey>('name');
   const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid');
   const [deletingFreelancer, setDeletingFreelancer] = useState<Freelancer | null>(null);
-  const [preferredOnly, setPreferredOnly] = useState(false);
-  const [upcomingOnly, setUpcomingOnly] = useState(false);
 
   useEffect(() => {
     if (initialCategory) setCategoryFilter(initialCategory);
   }, [initialCategory]);
-
-  const subOptions = categories.find((c) => c.name === categoryFilter)?.subCategories || [];
 
   const filtered = useMemo(() => {
     const list = freelancers.filter((f) =>
@@ -73,59 +60,26 @@ export const AllFreelancersView: React.FC<AllFreelancersViewProps> = ({
         {
           text: searchQuery,
           category: categoryFilter,
-          subCategory: subFilter,
           city: cityFilter,
-          minExperience: minExp ? Number(minExp) : undefined,
-          minRating: minRating ? Number(minRating) : undefined,
-          availability: availabilityFilter,
           dateKey: dateFilter || undefined,
-          maxRate: maxRate ? Number(maxRate) : undefined,
-          preferredOnly,
-          hasUpcoming: upcomingOnly,
         },
         assignments
-      ) && (statusFilter === 'all' || getWorkingStatus(f) === statusFilter)
+      )
     );
-    return [...list].sort((a, b) => {
-      if (sortKey === 'rating') return (b.rating || 0) - (a.rating || 0);
-      if (sortKey === 'experience') return (b.experienceYears || 0) - (a.experienceYears || 0);
-      if (sortKey === 'joining') return (b.joiningDate || '').localeCompare(a.joiningDate || '');
-      if (sortKey === 'shoots') {
-        return freelancerPerformance(b, assignments, payments).totalShoots - freelancerPerformance(a, assignments, payments).totalShoots;
-      }
-      if (sortKey === 'availability') return (a.availabilityStatus || '').localeCompare(b.availabilityStatus || '');
-      if (sortKey === 'pending') return freelancerLedger(b.id, assignments, payments).pending - freelancerLedger(a.id, assignments, payments).pending;
-      return a.name.localeCompare(b.name);
-    });
-  }, [freelancers, searchQuery, categoryFilter, subFilter, cityFilter, minExp, minRating, availabilityFilter, dateFilter, maxRate, statusFilter, preferredOnly, upcomingOnly, sortKey, assignments, payments]);
+    return [...list].sort((a, b) => a.name.localeCompare(b.name));
+  }, [freelancers, searchQuery, categoryFilter, cityFilter, dateFilter, assignments]);
 
   const activeFilterCount = [
     categoryFilter !== 'all',
-    subFilter !== 'all',
-    statusFilter !== 'all',
-    availabilityFilter !== 'all',
     !!cityFilter,
     !!dateFilter,
-    !!minExp,
-    !!minRating,
-    !!maxRate,
-    preferredOnly,
-    upcomingOnly,
   ].filter(Boolean).length;
 
   const clearFilters = () => {
     setSearchQuery('');
     setCategoryFilter('all');
-    setSubFilter('all');
-    setStatusFilter('all');
-    setAvailabilityFilter('all');
     setCityFilter('');
     setDateFilter('');
-    setMinExp('');
-    setMinRating('');
-    setMaxRate('');
-    setPreferredOnly(false);
-    setUpcomingOnly(false);
   };
 
   return (
@@ -160,83 +114,25 @@ export const AllFreelancersView: React.FC<AllFreelancersViewProps> = ({
           />
         </div>
 
-        <div className="grid grid-cols-2 gap-2 lg:grid-cols-6">
-          <label>
-            <span className={LABEL}>Category</span>
-            <select className={FIELD} value={categoryFilter} onChange={(e) => { setCategoryFilter(e.target.value); setSubFilter('all'); }}>
-              <option value="all">All</option>
-              {categories.map((c) => <option key={c.id} value={c.name}>{c.name}</option>)}
-            </select>
-          </label>
-          <label>
-            <span className={LABEL}>Subcategory</span>
-            <select className={FIELD} value={subFilter} onChange={(e) => setSubFilter(e.target.value)}>
-              <option value="all">All</option>
-              {subOptions.map((s) => <option key={s} value={s}>{s}</option>)}
-            </select>
-          </label>
-          <label>
-            <span className={LABEL}>Working status</span>
-            <select className={FIELD} value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
-              <option value="all">All</option>
-              <option value="active">Active</option>
-              <option value="inactive">Inactive</option>
-              <option value="unavailable">Unavailable</option>
-              <option value="suspended">Suspended</option>
-            </select>
-          </label>
-          <label>
-            <span className={LABEL}>Availability</span>
-            <select className={FIELD} value={availabilityFilter} onChange={(e) => setAvailabilityFilter(e.target.value)}>
-              <option value="all">All</option>
-              <option value="Available">Available</option>
-              <option value="Busy">Busy</option>
-              <option value="On Shoot">On Shoot</option>
-              <option value="Leave">On Leave</option>
-              <option value="Unavailable">Unavailable</option>
-            </select>
-          </label>
-          <label>
-            <span className={LABEL}>City</span>
-            <input className={FIELD} value={cityFilter} onChange={(e) => setCityFilter(e.target.value)} placeholder="Jaipur" />
-          </label>
-          <label>
-            <span className={LABEL}>Available on</span>
-            <input type="date" className={FIELD} value={dateFilter} onChange={(e) => setDateFilter(e.target.value)} />
-          </label>
-          <label>
-            <span className={LABEL}>Min experience</span>
-            <input className={FIELD} type="number" min={0} value={minExp} onChange={(e) => setMinExp(e.target.value)} placeholder="Years" />
-          </label>
-          <label>
-            <span className={LABEL}>Min rating</span>
-            <input className={FIELD} type="number" min={0} max={5} step={0.1} value={minRating} onChange={(e) => setMinRating(e.target.value)} placeholder="4" />
-          </label>
-          <label>
-            <span className={LABEL}>Max day rate</span>
-            <input className={FIELD} type="number" min={0} value={maxRate} onChange={(e) => setMaxRate(e.target.value)} placeholder="₹" />
-          </label>
-          <label>
-            <span className={LABEL}>Sort</span>
-            <select className={FIELD} value={sortKey} onChange={(e) => setSortKey(e.target.value as SortKey)}>
-              <option value="name">Name</option>
-              <option value="rating">Rating</option>
-              <option value="experience">Experience</option>
-              <option value="joining">Recent registration</option>
-              <option value="shoots">Most shoots</option>
-              <option value="availability">Availability</option>
-              <option value="pending">Pending balance</option>
-            </select>
-          </label>
-          <label className="flex items-end gap-2 text-xs font-bold text-slate-700">
-            <input type="checkbox" checked={preferredOnly} onChange={(e) => setPreferredOnly(e.target.checked)} />
-            Preferred
-          </label>
-          <label className="flex items-end gap-2 text-xs font-bold text-slate-700">
-            <input type="checkbox" checked={upcomingOnly} onChange={(e) => setUpcomingOnly(e.target.checked)} />
-            Upcoming assignment
-          </label>
-          <div className="flex items-end gap-1">
+        <div className="flex flex-col gap-2 lg:flex-row lg:items-end lg:justify-between">
+          <div className="grid flex-1 grid-cols-1 gap-2 sm:grid-cols-3">
+            <label>
+              <span className={LABEL}>Category</span>
+              <select className={FIELD} value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)}>
+                <option value="all">All</option>
+                {categories.map((c) => <option key={c.id} value={c.name}>{c.name}</option>)}
+              </select>
+            </label>
+            <label>
+              <span className={LABEL}>City</span>
+              <input className={FIELD} value={cityFilter} onChange={(e) => setCityFilter(e.target.value)} placeholder="Jaipur" />
+            </label>
+            <label>
+              <span className={LABEL}>Available on</span>
+              <input type="date" className={FIELD} value={dateFilter} onChange={(e) => setDateFilter(e.target.value)} />
+            </label>
+          </div>
+          <div className="flex shrink-0 items-end justify-end gap-1">
             {activeFilterCount > 0 && (
               <button type="button" className={BTN_GHOST} onClick={clearFilters}>Clear ({activeFilterCount})</button>
             )}
