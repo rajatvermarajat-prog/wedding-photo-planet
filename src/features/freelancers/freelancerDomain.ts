@@ -148,6 +148,27 @@ export const DEFAULT_FREELANCER_CATEGORIES: FreelancerCategory[] = [
     isActive: true,
     description: 'Album and motion design.',
   },
+  {
+    id: 'cat-8',
+    name: 'Photo Editor',
+    subCategories: ['Photo Editor', 'Retoucher', 'Color Correction Artist', 'Lightroom Editor'],
+    isActive: true,
+    description: 'Photo culling, retouching and color correction.',
+  },
+  {
+    id: 'cat-9',
+    name: 'Video Editor',
+    subCategories: ['Video Editor', 'Wedding Film Editor', 'Teaser Editor', 'Reels Editor', 'Colorist'],
+    isActive: true,
+    description: 'Wedding film, teaser and short-form video editing.',
+  },
+  {
+    id: 'cat-10',
+    name: 'Album Design',
+    subCategories: ['Album Designer', 'Wedding Album Designer', 'Canvera Album Designer', 'Photo Book Designer'],
+    isActive: true,
+    description: 'Wedding album layout and print-ready design.',
+  },
 ];
 
 export function mergeFreelancerCategories(existing: FreelancerCategory[]): FreelancerCategory[] {
