@@ -28,7 +28,7 @@ export const authApi = {
     setAuthTokens(data.tokens ?? null);
     return data.user;
   },
-  /** False when this browser holds no credentials, so `/me` would 401 anyway. */
+  /** True when this browser holds a JavaScript-readable access token. */
   hasSession(): boolean {
     return hasStoredSession();
   },

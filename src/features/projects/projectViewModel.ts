@@ -59,6 +59,11 @@ type ProjectMetadata = {
   deliveryStatus?: Project['deliveryStatus'];
 };
 
+type MetadataDataBackup = Project['dataBackup'] & {
+  totalStorageCapacityGB?: number | string;
+  totalStorageCapacityGb?: number | string;
+};
+
 function readMetadata(value?: string | null): ProjectMetadata {
   if (!value) return {};
   try {
@@ -183,25 +188,33 @@ function crewUserId(crew: CrewMemberAssignment, team: TeamMember[]) {
 }
 
 /** Maps only API-provided values; unavailable legacy workflow sections stay empty. */
-export function normalizeProject(dto: any): Project {
+export function normalizeProject(dto: ProjectDto): Project {
   const budget = Number(dto.totalQuotation) || 0;
   const parsedMeta = readMetadata(dto.otherClientDetails);
-  const metadataCapacity = Number((parsedMeta.dataBackup as any)?.totalStorageCapacityGB ?? (parsedMeta.dataBackup as any)?.totalStorageCapacityGb);
+  const metadataBackup = parsedMeta.dataBackup as MetadataDataBackup | undefined;
+  const metadataCapacity = Number(metadataBackup?.totalStorageCapacityGB ?? metadataBackup?.totalStorageCapacityGb);
   const projectCapacity = Number(dto.totalStorageCapacityGb);
 
-  const payments = (dto.payments || []).map((p: any) => ({
+  const payments = (dto.payments || []).map((p) => ({
     id: p.id,
-    paymentDate: p.paymentDate?.slice(0, 10) || '',
+    date: p.paymentDate?.slice(0, 10) || '',
     amount: Number(p.amount || 0),
-    paymentMode: p.paymentMethod || 'Bank Transfer',
+    type: 'installment' as const,
+    paymentMode: p.paymentMethod === 'UPI' ? 'UPI / GPay' as const
+      : p.paymentMethod === 'BANK_TRANSFER' ? 'Bank Transfer' as const
+      : p.paymentMethod === 'CASH' ? 'Cash' as const
+      : p.paymentMethod === 'CHEQUE' ? 'Cheque' as const
+      : p.paymentMethod === 'CREDIT_CARD' || p.paymentMethod === 'DEBIT_CARD' ? 'Card' as const
+      : 'Other' as const,
+    receiptNumber: p.id,
     notes: p.notes || '',
     receiptScreenshot: p.receiptFileId ? `/files/${p.receiptFileId}` : undefined,
   }));
 
-  const receiptReceived = payments.reduce((sum: number, p: any) => sum + p.amount, 0);
+  const receiptReceived = payments.reduce((sum, p) => sum + p.amount, 0);
   const milestoneReceived = (dto.paymentMilestones || [])
-    .filter((milestone: any) => milestone.status === 'RECEIVED')
-    .reduce((sum: number, milestone: any) => sum + Number(milestone.amount || 0), 0);
+    .filter((milestone) => milestone.status === 'RECEIVED')
+    .reduce((sum, milestone) => sum + Number(milestone.amount || 0), 0);
   const received = Math.max(receiptReceived, milestoneReceived);
 
   return {
@@ -228,7 +241,7 @@ export function normalizeProject(dto: any): Project {
     createdAt: dto.createdAt,
     videoPipeline: parsedMeta.videoPipeline || { ...emptyPipeline.video },
     photoPipeline: parsedMeta.photoPipeline || { ...emptyPipeline.photo },
-    shoots: (dto.shoots || []).map((s: any) => {
+    shoots: (dto.shoots || []).map((s) => {
       const startTime = formatStoredShootTime(s.startTime);
       const endTime = formatStoredShootTime(s.endTime);
       return {
@@ -239,10 +252,11 @@ export function normalizeProject(dto: any): Project {
         startTime: startTime || undefined,
         endTime: endTime || undefined,
         venue: s.venueName || s.venue || '',
+        location: s.location || s.venueName || s.venue || '',
         notes: s.notes || '',
         plannedRoleSlots: s.plannedRoleSlots || undefined,
         status: s.status === 'COMPLETED' ? 'completed' : s.status === 'CANCELLED' ? 'cancelled' : 'scheduled',
-        crewAssignments: (s.assignments || []).map((a: any) => ({
+        crewAssignments: (s.assignments || []).map((a) => ({
           id: a.id,
           userId: a.user?.id || undefined,
           role: a.role,
@@ -255,7 +269,7 @@ export function normalizeProject(dto: any): Project {
         })),
       };
     }),
-    tasks: (dto.tasks || []).map((t: any) => ({
+    tasks: (dto.tasks || []).map((t) => ({
       id: t.id,
       taskName: t.title || '',
       quantity: t.quantity || 1,
@@ -267,9 +281,9 @@ export function normalizeProject(dto: any): Project {
       category: t.category,
       completedAt: t.completedAt || undefined,
     })),
-    dataBackup: parsedMeta.dataBackup || dto.dataBackup || { ...emptyPipeline.backup },
+    dataBackup: parsedMeta.dataBackup || (dto.dataBackup as Project['dataBackup'] | undefined) || { ...emptyPipeline.backup },
     payments,
-    deliveryStatus: parsedMeta.deliveryStatus || dto.deliveryStatus || { ...emptyPipeline.delivery },
+    deliveryStatus: parsedMeta.deliveryStatus || (dto.deliveryStatus as Project['deliveryStatus'] | undefined) || { ...emptyPipeline.delivery },
   };
 }
 

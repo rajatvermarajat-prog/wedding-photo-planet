@@ -7,7 +7,7 @@ import { AlertTriangle, BarChart3, Banknote, BriefcaseBusiness, CalendarDays, Ca
 import { Project, TeamMember } from '@/types';
 import { useToast } from '@/components/common';
 import { usePermission } from '@/features/access';
-import { expenseService } from '../services/expenseService';
+import { expenseService, type ExpenseSummary } from '../services/expenseService';
 import { Expense, ExpenseApprovalStatus, ExpenseCategory, ExpensePaymentMethod, ExpensePaymentStatus } from '../types';
 import { IncomeManagement } from '@/features/income';
 import { incomeService } from '@/features/income/services/incomeService';
@@ -71,7 +71,7 @@ export function ExpenseManagement({ projects, freelancers, currentUser }: { proj
   const canMarkPaid = can('PAYMENT_CREATE') || can('finance.record_payment') || canEdit;
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [categoryOptions, setCategoryOptions] = useState<Array<{id:string;name:string}>>([]);
-  const [expenseSummary, setExpenseSummary] = useState<{ month?: { total?: number }; year?: { total?: number } }>({});
+  const [expenseSummary, setExpenseSummary] = useState<ExpenseSummary>({});
   const [profitLoss, setProfitLoss] = useState<{ month?: any; year?: any }>({});
   const loadedRef = useRef(false);
   const [recurring] = useState(() => expenseService.recurring());

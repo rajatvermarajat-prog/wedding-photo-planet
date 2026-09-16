@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { OfficeExpense } from '@/types';
 import { MemberSalaryRecord, OwnerDashboardProps, SalaryInstallment } from './dashboardTypes';
-import { DEFAULT_OFFICE_EXPENSES } from './dashboardDefaults';
 import { DashboardHeader } from './DashboardHeader';
 import { DashboardKpiGrid } from './DashboardKpiGrid';
 import { DashboardSecurityAlerts } from './DashboardSecurityAlerts';
@@ -22,6 +21,8 @@ import { QuickActionsPanel } from './QuickActionsPanel';
 import { useToast } from '@/components/common';
 import { usePermission } from '@/features/access';
 import { settingsApi } from '@/lib/api/settings';
+import { Expense, ExpenseCategory, ExpensePaymentMethod } from '@/features/expenses/types';
+import { expenseService } from '@/features/expenses/services/expenseService';
 
 
 export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
@@ -50,6 +51,38 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
   const { showToast } = useToast();
   const { can } = usePermission();
   const isAddExpensePage = pathname === '/expenses/new';
+
+  const expenseToOfficeExpense = (expense: Expense): OfficeExpense => ({
+    id: expense.id,
+    title: expense.description || expense.subcategory || expense.category,
+    amount: expense.amount,
+    category: expense.subcategory || expense.category,
+    expenseDate: expense.date,
+    spentBy: expense.addedBy || expense.vendor || expense.payee || 'Owner',
+    paidVia: expense.paymentMethod === 'UPI' ? 'UPI / GPay' : expense.paymentMethod === 'Credit Card' ? 'Credit Card' : expense.paymentMethod === 'Bank Transfer' ? 'Bank Transfer' : 'Cash',
+    notes: expense.notes,
+    monthYear: expense.date.slice(0, 7),
+  });
+
+  const officeExpenseToExpense = (officeExpense: OfficeExpense): Expense => ({
+    id: officeExpense.id,
+    date: officeExpense.expenseDate,
+    category: (officeExpense.category === 'Other' ? 'Other' : 'Office') as ExpenseCategory,
+    subcategory: officeExpense.category,
+    description: officeExpense.title,
+    amount: officeExpense.amount,
+    paidAmount: 0,
+    payee: officeExpense.spentBy,
+    vendor: officeExpense.spentBy,
+    paymentMethod: (officeExpense.paidVia === 'UPI / GPay' ? 'UPI' : officeExpense.paidVia) as ExpensePaymentMethod,
+    paymentStatus: 'Unpaid',
+    approvalStatus: 'Submitted',
+    addedBy: officeExpense.spentBy,
+    createdAt: officeExpense.expenseDate,
+    updatedAt: officeExpense.expenseDate,
+    notes: officeExpense.notes,
+    payments: [],
+  });
 
   useEffect(() => {
     ['/projects/new', '/shoots', '/payments/new', '/expenses'].forEach((route) => router.prefetch(route));
@@ -234,22 +267,21 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
   const totalPaidPayroll = salaryRecords.reduce((acc, r) => acc + (r.paidAmount || 0), 0);
   const totalPendingPayroll = Math.max(0, totalMonthlyPayroll - totalPaidPayroll);
 
-  // Office Expenses State & Persistence
-  const [officeExpenses, setOfficeExpenses] = useState<OfficeExpense[]>(() => {
-    const saved = localStorage.getItem('wpp_studio_office_expenses');
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (e) {
-        console.error(e);
-      }
-    }
-    return DEFAULT_OFFICE_EXPENSES;
-  });
+  // Office Expenses State: backend-owned via /expenses.
+  const [officeExpenses, setOfficeExpenses] = useState<OfficeExpense[]>([]);
+  const [expenseCategories, setExpenseCategories] = useState<Array<{ id: string; name: string }>>([]);
+
+  const refreshOfficeExpenses = React.useCallback(async () => {
+    const [items, categories] = await Promise.all([expenseService.list(), expenseService.categories()]);
+    setOfficeExpenses(items.map(expenseToOfficeExpense));
+    setExpenseCategories(categories);
+  }, []);
 
   useEffect(() => {
-    localStorage.setItem('wpp_studio_office_expenses', JSON.stringify(officeExpenses));
-  }, [officeExpenses]);
+    void refreshOfficeExpenses().catch(() => {
+      showToast('Unable to load office expenses from the server.', { variant: 'error' });
+    });
+  }, [refreshOfficeExpenses, showToast]);
 
   // Modal State for Log New Office Expense
   const [showAddExpenseModal, setShowAddExpenseModal] = useState<boolean>(false);
@@ -286,72 +318,56 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
     }
     const finalCategory = newExpCategory || 'Miscellaneous';
     const finalSpentBy = newExpSpentBy.trim() || 'Owner';
-
-    if (editingExpense) {
-      setOfficeExpenses((prev) =>
-        prev.map((item) =>
-          item.id === editingExpense.id
-            ? {
-                ...item,
-                title: newExpTitle.trim(),
-                amount: Number(newExpAmount),
-                category: finalCategory,
-                expenseDate: newExpDate || new Date().toISOString().split('T')[0],
-                spentBy: finalSpentBy,
-                paidVia: newExpPaidVia,
-                notes: newExpNotes.trim() || undefined,
-                monthYear: newExpDate ? newExpDate.substring(0, 7) : '2026-08',
-              }
-            : item
-        )
-      );
-    } else {
-      const newExp: OfficeExpense = {
-        id: `exp_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
-        title: newExpTitle.trim(),
-        amount: Number(newExpAmount),
-        category: finalCategory,
-        expenseDate: newExpDate || new Date().toISOString().split('T')[0],
-        spentBy: finalSpentBy,
-        paidVia: newExpPaidVia,
-        notes: newExpNotes.trim() || undefined,
-        monthYear: newExpDate ? newExpDate.substring(0, 7) : '2026-08',
-      };
-
-      setOfficeExpenses((prev) => [newExp, ...prev]);
+    const categoryId = expenseCategories.find((item) => item.name.toLowerCase() === finalCategory.toLowerCase())?.id
+      || expenseCategories.find((item) => item.name.toLowerCase() === 'office')?.id
+      || expenseCategories.find((item) => item.name.toLowerCase() === 'miscellaneous')?.id
+      || expenseCategories[0]?.id;
+    if (!categoryId) {
+      showToast('No backend expense category is available. Create an expense category first.', { variant: 'error' });
+      return;
     }
+    const nextExpense: OfficeExpense = {
+      id: editingExpense?.id || '',
+      title: newExpTitle.trim(),
+      amount: Number(newExpAmount),
+      category: finalCategory,
+      expenseDate: newExpDate || new Date().toISOString().split('T')[0],
+      spentBy: finalSpentBy,
+      paidVia: newExpPaidVia,
+      notes: newExpNotes.trim() || undefined,
+      monthYear: newExpDate ? newExpDate.substring(0, 7) : new Date().toISOString().slice(0, 7),
+    };
 
-    showToast(editingExpense ? 'Expense updated successfully.' : 'Expense added successfully.');
-    setShowAddExpenseModal(false);
-    setEditingExpense(null);
-    setNewExpTitle('');
-    setNewExpAmount('');
-    setNewExpNotes('');
-    setCustomExpCategory('');
-    setCustomExpSpentBy('');
-    if (isAddExpensePage) router.push('/dashboard');
+    const request = editingExpense
+      ? expenseService.update(editingExpense.id, officeExpenseToExpense(nextExpense), categoryId)
+      : expenseService.create(officeExpenseToExpense(nextExpense), categoryId);
+
+    void request
+      .then(async () => {
+        await refreshOfficeExpenses();
+        showToast(editingExpense ? 'Expense updated successfully.' : 'Expense added successfully.');
+        setShowAddExpenseModal(false);
+        setEditingExpense(null);
+        setNewExpTitle('');
+        setNewExpAmount('');
+        setNewExpNotes('');
+        setCustomExpCategory('');
+        setCustomExpSpentBy('');
+        if (isAddExpensePage) router.push('/dashboard');
+      })
+      .catch(() => showToast('Expense could not be saved to the server.', { variant: 'error' }));
   };
 
   // State for Confirm Delete Modal
   const [expenseToDelete, setExpenseToDelete] = useState<OfficeExpense | null>(null);
 
   const confirmDeleteExpense = (deletedItem: OfficeExpense) => {
-    const idx = officeExpenses.findIndex((e) => e.id === deletedItem.id);
-    if (idx === -1) return;
-
-    setOfficeExpenses((prev) => prev.filter((e) => e.id !== deletedItem.id));
-    showToast(`Expense "${deletedItem.title}" (₹${deletedItem.amount.toLocaleString('en-IN')}) deleted.`, {
-      action: {
-        label: 'Undo',
-        onClick: () => {
-          setOfficeExpenses((prev) => {
-            const copy = [...prev];
-            copy.splice(idx >= 0 && idx <= copy.length ? idx : 0, 0, deletedItem);
-            return copy;
-          });
-        },
-      },
-    });
+    void expenseService.remove(deletedItem.id)
+      .then(async () => {
+        await refreshOfficeExpenses();
+        showToast(`Expense "${deletedItem.title}" (₹${deletedItem.amount.toLocaleString('en-IN')}) deleted.`);
+      })
+      .catch(() => showToast('Expense could not be deleted from the server.', { variant: 'error' }));
   };
 
   // Date Range Filter State for Financial Ledger (Defaulting to All Time)

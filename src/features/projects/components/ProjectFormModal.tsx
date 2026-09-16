@@ -10,6 +10,7 @@ import { CLIENT_ASSET_ACCEPT, CLIENT_ASSET_MAX_BYTES, clientAssetsApi, type Proj
 import { paymentsApi, toPaymentMethod, type PaymentMethod } from '@/lib/api/payments';
 import { ApiError } from '@/lib/api/client';
 import { indianMobileError, nextIndianMobileValue } from '@/lib/validation/indianMobile';
+import { getTodayDateString } from '@/utils/shootTracking';
 
 const SCHEDULE_DATE_MIN = `${new Date().getFullYear() - 1}-01-01`;
 const SCHEDULE_DATE_MAX = `${new Date().getFullYear() + 10}-12-31`;
@@ -141,6 +142,7 @@ export const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
   const [finalDeliveryDeadline, setFinalDeliveryDeadline] = useState(existingProject?.finalDeliveryDeadline || '');
   const [totalBudget, setTotalBudget] = useState<number | ''>(existingProject?.totalBudget ? existingProject.totalBudget : '');
   const [advanceReceived, setAdvanceReceived] = useState<number | ''>(existingProject?.advanceReceived ? existingProject.advanceReceived : '');
+  const [advancePaymentDate, setAdvancePaymentDate] = useState<string>(() => getTodayDateString());
   // How the advance actually arrived — it is recorded as a real payment, so
   // defaulting every booking to UPI would write the wrong method to the ledger.
   const [advanceMode, setAdvanceMode] = useState<string>('UPI / GPay');
@@ -535,6 +537,15 @@ export const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
       return;
     }
 
+    const advanceAmount = Number(advanceReceived) || 0;
+    const parsedAdvancePaymentDate = new Date(`${advancePaymentDate}T00:00:00`);
+    const normalizedAdvancePaymentDate = `${parsedAdvancePaymentDate.getFullYear()}-${String(parsedAdvancePaymentDate.getMonth() + 1).padStart(2, '0')}-${String(parsedAdvancePaymentDate.getDate()).padStart(2, '0')}`;
+    if (advanceAmount > 0 && (!/^\d{4}-\d{2}-\d{2}$/.test(advancePaymentDate) || Number.isNaN(parsedAdvancePaymentDate.getTime()) || normalizedAdvancePaymentDate !== advancePaymentDate)) {
+      showToast('Please select a valid payment date.', { variant: 'error' });
+      setActiveStep(2);
+      return;
+    }
+
     const resolvedServiceType = selectedService === 'Other' ? 'Other' : selectedService;
 
     const computedWeddingDates = shoots.map(s => s.date).filter(Boolean).join(', ') || weddingFunctionDates || '';
@@ -579,7 +590,7 @@ export const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
           ? [
               {
                 id: `pay-${Date.now()}`,
-                date: new Date().toISOString().split('T')[0],
+                date: advancePaymentDate,
                 amount: Number(advanceReceived),
                 type: 'advance',
                 paymentMode: advanceMode as Project['payments'][number]['paymentMode'],
@@ -613,7 +624,6 @@ export const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
       // from the project's COMPLETED payments (see `normalizeProject` and the
       // dashboard's `received` aggregate). Recording it as a real payment is
       // what makes the number, and the computed Balance Due, survive a refresh.
-      const advanceAmount = Number(advanceReceived) || 0;
       if (!existingProject && !createdProjectId && advanceAmount > 0) {
         if (!projectId) {
           throw new Error('The project was saved but returned no database id, so the advance could not be recorded.');
@@ -631,7 +641,7 @@ export const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
             clientId: advanceClientId,
             projectId,
             amount: advanceAmount,
-            paymentDate: new Date().toISOString().split('T')[0],
+            paymentDate: advancePaymentDate,
             paymentMethod: toPaymentMethod(advanceMode) as PaymentMethod,
             notes: 'Advance booking amount',
           },
@@ -942,7 +952,7 @@ export const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
               03 · Budget & Payments
             </h4>
 
-            <div className={`${activeStep === 2 ? 'grid' : 'hidden'} grid-cols-1 sm:grid-cols-3 gap-4`}>
+            <div className={`${activeStep === 2 ? 'grid' : 'hidden'} grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4`}>
               
               {/* Total Budget */}
               <div>
@@ -986,6 +996,22 @@ export const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
                     ))}
                   </select>
                 )}
+              </div>
+
+              {/* Payment Date */}
+              <div>
+                <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">
+                  PAYMENT DATE
+                </label>
+                <input
+                  type="date"
+                  min={SCHEDULE_DATE_MIN}
+                  max={SCHEDULE_DATE_MAX}
+                  value={advancePaymentDate}
+                  onChange={(e) => setAdvancePaymentDate(e.target.value)}
+                  className="w-full bg-white border border-slate-200 rounded px-3 py-1.5 text-slate-800 focus:outline-none focus:ring-1 focus:ring-indigo-500 transition"
+                  required={Number(advanceReceived) > 0}
+                />
               </div>
 
               {/* Balance Due (auto) */}

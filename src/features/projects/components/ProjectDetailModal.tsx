@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { Project, VideoPipeline, PhotoPipeline, ShootEvent, PaymentRecord, EditingStatus, ProjectTask, TeamMember, ClientVaultDocument, CrewMemberAssignment, DataBackup, ProjectStatus, ScheduledPayment } from '@/types';
-import { getShootDateInfo, getShootTrackingStats, formatDateDDMMYYYY } from '@/utils/shootTracking';
+import { getShootDateInfo, getShootTrackingStats, formatDateDDMMYYYY, getTodayDateString } from '@/utils/shootTracking';
 import { computeAutoProjectStatus } from '@/utils/projectStatusCalculator';
 import { ConfirmDeleteModal } from '@/components/common/ConfirmDeleteModal';
 import { useToast } from '@/components/common';
@@ -79,7 +79,7 @@ interface ProjectDetailModalProps {
 
 const toPaymentRecord = (payment: ApiProjectPayment): PaymentRecord => ({
   id: payment.id,
-  date: payment.paymentDate.slice(0, 10),
+  date: (payment.paymentDate || payment.createdAt).slice(0, 10),
   amount: Number(payment.amount),
   type: 'installment',
   paymentMode: paymentMethodLabel(payment.paymentMethod) as PaymentRecord['paymentMode'],
@@ -901,6 +901,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
 
   // New Payment Form
   const [newPayAmount, setNewPayAmount] = useState<number>(0);
+  const [newPayDate, setNewPayDate] = useState<string>(() => getTodayDateString());
   const [newPayMode, setNewPayMode] = useState<PaymentRecord['paymentMode']>('UPI / GPay');
   const [newPayNotes, setNewPayNotes] = useState<string>('');
   const [newPayScreenshot, setNewPayScreenshot] = useState<string>('');
@@ -1270,6 +1271,12 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
       showToast('Enter a payment amount greater than ₹0.', { variant: 'error' });
       return;
     }
+    const parsedPayDate = new Date(`${newPayDate}T00:00:00`);
+    const normalizedPayDate = `${parsedPayDate.getFullYear()}-${String(parsedPayDate.getMonth() + 1).padStart(2, '0')}-${String(parsedPayDate.getDate()).padStart(2, '0')}`;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(newPayDate) || Number.isNaN(parsedPayDate.getTime()) || normalizedPayDate !== newPayDate) {
+      showToast('Select a valid payment date.', { variant: 'error' });
+      return;
+    }
     if (paymentSubmitting) return;
 
     setPaymentSubmitting(true);
@@ -1278,7 +1285,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
         clientId: project.clientId,
         projectId: project.id,
         amount: Number(newPayAmount),
-        paymentDate: new Date().toISOString().slice(0, 10),
+        paymentDate: newPayDate,
         paymentMethod: toPaymentMethod(newPayMode),
         notes: newPayNotes.trim() || undefined,
       }, idempotencyKey());
@@ -1286,6 +1293,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
       const nextPayments = await refreshProjectPayments();
       syncPaymentSummary(nextPayments);
       setNewPayAmount(0);
+      setNewPayDate(getTodayDateString());
       setNewPayNotes('');
       setNewPayScreenshot('');
       setNewPayReceiptFile(null);
@@ -3767,7 +3775,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
 
               {/* Add Payment Form */}
               {canRecordPayment && (
-              <form onSubmit={handleAddPayment} className="order-1 p-3.5 rounded-xl bg-slate-50 border border-slate-200 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3 text-xs items-end">
+              <form onSubmit={handleAddPayment} className="order-1 p-3.5 rounded-xl bg-slate-50 border border-slate-200 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-6 gap-3 text-xs items-end">
                 <div>
                   <label className="block text-slate-600 mb-1 font-extrabold text-[10px] uppercase tracking-wider">Amount (₹)</label>
                   <input
@@ -3775,6 +3783,17 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
                     placeholder="e.g. 50000"
                     value={newPayAmount || ''}
                     onChange={(e) => setNewPayAmount(Number(e.target.value))}
+                    className="w-full bg-white border border-slate-200 rounded-lg p-2 text-slate-800 font-bold focus:ring-1 focus:ring-indigo-500"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-slate-600 mb-1 font-extrabold text-[10px] uppercase tracking-wider">PAYMENT DATE</label>
+                  <input
+                    type="date"
+                    value={newPayDate}
+                    onChange={(e) => setNewPayDate(e.target.value)}
                     className="w-full bg-white border border-slate-200 rounded-lg p-2 text-slate-800 font-bold focus:ring-1 focus:ring-indigo-500"
                     required
                   />

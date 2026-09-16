@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { OwnerLead, LeadStatus, TeamMember, LeadQuotationFile, LeadActivityLog } from '@/types';
+import { OwnerLead, LeadStatus, TeamMember, LeadQuotationFile } from '@/types';
 import { usePermission } from '@/features/access';
 import { indianMobileError } from '@/lib/validation/indianMobile';
-import { crmApi } from '@/lib/api/resources';
+import { leadsApi, BackendLead, BackendLeadStatus, BackendProjectType } from '@/lib/api/leads';
+import { useLeads } from '@/hooks/useLeads';
 import { LeadFormModal } from './LeadFormModal';
 import { LeadsFilterBar } from './LeadsFilterBar';
 import { LeadsHeader } from './LeadsHeader';
@@ -51,15 +52,15 @@ const API_STATUS_TO_UI: Record<string, LeadStatus> = {
   PROPOSAL_SENT: 'quotation_sent', NEGOTIATION: 'quotation_sent', WON: 'booked', LOST: 'lost',
 };
 
-const UI_STATUS_TO_API: Record<LeadStatus, string> = {
+const UI_STATUS_TO_API: Record<LeadStatus, BackendLeadStatus> = {
   new: 'NEW', contacted: 'CONTACTED', meeting_fixed: 'QUALIFIED',
   quotation_sent: 'PROPOSAL_SENT', booked: 'WON', lost: 'LOST',
 };
 
-function eventTypeForApi(eventType: string) {
+function eventTypeForApi(eventType: string): BackendProjectType {
   const key = eventType.trim().toUpperCase().replace(/[^A-Z0-9]+/g, '_').replace(/^_|_$/g, '');
-  const supported = new Set(['ROKA', 'ENGAGEMENT', 'PRE_WEDDING', 'WEDDING', 'COMPLETE_WEDDING_SERVICES', 'HALDI_MEHENDI', 'SANGEET', 'RECEPTION', 'ANNIVERSARY', 'CORPORATE', 'OTHER']);
-  if (supported.has(key)) return key;
+  const supported = new Set<BackendProjectType>(['ROKA', 'ENGAGEMENT', 'PRE_WEDDING', 'WEDDING', 'COMPLETE_WEDDING_SERVICES', 'HALDI_MEHENDI', 'SANGEET', 'RECEPTION', 'ANNIVERSARY', 'CORPORATE', 'OTHER']);
+  if (supported.has(key as BackendProjectType)) return key as BackendProjectType;
   if (key.includes('COMPLETE') && key.includes('WEDDING')) return 'COMPLETE_WEDDING_SERVICES';
   if (key.includes('PRE') && key.includes('WEDDING')) return 'PRE_WEDDING';
   if (key.includes('HALDI') || key.includes('MEHENDI')) return 'HALDI_MEHENDI';
@@ -67,25 +68,24 @@ function eventTypeForApi(eventType: string) {
   return 'OTHER';
 }
 
-function leadFromApi(value: unknown): OwnerLead {
-  const lead = value as Record<string, unknown>;
-  const owner = lead.owner as { fullName?: string } | null | undefined;
-  const source = lead.source as { name?: string } | null | undefined;
-  const createdBy = lead.createdBy as { fullName?: string } | null | undefined;
+function leadFromApi(lead: BackendLead): OwnerLead {
+  const owner = lead.owner;
+  const source = lead.source;
+  const createdBy = lead.createdBy;
   return {
-    id: String(lead.id),
-    clientName: String(lead.name || 'Inquiry Client'),
-    mobile: String(lead.phone || ''),
-    email: typeof lead.email === 'string' ? lead.email : undefined,
-    eventType: String(lead.eventType || 'General Photography Inquiry'),
-    eventDate: typeof lead.eventDate === 'string' ? lead.eventDate.slice(0, 10) : undefined,
+    id: lead.id,
+    clientName: lead.name || 'Inquiry Client',
+    mobile: lead.phone || '',
+    email: lead.email || undefined,
+    eventType: lead.eventType || 'General Photography Inquiry',
+    eventDate: lead.eventDate?.slice(0, 10),
     budgetEstimate: Number(lead.estimatedValue || 0),
-    status: API_STATUS_TO_UI[String(lead.status)] || 'new',
+    status: API_STATUS_TO_UI[lead.status] || 'new',
     source: source?.name || 'Direct / Call',
     assignedTo: owner?.fullName,
     createdBy: createdBy?.fullName,
-    notes: typeof lead.notes === 'string' ? lead.notes : undefined,
-    createdDate: typeof lead.createdAt === 'string' ? lead.createdAt.slice(0, 10) : new Date().toISOString().slice(0, 10),
+    notes: lead.notes || undefined,
+    createdDate: lead.createdAt?.slice(0, 10) || new Date().toISOString().slice(0, 10),
     quotations: [],
     activityLogs: [],
   };
@@ -102,151 +102,6 @@ const DEFAULT_LEAD_TARGETS: LeadTargets = {
   targetYear: '2026-2027',
 };
 
-const INITIAL_LEADS: OwnerLead[] = [
-  {
-    id: 'lead-1',
-    clientName: 'Aarav & Ishita Sharma',
-    mobile: '9876543210',
-    email: 'aarav.sharma@gmail.com',
-    eventType: 'Complete Wedding Package',
-    eventDate: '2026-11-18',
-    budgetEstimate: 250000,
-    status: 'quotation_sent',
-    source: 'Instagram',
-    assignedTo: 'Ishita (Studio Manager)',
-    assignedDate: '2026-08-01',
-    createdBy: 'Ishita (Studio Manager)',
-    notes: 'Requested drone shoot and 35-page luxury album in Udaipur.',
-    createdDate: '2026-08-01',
-    quotations: [
-      {
-        id: 'q-1',
-        fileName: 'Aarav_Ishita_Wedding_Quotation_v2.pdf',
-        fileSize: '2.4 MB',
-        fileType: 'pdf',
-        uploadedBy: 'Ishita (Studio Manager)',
-        uploadedDate: '2026-08-02',
-        notes: 'Includes 20% discount on drone & LED wall package.'
-      }
-    ],
-    activityLogs: [
-      {
-        id: 'log-1',
-        type: 'created',
-        description: 'Lead created by Ishita (Studio Manager)',
-        performedBy: 'Ishita (Studio Manager)',
-        timestamp: '2026-08-01 10:30 AM'
-      },
-      {
-        id: 'log-2',
-        type: 'quotation_uploaded',
-        description: 'Uploaded quotation: Aarav_Ishita_Wedding_Quotation_v2.pdf',
-        performedBy: 'Ishita (Studio Manager)',
-        timestamp: '2026-08-02 02:15 PM'
-      }
-    ]
-  },
-  {
-    id: 'lead-2',
-    clientName: 'Vikram & Priya Rathore',
-    mobile: '9123456789',
-    eventType: 'Pre-Wedding Shoot',
-    eventDate: '2026-10-05',
-    budgetEstimate: 85000,
-    status: 'meeting_fixed',
-    source: 'Reference / Word of Mouth',
-    assignedTo: 'Manisha Sharma (Studio Manager)',
-    assignedDate: '2026-08-04',
-    createdBy: 'Studio Owner',
-    notes: 'Meeting scheduled at Studio office on Friday 4 PM.',
-    createdDate: '2026-08-04',
-    quotations: [],
-    activityLogs: [
-      {
-        id: 'log-3',
-        type: 'created',
-        description: 'Lead created by Studio Owner',
-        performedBy: 'Studio Owner',
-        timestamp: '2026-08-04 11:00 AM'
-      },
-      {
-        id: 'log-4',
-        type: 'assigned',
-        description: 'Lead assigned to Manisha Sharma (Studio Manager)',
-        performedBy: 'Studio Owner',
-        timestamp: '2026-08-04 11:05 AM'
-      }
-    ]
-  },
-  {
-    id: 'lead-3',
-    clientName: 'Mehta Family (Rohan Weds Ananya)',
-    mobile: '9988776655',
-    eventType: 'Engagement & Sangeet',
-    eventDate: '2026-12-02',
-    budgetEstimate: 180000,
-    status: 'booked',
-    source: 'Website',
-    assignedTo: 'Studio Owner',
-    assignedDate: '2026-07-28',
-    createdBy: 'Studio Owner',
-    notes: 'Booked deal! Token advance ₹25,000 received.',
-    createdDate: '2026-07-28',
-    quotations: [
-      {
-        id: 'q-2',
-        fileName: 'Mehta_Family_Final_Agreement.pdf',
-        fileSize: '1.8 MB',
-        fileType: 'pdf',
-        uploadedBy: 'Studio Owner',
-        uploadedDate: '2026-07-29',
-        notes: 'Signed deal agreement with advance payment receipt.'
-      }
-    ],
-    activityLogs: [
-      {
-        id: 'log-5',
-        type: 'created',
-        description: 'Lead created by Studio Owner',
-        performedBy: 'Studio Owner',
-        timestamp: '2026-07-28 04:00 PM'
-      },
-      {
-        id: 'log-6',
-        type: 'status_changed',
-        description: 'Status updated to Booked Deal (Token Received)',
-        performedBy: 'Studio Owner',
-        timestamp: '2026-07-29 05:30 PM'
-      }
-    ]
-  },
-  {
-    id: 'lead-4',
-    clientName: 'Siddharth & Meera',
-    mobile: '9811223344',
-    eventType: 'Destination Wedding',
-    eventDate: '2027-01-15',
-    budgetEstimate: 400000,
-    status: 'new',
-    source: 'Google Search',
-    assignedTo: 'Vikram Aditya (Sales Manager)',
-    assignedDate: '2026-08-08',
-    createdBy: 'Vikram Aditya (Sales Manager)',
-    notes: 'Inquired via website form for Goa destination wedding.',
-    createdDate: '2026-08-08',
-    quotations: [],
-    activityLogs: [
-      {
-        id: 'log-7',
-        type: 'created',
-        description: 'Lead created by Vikram Aditya (Sales Manager)',
-        performedBy: 'Vikram Aditya (Sales Manager)',
-        timestamp: '2026-08-08 09:15 AM'
-      }
-    ]
-  },
-];
-
 interface LeadsManagementProps {
   currentUser?: TeamMember | { id?: string; name?: string; role?: string; email?: string } | null;
   team?: TeamMember[];
@@ -254,9 +109,6 @@ interface LeadsManagementProps {
 
 export const LeadsManagement: React.FC<LeadsManagementProps> = ({ currentUser, team = [] }) => {
   const { can, role } = usePermission();
-  // Leads are a server-owned resource. Starting with an empty list prevents
-  // sample/cached records from appearing in a new studio account.
-  const [leads, setLeads] = useState<OwnerLead[]>([]);
 
   const [activeSubTab, setActiveSubTab] = useState<'list' | 'analytics'>('list');
   const [searchQuery, setSearchQuery] = useState('');
@@ -364,44 +216,16 @@ export const LeadsManagement: React.FC<LeadsManagementProps> = ({ currentUser, t
     ? can('leads.view')
     : can('leads.view') && role?.grants['leads.view']?.scope === 'all';
   const isOwner = seeAllLeads || can('reports.view_sales');
+  const leadQuery = useLeads(
+    { limit: 100, search: searchQuery || undefined, status: statusFilter === 'all' ? undefined : UI_STATUS_TO_API[statusFilter as LeadStatus] },
+    usingBackend && can('leads.view'),
+  );
+  const leads = useMemo(() => leadQuery.data.map(leadFromApi), [leadQuery.data]);
 
   const refreshLeads = async () => {
     if (!usingBackend) return;
-    try {
-      const { items } = await crmApi.leads.list({ limit: 100 });
-      setLeads(items.map(leadFromApi));
-    } catch {
-      setLeads([]);
-    }
+    await leadQuery.retry();
   };
-
-  useEffect(() => {
-    if (!usingBackend) return;
-    let active = true;
-    void crmApi.leads.list({ limit: 100 }).then(({ items }) => {
-      const scopedLeads = items.map(leadFromApi);
-      if (active) setLeads(scopedLeads);
-    }).catch(() => {
-      if (active) setLeads([]);
-    });
-    return () => { active = false; };
-  }, [usingBackend]);
-
-  // Helper to add log
-  const createLog = (type: LeadActivityLog['type'], description: string): LeadActivityLog => ({
-    id: `log-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
-    type,
-    description,
-    performedBy: userName,
-    timestamp: new Date().toLocaleString('en-IN', {
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: true
-    })
-  });
 
   const handleOpenAddModal = () => {
     if (!canCreateLead) return;
@@ -457,9 +281,9 @@ export const LeadsManagement: React.FC<LeadsManagementProps> = ({ currentUser, t
         // Source setup is administered separately by the backend. A free-text
         // source must never prevent a lead itself from being saved.
         try {
-          const { items: sources } = await crmApi.leadSources.list({ limit: 100 });
-          const existing = sources.find((item) => String((item as { name?: string }).name || '').toLowerCase() === finalSource.toLowerCase());
-          sourceId = existing ? String((existing as { id: string }).id) : undefined;
+          const { data: sources } = await leadsApi.sources();
+          const existing = sources.find((item) => item.name.toLowerCase() === finalSource.toLowerCase());
+          sourceId = existing?.id;
         } catch {
           sourceId = undefined;
         }
@@ -477,11 +301,11 @@ export const LeadsManagement: React.FC<LeadsManagementProps> = ({ currentUser, t
         ...(editingLead ? { status: UI_STATUS_TO_API[status], ...(status === 'lost' ? { lostReason: 'Marked as lost' } : {}) } : {}),
       };
       if (editingLead) {
-        await crmApi.leads.update(editingLead.id, payload);
+        await leadsApi.update(editingLead.id, payload);
       } else {
-        const created = await crmApi.leads.create(payload) as { id: string };
+        const created = await leadsApi.create(payload);
         if (status !== 'new') {
-          await crmApi.leads.update(created.id, {
+          await leadsApi.update(created.id, {
             status: UI_STATUS_TO_API[status],
             ...(status === 'lost' ? { lostReason: 'Marked as lost' } : {}),
           });
@@ -497,38 +321,14 @@ export const LeadsManagement: React.FC<LeadsManagementProps> = ({ currentUser, t
 
   const handleUpdateStatus = (id: string, newStatus: LeadStatus, finalAmt?: number, advAmt?: number) => {
     if (!canChangeLeadStatus) return;
-    void crmApi.leads.update(id, {
+    void leadsApi.update(id, {
       status: UI_STATUS_TO_API[newStatus],
       ...(newStatus === 'lost' ? { lostReason: 'Marked as lost' } : {}),
       ...(finalAmt !== undefined ? { estimatedValue: finalAmt } : {}),
     }).then(refreshLeads).catch((error) => {
       window.alert(error instanceof Error ? error.message : 'Unable to update lead status.');
     });
-    setLeads((prev) =>
-      prev.map((l) => {
-        if (l.id === id) {
-          const updatedLogs = [...(l.activityLogs || [])];
-          const calculatedFinalAmt = finalAmt !== undefined ? finalAmt : (newStatus === 'booked' ? l.finalAmount || l.budgetEstimate : undefined);
-          const calculatedAdvAmt = advAmt !== undefined ? advAmt : (newStatus === 'booked' ? l.advanceReceived : undefined);
-
-          const logMsg = newStatus === 'booked' && calculatedFinalAmt !== undefined
-            ? `Status updated to "Booked Deal" (Final: ₹${calculatedFinalAmt.toLocaleString('en-IN')}${calculatedAdvAmt ? `, Advance: ₹${calculatedAdvAmt.toLocaleString('en-IN')}` : ''})`
-            : `Status updated from "${l.status}" to "${newStatus}"`;
-
-          updatedLogs.push(createLog('status_changed', logMsg));
-
-          return {
-            ...l,
-            status: newStatus,
-            finalAmount: calculatedFinalAmt,
-            advanceReceived: calculatedAdvAmt,
-            budgetEstimate: calculatedFinalAmt !== undefined ? calculatedFinalAmt : l.budgetEstimate,
-            activityLogs: updatedLogs
-          };
-        }
-        return l;
-      })
-    );
+    void advAmt;
   };
 
   const handleConfirmBookingAmount = (e: React.FormEvent) => {
@@ -546,28 +346,10 @@ export const LeadsManagement: React.FC<LeadsManagementProps> = ({ currentUser, t
     if (!canAssignLead) return;
     const ownerId = assigneeIdByLabel.get(newAssignedTo);
     if (!ownerId) return;
-    void crmApi.leads.update(id, { ownerId }).then(refreshLeads).catch((error) => {
+    void leadsApi.update(id, { ownerId }).then(refreshLeads).catch((error) => {
       window.alert(error instanceof Error ? error.message : 'Unable to reassign this lead.');
     });
-    const today = new Date().toISOString().split('T')[0];
-    setLeads((prev) =>
-      prev.map((l) => {
-        if (l.id === id) {
-          const oldAssignee = l.assignedTo || 'Unassigned';
-          const updatedLogs = [...(l.activityLogs || [])];
-          updatedLogs.push(
-            createLog('assigned', `Reassigned lead from "${oldAssignee}" to "${newAssignedTo}"`)
-          );
-          return {
-            ...l,
-            assignedTo: newAssignedTo,
-            assignedDate: today,
-            activityLogs: updatedLogs
-          };
-        }
-        return l;
-      })
-    );
+    void newAssignedTo;
   };
 
   const handleSaveQuickNote = (e: React.FormEvent) => {
@@ -575,25 +357,9 @@ export const LeadsManagement: React.FC<LeadsManagementProps> = ({ currentUser, t
     if (!canEditLead || !noteModalLead) return;
 
     const trimmed = quickNoteText.trim();
-    void crmApi.leads.update(noteModalLead.id, { notes: trimmed || undefined }).then(refreshLeads).catch((error) => {
+    void leadsApi.update(noteModalLead.id, { notes: trimmed || undefined }).then(refreshLeads).catch((error) => {
       window.alert(error instanceof Error ? error.message : 'Unable to save the note.');
     });
-    setLeads((prev) =>
-      prev.map((l) => {
-        if (l.id === noteModalLead.id) {
-          const updatedLogs = [...(l.activityLogs || [])];
-          updatedLogs.push(
-            createLog('note_added', trimmed ? `Note updated: "${trimmed}"` : 'Note cleared')
-          );
-          return {
-            ...l,
-            notes: trimmed || undefined,
-            activityLogs: updatedLogs
-          };
-        }
-        return l;
-      })
-    );
 
     setNoteModalLead(null);
     setQuickNoteText('');
@@ -608,7 +374,7 @@ export const LeadsManagement: React.FC<LeadsManagementProps> = ({ currentUser, t
       if (found) {
         setLeadToDelete(found);
       } else {
-        setLeads((prev) => prev.filter((l) => l.id !== leadOrId));
+        void leadOrId;
       }
     }
   };
@@ -619,8 +385,8 @@ export const LeadsManagement: React.FC<LeadsManagementProps> = ({ currentUser, t
     try {
       // Do not only hide the row locally: a successful API deletion is what
       // keeps it gone after refresh or the next visit to this page.
-      if (usingBackend) await crmApi.leads.remove(leadToDelete.id);
-      setLeads((prev) => prev.filter((lead) => lead.id !== leadToDelete.id));
+      if (usingBackend) await leadsApi.remove(leadToDelete.id);
+      await refreshLeads();
       setLeadToDelete(null);
     } catch {
       window.alert('Unable to delete this lead. Please try again.');
@@ -653,48 +419,7 @@ export const LeadsManagement: React.FC<LeadsManagementProps> = ({ currentUser, t
     e.preventDefault();
     if (!canEditLead || !quotationModalLead || !newQuoteFileName.trim()) return;
 
-    const today = new Date().toISOString().split('T')[0];
-    const newQuote: LeadQuotationFile = {
-      id: `q-${Date.now()}`,
-      fileName: newQuoteFileName.trim(),
-      fileSize: newQuoteFileSize.trim() || '1.2 MB',
-      fileType: newQuoteFileType,
-      fileUrl: newQuoteDataUrl,
-      uploadedBy: userName,
-      uploadedDate: today,
-      notes: newQuoteNotes.trim() || undefined,
-    };
-
-    setLeads((prev) =>
-      prev.map((l) => {
-        if (l.id === quotationModalLead.id) {
-          const currentQuotes = l.quotations || [];
-          const updatedLogs = [...(l.activityLogs || [])];
-          updatedLogs.push(
-            createLog('quotation_uploaded', `Uploaded quotation file: ${newQuote.fileName}`)
-          );
-          const newStatus = l.status === 'new' || l.status === 'contacted' ? 'quotation_sent' : l.status;
-          
-          return {
-            ...l,
-            status: newStatus,
-            quotations: [newQuote, ...currentQuotes],
-            activityLogs: updatedLogs
-          };
-        }
-        return l;
-      })
-    );
-
-    // Update state of open modal
-    setQuotationModalLead((prev) =>
-      prev
-        ? {
-            ...prev,
-            quotations: [newQuote, ...(prev.quotations || [])]
-          }
-        : null
-    );
+    window.alert('Quotation uploads are not connected because the backend does not expose a lead quotation/file API yet.');
 
     // Reset quote form
     setNewQuoteFileName('');
@@ -838,6 +563,19 @@ export const LeadsManagement: React.FC<LeadsManagementProps> = ({ currentUser, t
   return (
     <div className="h-fit space-y-6 animate-in fade-in duration-300">
       <LeadsHeader userName={userName} userRole={userRole} isOwner={isOwner} canAddLead={canCreateLead} activeView={activeSubTab} onViewChange={setActiveSubTab} onAddLead={handleOpenAddModal} />
+
+      {usingBackend && leadQuery.loading && (
+        <p className="px-1 text-xs font-semibold text-slate-500">Updating lead pipeline…</p>
+      )}
+
+      {usingBackend && leadQuery.error && (
+        <div className="flex flex-wrap items-center gap-3 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700">
+          <span>{leadQuery.error.message}</span>
+          <button type="button" onClick={() => void leadQuery.retry()} className="rounded-lg bg-white px-3 py-1.5 text-xs font-black text-rose-700 shadow-sm">
+            Retry
+          </button>
+        </div>
+      )}
 
       {/* YEARLY & MONTHLY TARGETING & GOALS WIDGET (Visible to Owner & Managers only) */}
       {isOwner && activeSubTab === 'list' && (
@@ -1685,23 +1423,7 @@ export const LeadsManagement: React.FC<LeadsManagementProps> = ({ currentUser, t
         message={`Are you sure you want to delete quotation document "${quoteToDelete?.fileName || ''}"?`}
         onConfirm={() => {
           if (quoteToDelete) {
-            const { leadId, quoteId } = quoteToDelete;
-            setLeads((prev) =>
-              prev.map((l) => {
-                if (l.id === leadId) {
-                  return {
-                    ...l,
-                    quotations: (l.quotations || []).filter((q) => q.id !== quoteId),
-                  };
-                }
-                return l;
-              })
-            );
-            setQuotationModalLead((prev) =>
-              prev && prev.id === leadId
-                ? { ...prev, quotations: (prev.quotations || []).filter((q) => q.id !== quoteId) }
-                : prev
-            );
+            window.alert('Quotation deletion is not connected because the backend does not expose a lead quotation/file API yet.');
             setQuoteToDelete(null);
           }
         }}

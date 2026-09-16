@@ -8,7 +8,7 @@ import {
   rolePermissionPreview,
   roleTemplates,
 } from './roleSelection';
-import { hasPermission } from './accessDomain';
+import { backendKeysFor, canonicalPermissionKey, hasPermission } from './accessDomain';
 
 const role = (over: Partial<AccessRole> & { id: string; name: string }): AccessRole => ({
   description: '',
@@ -23,11 +23,11 @@ const role = (over: Partial<AccessRole> & { id: string; name: string }): AccessR
 });
 
 const roles: AccessRole[] = [
-  role({ id: '1', name: 'ADMIN', type: 'system', assignable: false, userCount: 1 }),
-  role({ id: '2', name: 'MEMBER', type: 'system', userCount: 2 }),
+  role({ id: '1', name: 'Admin', type: 'system', assignable: false, userCount: 1 }),
+  role({ id: '2', name: 'Manager', type: 'system', userCount: 2 }),
   role({
     id: '3',
-    name: 'Sales Manager',
+    name: 'Account Manager',
     description: 'Leads, clients and sales operations',
     grants: { LEAD_VIEW: { enabled: true }, LEAD_CREATE: { enabled: true }, CLIENT_VIEW: { enabled: true } },
   }),
@@ -40,12 +40,12 @@ describe('filterRoles', () => {
   });
 
   it('searches name and description', () => {
-    expect(filterRoles(roles, { query: 'sales' }).map((r) => r.name)).toEqual(['Sales Manager']);
-    expect(filterRoles(roles, { query: 'leads' }).map((r) => r.name)).toEqual(['Sales Manager']);
+    expect(filterRoles(roles, { query: 'account' }).map((r) => r.name)).toEqual(['Account Manager']);
+    expect(filterRoles(roles, { query: 'leads' }).map((r) => r.name)).toEqual(['Account Manager']);
   });
 
   it('filters by system or custom', () => {
-    expect(filterRoles(roles, { type: 'system' }).map((r) => r.name)).toEqual(['ADMIN', 'MEMBER']);
+    expect(filterRoles(roles, { type: 'system' }).map((r) => r.name)).toEqual(['Admin', 'Manager']);
     expect(filterRoles(roles, { type: 'custom' })).toHaveLength(2);
   });
 
@@ -60,7 +60,7 @@ describe('filterRoles', () => {
 
 describe('assignableRoles', () => {
   it('drops roles the server flagged as unassignable and inactive ones', () => {
-    expect(assignableRoles(roles).map((r) => r.name)).toEqual(['MEMBER', 'Sales Manager']);
+    expect(assignableRoles(roles).map((r) => r.name)).toEqual(['Manager', 'Account Manager']);
   });
 
   it('hides another employee’s personal role', () => {
@@ -68,10 +68,10 @@ describe('assignableRoles', () => {
       ...roles,
       role({ id: '5', name: 'Kirti — MANAGER', personalForUserId: 'user-kirti' }),
     ];
-    expect(assignableRoles(withPersonal).map((r) => r.name)).toEqual(['MEMBER', 'Sales Manager']);
+    expect(assignableRoles(withPersonal).map((r) => r.name)).toEqual(['Manager', 'Account Manager']);
     expect(assignableRoles(withPersonal, 'user-swati').map((r) => r.name)).toEqual([
-      'MEMBER',
-      'Sales Manager',
+      'Manager',
+      'Account Manager',
     ]);
   });
 
@@ -81,8 +81,8 @@ describe('assignableRoles', () => {
       role({ id: '5', name: 'Kirti — MANAGER', personalForUserId: 'user-kirti' }),
     ];
     expect(assignableRoles(withPersonal, 'user-kirti').map((r) => r.name)).toEqual([
-      'MEMBER',
-      'Sales Manager',
+      'Manager',
+      'Account Manager',
     ]);
   });
 });
@@ -99,13 +99,13 @@ describe('role presentation', () => {
       role({ id: '7', name: 'Apple' }),
       role({ id: '8', name: 'Kirti — MANAGER', personalForUserId: 'user-kirti' }),
     ]);
-    expect(display.map((entry) => entry.name)).toEqual(['ADMIN', 'MANAGER', 'Apple', 'MEMBER', 'Zebra']);
+    expect(display.map((entry) => entry.name)).toEqual(['Admin', 'Manager']);
   });
 
   it('keeps personal roles out of templates and in their own display list', () => {
     const personal = role({ id: '5', name: 'Kirti — MANAGER', personalForUserId: 'user-kirti' });
     expect(roleTemplates([...roles, personal])).not.toContain(personal);
-    expect(individualAccessRoles([...roles, personal])).toEqual([personal]);
+    expect(individualAccessRoles([...roles, personal])).toEqual([]);
   });
 });
 
@@ -144,6 +144,12 @@ describe('rolePermissionPreview', () => {
 });
 
 describe('hasPermission', () => {
+  it('normalizes UI aliases to canonical backend keys', () => {
+    expect(canonicalPermissionKey('finance.view_payment_milestones')).toBe('PAYMENT_MILESTONE_VIEW');
+    expect(canonicalPermissionKey('weddings.view_financial')).toBe('PROJECT_FINANCIAL_VIEW');
+    expect(backendKeysFor('employees.view')).toEqual(['TEAM_VIEW', 'TEAM_VIEW_ALL']);
+  });
+
   it('resolves through the backend permission keys on the session user', () => {
     const user = { permissions: ['PROJECT_VIEW', 'ROLE_VIEW'] };
     expect(hasPermission(user, [], 'weddings.view')).toBe(true);
@@ -160,5 +166,16 @@ describe('hasPermission', () => {
     expect(hasPermission({ permissions: ['TEAM_MANAGE'] }, [], 'employees.edit')).toBe(true);
     expect(hasPermission({ permissions: ['USER_UPDATE'] }, [], 'employees.edit')).toBe(true);
     expect(hasPermission({ permissions: ['USER_VIEW'] }, [], 'employees.edit')).toBe(false);
+  });
+
+  it('applies canonicalization to legacy role grants and explicit denials', () => {
+    const legacyRole = role({
+      id: 'legacy',
+      name: 'Legacy UI role',
+      grants: { PROJECT_VIEW: { enabled: true }, PAYMENT_VIEW: { enabled: true } },
+    });
+    expect(hasPermission({ accessRoleId: 'legacy' }, [legacyRole], 'weddings.view')).toBe(true);
+    expect(hasPermission({ accessRoleId: 'legacy', deniedPermissions: ['PROJECT_VIEW'] }, [legacyRole], 'weddings.view')).toBe(false);
+    expect(hasPermission({ extraPermissions: ['PAYMENT_MILESTONE_VIEW'] }, [], 'finance.view_payment_milestones')).toBe(true);
   });
 });
