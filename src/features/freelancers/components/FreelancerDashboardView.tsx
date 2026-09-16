@@ -8,14 +8,10 @@ import {
   UserCheck,
   Layers,
   Film,
-  CalendarDays,
-  Clock,
   CreditCard,
-  IndianRupee,
-  Star,
   UserPlus,
 } from 'lucide-react';
-import { Badge, BTN_GHOST, BTN_PRIMARY, CARD, EmptyState, KpiCard } from '@/features/team/components/TeamUiKit';
+import { Badge, BTN_GHOST, BTN_PRIMARY, CARD, EmptyState } from '@/features/team/components/TeamUiKit';
 import { formatInr, freelancerLedger, freelancerPerformance, getFreelancerKpis, isPreferredFreelancer, todayKey } from '../freelancerDomain';
 
 interface FreelancerDashboardViewProps {
@@ -50,8 +46,6 @@ export const FreelancerDashboardView: React.FC<FreelancerDashboardViewProps> = (
   onFilterCategory,
 }) => {
   const kpis = getFreelancerKpis(freelancers, assignments, payments, todayKey());
-  const totalAgreedCost = (assignments || []).reduce((sum, a) => sum + (a?.totalAgreedAmount || 0), 0);
-  const totalPaidSum = (payments || []).reduce((sum, p) => sum + (p?.amountPaid || 0), 0);
 
   const photographersCount = freelancers.filter((f) => /photo/i.test(`${f.mainCategory} ${f.subCategory}`)).length;
   const videographersCount = freelancers.filter((f) => /cinema|video/i.test(`${f.mainCategory} ${f.subCategory}`)).length;
@@ -113,18 +107,6 @@ export const FreelancerDashboardView: React.FC<FreelancerDashboardViewProps> = (
           <CreditCard className="size-3.5" /> Record Payment
         </button>
         )}
-      </div>
-
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <KpiCard label="Total Freelancers" value={kpis.total} hint="Registered talent" icon={Users} tone="rose" onClick={() => onTabChange('all_freelancers')} />
-        <KpiCard label="Active Freelancers" value={kpis.active} hint="Approved and working" icon={UserCheck} tone="emerald" onClick={() => onTabChange('all_freelancers')} />
-        <KpiCard label="Available Today" value={kpis.availableToday} hint="Ready to assign" icon={Clock} tone="blue" onClick={() => onTabChange('all_freelancers')} />
-        <KpiCard label="On Shoot Today" value={kpis.onShootToday} hint="Assigned today" icon={Film} tone="amber" onClick={() => onTabChange('calendar')} />
-        <KpiCard label="Preferred" value={kpis.preferred} hint="Trusted regulars" icon={Star} tone="violet" onClick={() => onTabChange('all_freelancers')} />
-        <KpiCard label="Recently Added" value={kpis.recentlyAdded} hint="Joined in last 30 days" icon={Layers} tone="stone" onClick={() => onTabChange('all_freelancers')} />
-        <KpiCard label="Upcoming Assignments" value={kpis.upcomingShoots} hint="Confirmed assignments" icon={CalendarDays} tone="blue" onClick={() => onTabChange('calendar')} />
-        <KpiCard label="Pending Payments" value={formatInr(kpis.pendingPayments)} hint={`Paid ${formatInr(totalPaidSum)} of ${formatInr(totalAgreedCost)}`} icon={CreditCard} tone="red" onClick={() => onTabChange('payments')} />
-        <KpiCard label="This Month's Cost" value={formatInr(kpis.monthCost)} hint="Freelancer spend this month" icon={IndianRupee} tone="purple" onClick={() => onTabChange('reports')} />
       </div>
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
