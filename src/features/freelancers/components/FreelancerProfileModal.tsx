@@ -82,6 +82,8 @@ export const FreelancerProfileModal: React.FC<FreelancerProfileModalProps> = ({
   const totalShoots = myAssignments.length;
   const upcomingShoots = myAssignments.filter((a) => a.assignmentStatus === 'assigned' || a.assignmentStatus === 'confirmed').length;
   const completedShoots = myAssignments.filter((a) => a.assignmentStatus === 'completed').length;
+  const isInterested = freelancer.preferredTier === 'under_review';
+  const isApproved = freelancer.applicationStatus === 'approved' && freelancer.workingStatus === 'active' && freelancer.status === 'active';
 
   const totalEarnings = myAssignments.reduce((sum, a) => sum + (a.totalAgreedAmount || 0), 0);
   const paidAmount = myPayments.reduce((sum, p) => sum + (p.amountPaid || 0), 0);
@@ -199,13 +201,48 @@ export const FreelancerProfileModal: React.FC<FreelancerProfileModalProps> = ({
               </button>
               )}
 
-              {onAssignShootClick && (
+              {onSaveFreelancer && !isInterested && !isApproved && (
+                <button
+                  type="button"
+                  onClick={() =>
+                    onSaveFreelancer({
+                      ...freelancer,
+                      preferredTier: 'under_review',
+                      applicationStatus: freelancer.applicationStatus || 'under_review',
+                      workingStatus: freelancer.workingStatus || 'inactive',
+                    })
+                  }
+                  className="flex min-h-9 items-center justify-center gap-1.5 rounded-xl border border-white/20 bg-white/10 px-3 py-2 font-bold text-white transition hover:bg-white/20"
+                >
+                  <Award className="w-3.5 h-3.5 text-[#c48a9a]" />
+                  <span>Mark Interested</span>
+                </button>
+              )}
+              {onSaveFreelancer && isInterested && (
+                <button
+                  type="button"
+                  onClick={() =>
+                    onSaveFreelancer({
+                      ...freelancer,
+                      applicationStatus: 'approved',
+                      workingStatus: 'active',
+                      status: 'active',
+                      preferredTier: 'new',
+                    })
+                  }
+                  className="flex min-h-9 items-center justify-center gap-1.5 rounded-xl bg-[#8f3655] px-3 py-2 font-bold text-white shadow-xs transition hover:bg-[#6d2f45]"
+                >
+                  <ShieldCheck className="w-3.5 h-3.5" />
+                  <span>Approve</span>
+                </button>
+              )}
+              {onAssignShootClick && isApproved && (
                 <button
                   onClick={() => onAssignShootClick(freelancer.id)}
                   className="flex min-h-9 items-center justify-center gap-1.5 rounded-xl bg-[#8f3655] px-3 py-2 font-bold text-white shadow-xs transition hover:bg-[#6d2f45]"
                 >
                   <Plus className="w-3.5 h-3.5" />
-                  <span>Assign to Shoot</span>
+                  <span>Assign Freelancer</span>
                 </button>
               )}
 
@@ -216,36 +253,6 @@ export const FreelancerProfileModal: React.FC<FreelancerProfileModalProps> = ({
                 >
                   <DollarSign className="w-3.5 h-3.5" />
                   <span>Record Payment</span>
-                </button>
-              )}
-
-              {onSaveFreelancer && (
-                <button
-                  type="button"
-                  onClick={() =>
-                    onSaveFreelancer({
-                      ...freelancer,
-                      preferredTier: freelancer.preferredTier === 'preferred' ? 'new' : 'preferred',
-                    })
-                  }
-                  className="flex min-h-9 items-center justify-center rounded-xl border border-white/20 bg-white/10 px-3 py-2 font-bold text-white transition hover:bg-white/20"
-                >
-                  {freelancer.preferredTier === 'preferred' ? 'Remove Preferred' : 'Mark Preferred'}
-                </button>
-              )}
-              {onSaveFreelancer && (
-                <button
-                  type="button"
-                  onClick={() =>
-                    onSaveFreelancer({
-                      ...freelancer,
-                      status: freelancer.status === 'active' ? 'inactive' : 'active',
-                      workingStatus: freelancer.status === 'active' ? 'inactive' : 'active',
-                    })
-                  }
-                  className="flex min-h-9 items-center justify-center rounded-xl border border-white/20 bg-white/10 px-3 py-2 font-bold text-white transition hover:bg-white/20"
-                >
-                  {freelancer.status === 'active' ? 'Deactivate' : 'Activate'}
                 </button>
               )}
               {onDeleteFreelancer && (

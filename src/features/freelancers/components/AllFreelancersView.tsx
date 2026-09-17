@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Freelancer, FreelancerCategory, FreelancerAssignment, FreelancerPayment } from '@/types';
 import { ConfirmDeleteModal } from '@/components/common/ConfirmDeleteModal';
-import { LayoutGrid, List, MapPin, Search, Star, UserPlus } from 'lucide-react';
+import { CheckCircle, LayoutGrid, List, MapPin, Search, Star, UserCheck, UserPlus } from 'lucide-react';
 import { Badge, BTN_GHOST, BTN_PRIMARY, CARD, EmptyState, FIELD, LABEL, TD, TH } from '@/features/team/components/TeamUiKit';
 import {
   formatInr,
@@ -25,7 +25,10 @@ interface AllFreelancersViewProps {
   onRecordPaymentClick?: (freelancerId: string) => void;
   onDeleteFreelancer?: (freelancerId: string) => void;
   onManageCategoriesClick?: () => void;
+  onMarkInterested?: (freelancer: Freelancer) => void;
+  onApproveFreelancer?: (freelancer: Freelancer) => void;
   initialCategory?: string;
+  mode?: 'find' | 'interested';
 }
 
 export const AllFreelancersView: React.FC<AllFreelancersViewProps> = ({
@@ -40,10 +43,14 @@ export const AllFreelancersView: React.FC<AllFreelancersViewProps> = ({
   onRecordPaymentClick,
   onDeleteFreelancer,
   onManageCategoriesClick,
+  onMarkInterested,
+  onApproveFreelancer,
   initialCategory = 'all',
+  mode = 'find',
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState(initialCategory || 'all');
+  const [subCategoryFilter, setSubCategoryFilter] = useState('all');
   const [cityFilter, setCityFilter] = useState('');
   const [dateFilter, setDateFilter] = useState('');
   const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid');
@@ -53,13 +60,19 @@ export const AllFreelancersView: React.FC<AllFreelancersViewProps> = ({
     if (initialCategory) setCategoryFilter(initialCategory);
   }, [initialCategory]);
 
+  const sourceFreelancers = useMemo(
+    () => (mode === 'interested' ? freelancers.filter((f) => f.preferredTier === 'under_review') : freelancers),
+    [freelancers, mode]
+  );
+
   const filtered = useMemo(() => {
-    const list = freelancers.filter((f) =>
+    const list = sourceFreelancers.filter((f) =>
       matchesTalentSearch(
         f,
         {
           text: searchQuery,
           category: categoryFilter,
+          subCategory: subCategoryFilter,
           city: cityFilter,
           dateKey: dateFilter || undefined,
         },
@@ -67,10 +80,11 @@ export const AllFreelancersView: React.FC<AllFreelancersViewProps> = ({
       )
     );
     return [...list].sort((a, b) => a.name.localeCompare(b.name));
-  }, [freelancers, searchQuery, categoryFilter, cityFilter, dateFilter, assignments]);
+  }, [sourceFreelancers, searchQuery, categoryFilter, subCategoryFilter, cityFilter, dateFilter, assignments]);
 
   const activeFilterCount = [
     categoryFilter !== 'all',
+    subCategoryFilter !== 'all',
     !!cityFilter,
     !!dateFilter,
   ].filter(Boolean).length;
@@ -78,23 +92,42 @@ export const AllFreelancersView: React.FC<AllFreelancersViewProps> = ({
   const clearFilters = () => {
     setSearchQuery('');
     setCategoryFilter('all');
+    setSubCategoryFilter('all');
     setCityFilter('');
     setDateFilter('');
   };
+
+  const selectedCategory = categories.find((category) => category.name === categoryFilter);
+  const subCategoryOptions = selectedCategory?.subCategories || [];
+
+  const isInterested = (freelancer: Freelancer) => freelancer.preferredTier === 'under_review';
+  const isApproved = (freelancer: Freelancer) => freelancer.applicationStatus === 'approved' && freelancer.workingStatus === 'active' && freelancer.status === 'active';
+  const heading = mode === 'interested' ? 'Interested Freelancers' : 'Find Freelancer';
+  const subtitle = mode === 'interested'
+    ? 'Freelancers selected for further review and potential assignment.'
+    : 'Discover photographers, cinematographers, editors and other freelance talent.';
+  const emptyTitle = mode === 'interested'
+    ? 'No interested freelancers'
+    : sourceFreelancers.length === 0 ? 'No freelancers yet' : 'No freelancers found';
+  const emptyMessage = mode === 'interested'
+    ? 'Freelancers you mark as interested will appear here for review.'
+    : sourceFreelancers.length === 0
+      ? 'Build your production team by adding photographers, cinematographers, drone operators, editors and assistants.'
+      : 'Try another name, category, city or skill. Double-booked talent is hidden when a shoot date is selected.';
 
   return (
     <div className="space-y-5">
       <div className={`${CARD} space-y-4 p-4`}>
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <h2 className="text-base font-black text-slate-900">All Freelancers</h2>
-            <p className="text-xs font-medium text-slate-500">Search talent by role, city, availability and rate.</p>
+            <h2 className="text-base font-black uppercase tracking-wide text-slate-900">{heading}</h2>
+            <p className="text-xs font-medium text-slate-500">{subtitle}</p>
           </div>
           <div className="flex flex-wrap gap-2">
             {onManageCategoriesClick && (
               <button type="button" onClick={onManageCategoriesClick} className={BTN_GHOST}>Manage Categories</button>
             )}
-            {onAddFreelancerClick && (
+            {mode === 'find' && onAddFreelancerClick && (
             <button type="button" onClick={onAddFreelancerClick} className={BTN_PRIMARY}>
               <UserPlus className="size-3.5" /> Add Freelancer
             </button>
@@ -115,14 +148,30 @@ export const AllFreelancersView: React.FC<AllFreelancersViewProps> = ({
         </div>
 
         <div className="flex flex-col gap-2 lg:flex-row lg:items-end lg:justify-between">
-          <div className="grid flex-1 grid-cols-1 gap-2 sm:grid-cols-3">
+          <div className={`grid flex-1 grid-cols-1 gap-2 sm:grid-cols-2 ${categoryFilter === 'all' ? 'xl:grid-cols-3' : 'xl:grid-cols-4'}`}>
             <label>
               <span className={LABEL}>Category</span>
-              <select className={FIELD} value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)}>
+              <select
+                className={FIELD}
+                value={categoryFilter}
+                onChange={(e) => {
+                  setCategoryFilter(e.target.value);
+                  setSubCategoryFilter('all');
+                }}
+              >
                 <option value="all">All</option>
                 {categories.map((c) => <option key={c.id} value={c.name}>{c.name}</option>)}
               </select>
             </label>
+            {categoryFilter !== 'all' && (
+            <label>
+              <span className={LABEL}>Sub Category</span>
+              <select className={FIELD} value={subCategoryFilter} onChange={(e) => setSubCategoryFilter(e.target.value)}>
+                <option value="all">All</option>
+                {subCategoryOptions.map((sub) => <option key={sub} value={sub}>{sub}</option>)}
+              </select>
+            </label>
+            )}
             <label>
               <span className={LABEL}>City</span>
               <input className={FIELD} value={cityFilter} onChange={(e) => setCityFilter(e.target.value)} placeholder="Jaipur" />
@@ -150,14 +199,10 @@ export const AllFreelancersView: React.FC<AllFreelancersViewProps> = ({
         <div className={CARD}>
           <EmptyState
             icon={UserPlus}
-            title={freelancers.length === 0 ? 'No freelancers yet' : 'No matching freelancers'}
-            message={
-              freelancers.length === 0
-                ? 'Build your production team by adding photographers, cinematographers, drone operators, editors and assistants.'
-                : 'Try a different role, city or date. Double-booked talent is hidden when a shoot date is selected.'
-            }
+            title={emptyTitle}
+            message={emptyMessage}
             action={
-              onAddFreelancerClick || onManageCategoriesClick ? (
+              mode === 'find' && (onAddFreelancerClick || onManageCategoriesClick) ? (
               <div className="flex flex-wrap justify-center gap-2">
                 {onAddFreelancerClick && (
                 <button type="button" onClick={onAddFreelancerClick} className={BTN_PRIMARY}>
@@ -192,6 +237,8 @@ export const AllFreelancersView: React.FC<AllFreelancersViewProps> = ({
                     <span className="flex flex-wrap items-center gap-2">
                       <span className="truncate text-sm font-black text-slate-900">{freelancer.name}</span>
                       {isPreferredFreelancer(freelancer) && <Badge className="border-amber-200 bg-amber-50 text-amber-800">Preferred</Badge>}
+                      {isInterested(freelancer) && <Badge className="border-sky-200 bg-sky-50 text-sky-800">Interested</Badge>}
+                      {isApproved(freelancer) && <Badge className="border-emerald-200 bg-emerald-50 text-emerald-800">Approved</Badge>}
                     </span>
                     <span className="mt-0.5 block text-[11px] font-bold text-slate-400">{freelancer.freelancerId}</span>
                     <span className="mt-0.5 block text-xs font-bold text-[#8f3655]">{freelancer.subCategory || freelancer.mainCategory}</span>
@@ -227,8 +274,18 @@ export const AllFreelancersView: React.FC<AllFreelancersViewProps> = ({
                 <Badge className="mt-2 w-fit border-[#ded5cf] bg-white text-slate-700">{WORKING_LABELS[getWorkingStatus(freelancer)]}</Badge>
                 <div className="mt-4 flex flex-wrap gap-2 border-t border-[#eee7e2] pt-3">
                   <button type="button" onClick={() => onOpenProfile(freelancer)} className={BTN_PRIMARY}>View Profile</button>
-                  {onAssignShootClick && (
-                  <button type="button" onClick={() => onAssignShootClick(freelancer.id)} className={BTN_GHOST}>Assign Shoot</button>
+                  {onMarkInterested && !isInterested(freelancer) && !isApproved(freelancer) && (
+                  <button type="button" onClick={() => onMarkInterested(freelancer)} className={BTN_GHOST}>
+                    <UserCheck className="size-3.5" /> Interested
+                  </button>
+                  )}
+                  {onApproveFreelancer && isInterested(freelancer) && (
+                  <button type="button" onClick={() => onApproveFreelancer(freelancer)} className={BTN_GHOST}>
+                    <CheckCircle className="size-3.5" /> Approve
+                  </button>
+                  )}
+                  {onAssignShootClick && isApproved(freelancer) && (
+                  <button type="button" onClick={() => onAssignShootClick(freelancer.id)} className={BTN_GHOST}>Assign Freelancer</button>
                   )}
                   <button type="button" onClick={() => onOpenProfile(freelancer)} className={BTN_GHOST}>Check Availability</button>
                   {onRecordPaymentClick && (
@@ -251,6 +308,7 @@ export const AllFreelancersView: React.FC<AllFreelancersViewProps> = ({
                 <TH>Rate</TH>
                 <TH>Shoots</TH>
                 <TH>Status</TH>
+                {mode === 'interested' && <TH>Interest</TH>}
                 <TH>Actions</TH>
               </tr>
             </thead>
@@ -271,10 +329,17 @@ export const AllFreelancersView: React.FC<AllFreelancersViewProps> = ({
                     <TD className="font-mono font-bold">{formatInr(f.perDayCharges)}</TD>
                     <TD>{stats.totalShoots}</TD>
                     <TD>{WORKING_LABELS[getWorkingStatus(f)]}</TD>
+                    {mode === 'interested' && <TD><Badge className="border-sky-200 bg-sky-50 text-sky-800">Interested</Badge></TD>}
                     <TD>
                       <div className="flex flex-wrap gap-1">
                         <button type="button" onClick={() => onOpenProfile(f)} className={BTN_GHOST}>View</button>
-                        {onAssignShootClick && (
+                        {onMarkInterested && !isInterested(f) && !isApproved(f) && (
+                        <button type="button" onClick={() => onMarkInterested(f)} className={BTN_GHOST}>Interested</button>
+                        )}
+                        {onApproveFreelancer && isInterested(f) && (
+                        <button type="button" onClick={() => onApproveFreelancer(f)} className={BTN_GHOST}>Approve</button>
+                        )}
+                        {onAssignShootClick && isApproved(f) && (
                         <button type="button" onClick={() => onAssignShootClick(f.id)} className={BTN_GHOST}>Assign</button>
                         )}
                         {onEditFreelancer && (
