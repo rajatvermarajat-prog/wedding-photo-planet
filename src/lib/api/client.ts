@@ -42,6 +42,17 @@ const baseUrl = configuredApiUrl.replace(/[“”"']/g, '').trim().replace(/\/$/
 if (!/^(https?:\/\/|\/)/i.test(baseUrl)) {
   throw new Error('NEXT_PUBLIC_API_URL must be an absolute http(s) URL or an app-relative path.');
 }
+
+function apiBaseUrl(): string {
+  if (typeof window === 'undefined' || baseUrl.startsWith('/')) return baseUrl;
+  const url = new URL(baseUrl);
+  if (url.origin === window.location.origin) return baseUrl;
+  // In browsers, keep auth traffic same-origin and let Next proxy to the API.
+  // Cross-site backend cookies are commonly blocked, which produces
+  // `/auth/refresh` -> 401 "No refresh token supplied".
+  return url.pathname.replace(/\/$/, '') || '/api/v1';
+}
+
 const REQUEST_TIMEOUT_MS = 15_000;
 const TOKEN_KEY = 'wpp.accessToken';
 const LEGACY_REFRESH_KEY = 'wpp.refreshToken';
@@ -149,7 +160,7 @@ export function refreshSession(): Promise<RefreshSessionResult> {
     const startedAt = Date.now();
     try {
       authEvent('REFRESH_START', { source: 'client.ts', path: '/auth/refresh' });
-      const response = await fetch(`${baseUrl}/auth/refresh`, {
+      const response = await fetch(`${apiBaseUrl()}/auth/refresh`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
         credentials: 'include',
@@ -292,7 +303,7 @@ export async function apiBlobRequest(path: string, isRetry = false): Promise<{ b
   }
   if (token) headers.set('Authorization', `Bearer ${token}`);
   try {
-    const response = await fetch(`${baseUrl}${path.startsWith('/') ? path : `/${path}`}`, { headers, credentials: 'include' });
+    const response = await fetch(`${apiBaseUrl()}${path.startsWith('/') ? path : `/${path}`}`, { headers, credentials: 'include' });
     if (response.status === 401 && !isRetry && hasStoredSession()) {
       authEvent('API_401', { source: 'client.ts', path, kind: 'blob', retry: false });
       const refreshed = await refreshSession();
@@ -338,7 +349,7 @@ async function performRequest<T>(
   if (token && !headers.has('Authorization')) headers.set('Authorization', `Bearer ${token}`);
 
   try {
-    const response = await fetch(`${baseUrl}${path.startsWith('/') ? path : `/${path}`}`, {
+    const response = await fetch(`${apiBaseUrl()}${path.startsWith('/') ? path : `/${path}`}`, {
       ...init,
       headers,
       credentials: 'include',
