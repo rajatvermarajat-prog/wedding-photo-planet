@@ -250,6 +250,40 @@ input:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-
   outline-offset: 2px;
 }
 
+@keyframes wpp-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes wpp-fade-up {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes wpp-slide {
+  from { opacity: 0; transform: translateX(-8px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes wpp-soft-reveal {
+  from { opacity: 0; transform: translateY(14px) scale(.985); filter: blur(8px); }
+  to { opacity: 1; transform: translateY(0) scale(1); filter: blur(0); }
+}
+
+@keyframes wpp-ken-burns {
+  from { transform: scale(1.035); }
+  to { transform: scale(1.08); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
 /* Dark studio sidebar anchors the light editorial workspace. */
 .app-sidebar {
   background: linear-gradient(180deg, #321D27 0%, #24171D 100%) !important;

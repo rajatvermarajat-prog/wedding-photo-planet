@@ -1,0 +1,32 @@
+export const pricingPlans = [
+  {
+    name: 'Studio',
+    label: 'CRM workspace',
+    price: 'Configurable',
+    description: 'For wedding photography teams managing inquiries, shoots, teams, payments and delivery.',
+    cta: 'Explore the CRM',
+    href: '/dashboard',
+    features: ['Admin CRM', 'Projects and shoots', 'Freelancers and teams', 'Payments and reporting'],
+    highlighted: true,
+  },
+  {
+    name: 'Freelancer',
+    label: 'Portal direction',
+    price: 'To be finalized',
+    description: 'For professional freelancers who want a profile, assignments and payment visibility.',
+    cta: 'Join as a Freelancer',
+    href: '/freelancer/join',
+    features: ['Professional profile', 'Portfolio direction', 'Availability direction', 'Assignment access'],
+    highlighted: false,
+  },
+  {
+    name: 'Client',
+    label: 'Gallery access',
+    price: 'Included with studio experience',
+    description: 'For couples and families receiving wedding memories from their photography team.',
+    cta: 'Explore Client Experience',
+    href: '/client/projects',
+    features: ['Project access direction', 'Gallery direction', 'Albums and downloads', 'Shareable experience'],
+    highlighted: false,
+  },
+];
