@@ -34,8 +34,9 @@ import {
 } from 'lucide-react';
 import { BTN_CREAM, BTN_GHOST, CARD, TOGGLE_ACTIVE, TOGGLE_IDLE } from '@/features/team/components/TeamUiKit';
 import { usePermission } from '@/features/access';
+import { useToast } from '@/components/common';
 
-type FreelancerTab = 'dashboard' | 'all_freelancers' | 'applications' | 'calendar' | 'payments' | 'reports';
+type FreelancerTab = 'dashboard' | 'all_freelancers' | 'interested' | 'applications' | 'calendar' | 'payments' | 'reports';
 
 interface FreelancerTeamManagerProps {
   freelancers: Freelancer[];
@@ -65,7 +66,8 @@ interface FreelancerTeamManagerProps {
 
 const TABS: Array<{ id: FreelancerTab; label: string; icon: typeof Users }> = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { id: 'all_freelancers', label: 'Freelancers', icon: Users },
+  { id: 'all_freelancers', label: 'Find Freelancer', icon: Users },
+  { id: 'interested', label: 'Interested', icon: UserPlus },
   { id: 'applications', label: 'Applications', icon: ClipboardList },
   { id: 'calendar', label: 'Shoot Calendar', icon: Calendar },
   { id: 'payments', label: 'Payments', icon: CreditCard },
@@ -100,6 +102,7 @@ export const FreelancerTeamManager: React.FC<FreelancerTeamManagerProps> = (prop
   } = props;
 
   const { can } = usePermission();
+  const { showToast } = useToast();
   const canCreate = can('freelancers.create');
   const canEdit = can('freelancers.edit');
   const canDelete = can('freelancers.delete');
@@ -111,6 +114,9 @@ export const FreelancerTeamManager: React.FC<FreelancerTeamManagerProps> = (prop
   const [showFreelancerFormModal, setShowFreelancerFormModal] = useState(false);
   const [showAssignView, setShowAssignView] = useState(false);
   const [assignFreelancerId, setAssignFreelancerId] = useState<string | undefined>();
+  const [assignProjectId, setAssignProjectId] = useState<string | undefined>(focusProjectId);
+  const [assignShootId, setAssignShootId] = useState<string | undefined>(focusShootId);
+  const [assignRole, setAssignRole] = useState<string | undefined>();
   const [editingFreelancer, setEditingFreelancer] = useState<Freelancer | null>(null);
   const [selectedProfileFreelancer, setSelectedProfileFreelancer] = useState<Freelancer | null>(null);
   const [listCategory, setListCategory] = useState('all');
@@ -126,6 +132,18 @@ export const FreelancerTeamManager: React.FC<FreelancerTeamManagerProps> = (prop
   const openAssign = (freelancerId?: string) => {
     if (!canAssign) return;
     setAssignFreelancerId(freelancerId);
+    setAssignProjectId(focusProjectId);
+    setAssignShootId(focusShootId);
+    setAssignRole(undefined);
+    setShowAssignView(true);
+  };
+
+  const openPendingShootAssign = (projectId: string, shootId: string, role?: string) => {
+    if (!canAssign) return;
+    setAssignFreelancerId(undefined);
+    setAssignProjectId(projectId);
+    setAssignShootId(shootId);
+    setAssignRole(role);
     setShowAssignView(true);
   };
 
@@ -145,6 +163,38 @@ export const FreelancerTeamManager: React.FC<FreelancerTeamManagerProps> = (prop
     onSaveFreelancer(saved);
     setShowFreelancerFormModal(false);
     setEditingFreelancer(null);
+  };
+
+  const handleMarkInterested = (freelancer: Freelancer) => {
+    if (!canEdit) return;
+    if (freelancer.preferredTier === 'under_review') {
+      showToast('Freelancer is already in Interested.');
+      return;
+    }
+    if (freelancer.applicationStatus === 'approved' && freelancer.workingStatus === 'active') {
+      showToast('Freelancer is already approved.', { variant: 'error' });
+      return;
+    }
+    onSaveFreelancer({
+      ...freelancer,
+      preferredTier: 'under_review',
+      applicationStatus: freelancer.applicationStatus || 'under_review',
+      workingStatus: freelancer.workingStatus || 'inactive',
+      status: freelancer.status || 'inactive',
+    });
+    showToast('Freelancer added to Interested.');
+  };
+
+  const handleApproveFreelancer = (freelancer: Freelancer) => {
+    if (!canEdit) return;
+    onSaveFreelancer({
+      ...freelancer,
+      applicationStatus: 'approved',
+      workingStatus: 'active',
+      status: 'active',
+      preferredTier: freelancer.preferredTier === 'under_review' ? 'new' : freelancer.preferredTier,
+    });
+    showToast('Freelancer approved successfully.');
   };
 
   return (
@@ -197,6 +247,7 @@ export const FreelancerTeamManager: React.FC<FreelancerTeamManagerProps> = (prop
               <Icon className="size-3.5" />
               {label}
               {id === 'all_freelancers' && <span className="text-[10px] font-black opacity-60">({freelancers.length})</span>}
+              {id === 'interested' && <span className="text-[10px] font-black opacity-60">({freelancers.filter((f) => f.preferredTier === 'under_review').length})</span>}
             </button>
           ))}
         </nav>
@@ -226,6 +277,7 @@ export const FreelancerTeamManager: React.FC<FreelancerTeamManagerProps> = (prop
             setListCategory(name);
             setActiveSubTab('all_freelancers');
           }}
+          onAssignPendingShootClick={canAssign ? openPendingShootAssign : undefined}
         />
       )}
 
@@ -242,7 +294,28 @@ export const FreelancerTeamManager: React.FC<FreelancerTeamManagerProps> = (prop
           onRecordPaymentClick={canPay ? () => setActiveSubTab('payments') : undefined}
           onDeleteFreelancer={canDelete ? onDeleteFreelancer : undefined}
           onManageCategoriesClick={canEdit ? () => setShowCategoriesModal(true) : undefined}
+          onMarkInterested={canEdit ? handleMarkInterested : undefined}
+          onApproveFreelancer={canEdit ? handleApproveFreelancer : undefined}
           initialCategory={listCategory}
+          mode="find"
+        />
+      )}
+
+      {activeSubTab === 'interested' && (
+        <AllFreelancersView
+          freelancers={freelancers}
+          categories={categories}
+          assignments={assignments}
+          payments={payments}
+          onOpenProfile={(f) => setSelectedProfileFreelancer(f)}
+          onEditFreelancer={canEdit ? handleOpenEditForm : undefined}
+          onAssignShootClick={canAssign ? (id) => openAssign(id) : undefined}
+          onRecordPaymentClick={canPay ? () => setActiveSubTab('payments') : undefined}
+          onDeleteFreelancer={canDelete ? onDeleteFreelancer : undefined}
+          onManageCategoriesClick={canEdit ? () => setShowCategoriesModal(true) : undefined}
+          onApproveFreelancer={canEdit ? handleApproveFreelancer : undefined}
+          initialCategory={listCategory}
+          mode="interested"
         />
       )}
 
@@ -332,17 +405,24 @@ export const FreelancerTeamManager: React.FC<FreelancerTeamManagerProps> = (prop
           projects={projects}
           assignments={assignments}
           initialFreelancerId={assignFreelancerId}
-          initialProjectId={focusProjectId}
-          initialShootId={focusShootId}
+          initialProjectId={assignProjectId}
+          initialShootId={assignShootId}
           initialDate={calendarDate}
+          initialRole={assignRole}
           onSave={(item) => {
             onSaveAssignments([item]);
             setShowAssignView(false);
             setAssignFreelancerId(undefined);
+            setAssignProjectId(undefined);
+            setAssignShootId(undefined);
+            setAssignRole(undefined);
           }}
           onClose={() => {
             setShowAssignView(false);
             setAssignFreelancerId(undefined);
+            setAssignProjectId(undefined);
+            setAssignShootId(undefined);
+            setAssignRole(undefined);
           }}
         />
       )}

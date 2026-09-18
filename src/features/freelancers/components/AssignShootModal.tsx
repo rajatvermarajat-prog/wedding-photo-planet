@@ -24,6 +24,7 @@ interface AssignShootModalProps {
   initialProjectId?: string;
   initialShootId?: string;
   initialDate?: string;
+  initialRole?: string;
   onSave: (assignment: FreelancerAssignment) => void;
   onClose: () => void;
 }
@@ -36,6 +37,7 @@ export const AssignShootModal: React.FC<AssignShootModalProps> = ({
   initialProjectId,
   initialShootId,
   initialDate,
+  initialRole,
   onSave,
   onClose,
 }) => {
@@ -67,7 +69,7 @@ export const AssignShootModal: React.FC<AssignShootModalProps> = ({
     '';
 
   const [shootKey, setShootKey] = useState(defaultKey);
-  const [role, setRole] = useState(ROLES[0]);
+  const [role, setRole] = useState(initialRole || ROLES[0]);
   const [freelancerId, setFreelancerId] = useState(initialFreelancerId || freelancers.find((f) => f.status === 'active')?.id || freelancers[0]?.id || '');
   const [amount, setAmount] = useState(() => {
     const fl = freelancers.find((f) => f.id === (initialFreelancerId || freelancers[0]?.id));

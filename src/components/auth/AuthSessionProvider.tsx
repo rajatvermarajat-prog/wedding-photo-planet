@@ -1,7 +1,7 @@
 'use client';
 
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
-import { ApiError } from '@/lib/api/client';
+import { ApiError, getAccessTokenExpiryMs, refreshSession } from '@/lib/api/client';
 import { authApi, LoginInput, SessionUser } from '@/lib/api/auth';
 import { TeamMemberStatus } from '@/types';
 
@@ -28,26 +28,72 @@ interface AuthSessionValue {
 
 const AuthSessionContext = createContext<AuthSessionValue | null>(null);
 let lastMeAt = 0;
+const REFRESH_SAFETY_WINDOW_MS = 90_000;
+const MIN_REFRESH_DELAY_MS = 5_000;
 
 export function AuthSessionProvider({ children }: { children: React.ReactNode }) {
   const [currentUser, setCurrentUser] = useState<AuthenticatedUser | null>(null);
   const [isHydrated, setIsHydrated] = useState(false);
 
   const hydrated = useRef(false);
+  const refreshTimer = useRef<number | null>(null);
+
+  const clearRefreshTimer = useCallback(() => {
+    if (!refreshTimer.current) return;
+    window.clearTimeout(refreshTimer.current);
+    refreshTimer.current = null;
+  }, []);
+
+  const scheduleRefresh = useCallback(() => {
+    clearRefreshTimer();
+    const expiresAt = getAccessTokenExpiryMs();
+    if (!expiresAt) return;
+    const delay = Math.max(expiresAt - Date.now() - REFRESH_SAFETY_WINDOW_MS, MIN_REFRESH_DELAY_MS);
+    refreshTimer.current = window.setTimeout(async () => {
+      const refreshed = await refreshSession();
+      if (!refreshed) {
+        setCurrentUser(null);
+        clearRefreshTimer();
+        return;
+      }
+      if (refreshed.user) {
+        setCurrentUser(toAuthenticatedUser(refreshed.user as SessionUser));
+        lastMeAt = Date.now();
+      }
+      scheduleRefresh();
+    }, delay);
+  }, [clearRefreshTimer]);
 
   useEffect(() => {
     // StrictMode runs mount effects twice; hydrating once avoids a second /me.
     if (hydrated.current) return;
     hydrated.current = true;
-    // `/auth/me` is the authoritative session check. The refresh/access cookie
-    // is httpOnly, so JavaScript cannot infer session presence from storage.
-    authApi.me().then((user) => {
-      lastMeAt = Date.now();
-      setCurrentUser(toAuthenticatedUser(user));
-    }).catch((error: unknown) => {
-      if (error instanceof ApiError && (error.status === 401 || error.status === 429)) return;
-    }).finally(() => setIsHydrated(true));
-  }, []);
+    const restore = async () => {
+      try {
+        // `/auth/me` is the authoritative session check. If the JS access token
+        // is missing/expired but the httpOnly refresh cookie is still valid,
+        // recover the access token once before declaring the browser signed out.
+        const user = await authApi.me();
+        lastMeAt = Date.now();
+        setCurrentUser(toAuthenticatedUser(user));
+        scheduleRefresh();
+      } catch (error: unknown) {
+        if (error instanceof ApiError && error.status === 401) {
+          const refreshed = await refreshSession();
+          if (refreshed?.user) {
+            lastMeAt = Date.now();
+            setCurrentUser(toAuthenticatedUser(refreshed.user as SessionUser));
+            scheduleRefresh();
+          }
+          return;
+        }
+        if (error instanceof ApiError && error.status === 429) return;
+      } finally {
+        setIsHydrated(true);
+      }
+    };
+    void restore();
+  }, [scheduleRefresh]);
 
   const login = useCallback(async (input: LoginInput) => {
     const user = await authApi.login(input);
@@ -55,8 +101,9 @@ export function AuthSessionProvider({ children }: { children: React.ReactNode })
     // The login response already carries the session user, so no /me is needed.
     lastMeAt = Date.now();
     setCurrentUser(authenticatedUser);
+    scheduleRefresh();
     return authenticatedUser;
-  }, []);
+  }, [scheduleRefresh]);
 
   const logout = useCallback(async () => {
     try {
@@ -65,8 +112,9 @@ export function AuthSessionProvider({ children }: { children: React.ReactNode })
       // Local session still ends if the API is briefly unreachable.
     } finally {
       setCurrentUser(null);
+      clearRefreshTimer();
     }
-  }, []);
+  }, [clearRefreshTimer]);
 
   const refresh = useCallback(async (force?: boolean) => {
     const now = Date.now();
@@ -75,15 +123,17 @@ export function AuthSessionProvider({ children }: { children: React.ReactNode })
     try {
       const user = await authApi.me();
       setCurrentUser(toAuthenticatedUser(user));
+      scheduleRefresh();
     } catch (error: unknown) {
       if (error instanceof ApiError && error.status === 401 && !authApi.hasSession()) {
         // Refresh already failed and the credentials were dropped.
         setCurrentUser(null);
+        clearRefreshTimer();
         return;
       }
       if (error instanceof ApiError && (error.status === 401 || error.status === 429)) return;
     }
-  }, []);
+  }, [clearRefreshTimer, scheduleRefresh]);
 
   useEffect(() => {
     // Not forced: returning to the tab should not re-fetch the session when it
