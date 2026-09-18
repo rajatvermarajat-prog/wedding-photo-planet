@@ -1,6 +1,10 @@
 import type { NextConfig } from 'next';
 
-const apiProxyTarget = process.env.API_PROXY_TARGET?.replace(/\/$/, '');
+const publicApiUrl = process.env.NEXT_PUBLIC_API_URL;
+const configuredApiProxyTarget = process.env.API_PROXY_TARGET?.replace(/\/$/, '');
+const apiProxyTarget =
+  configuredApiProxyTarget ??
+  (process.env.NODE_ENV !== 'production' && publicApiUrl?.startsWith('/') ? 'http://localhost:5050' : undefined);
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
