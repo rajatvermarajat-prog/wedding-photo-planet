@@ -2,6 +2,7 @@
 
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { ApiError, getAccessTokenExpiryMs, refreshSession } from '@/lib/api/client';
+import { authEvent, authTimer } from '@/lib/auth/authDebug';
 import { authApi, LoginInput, SessionUser } from '@/lib/api/auth';
 import { TeamMemberStatus } from '@/types';
 
@@ -37,11 +38,31 @@ export function AuthSessionProvider({ children }: { children: React.ReactNode })
 
   const hydrated = useRef(false);
   const refreshTimer = useRef<number | null>(null);
+  const authState = useRef<'initializing' | 'authenticated' | 'unauthenticated'>('initializing');
+
+  const transitionAuthState = useCallback((
+    next: 'authenticated' | 'unauthenticated',
+    reason: string,
+    user: AuthenticatedUser | null,
+  ) => {
+    const previous = authState.current;
+    authState.current = next;
+    authEvent('AUTH_STATE', {
+      source: 'AuthSessionProvider',
+      from: previous,
+      to: next,
+      reason,
+      userId: user?.id ?? null,
+      email: user?.email ?? null,
+    });
+    setCurrentUser(user);
+  }, []);
 
   const clearRefreshTimer = useCallback(() => {
     if (!refreshTimer.current) return;
     window.clearTimeout(refreshTimer.current);
     refreshTimer.current = null;
+    authTimer('cancelled', { source: 'AuthSessionProvider' });
   }, []);
 
   const scheduleRefresh = useCallback(() => {
@@ -49,20 +70,35 @@ export function AuthSessionProvider({ children }: { children: React.ReactNode })
     const expiresAt = getAccessTokenExpiryMs();
     if (!expiresAt) return;
     const delay = Math.max(expiresAt - Date.now() - REFRESH_SAFETY_WINDOW_MS, MIN_REFRESH_DELAY_MS);
+    authTimer('scheduled', {
+      source: 'AuthSessionProvider',
+      expiresAt: new Date(expiresAt).toISOString(),
+      scheduledFor: new Date(Date.now() + delay).toISOString(),
+      delayMs: delay,
+    });
     refreshTimer.current = window.setTimeout(async () => {
+      authTimer('fired', { source: 'AuthSessionProvider' });
       const refreshed = await refreshSession();
-      if (!refreshed) {
-        setCurrentUser(null);
+      if ('reason' in refreshed) {
+        authEvent('REFRESH_TIMER_FAILED', {
+          source: 'AuthSessionProvider',
+          reason: refreshed.reason,
+          status: refreshed.status,
+        });
+        if (refreshed.reason === 'invalid') {
+          transitionAuthState('unauthenticated', 'refresh_timer_invalid', null);
+        }
         clearRefreshTimer();
         return;
       }
-      if (refreshed.user) {
-        setCurrentUser(toAuthenticatedUser(refreshed.user as SessionUser));
+      if (refreshed.data.user) {
+        const authenticatedUser = toAuthenticatedUser(refreshed.data.user as SessionUser);
+        transitionAuthState('authenticated', 'refresh_timer_success', authenticatedUser);
         lastMeAt = Date.now();
       }
       scheduleRefresh();
     }, delay);
-  }, [clearRefreshTimer]);
+  }, [clearRefreshTimer, transitionAuthState]);
 
   useEffect(() => {
     // StrictMode runs mount effects twice; hydrating once avoids a second /me.
@@ -75,19 +111,41 @@ export function AuthSessionProvider({ children }: { children: React.ReactNode })
         // recover the access token once before declaring the browser signed out.
         const user = await authApi.me();
         lastMeAt = Date.now();
-        setCurrentUser(toAuthenticatedUser(user));
+        transitionAuthState('authenticated', 'startup_me_success', toAuthenticatedUser(user));
         scheduleRefresh();
       } catch (error: unknown) {
         if (error instanceof ApiError && error.status === 401) {
+          authEvent('STARTUP_ME_FAILED', {
+            source: 'AuthSessionProvider',
+            status: error.status,
+            reason: 'try_refresh_cookie',
+          });
           const refreshed = await refreshSession();
-          if (refreshed?.user) {
+          if (refreshed.ok && refreshed.data.user) {
             lastMeAt = Date.now();
-            setCurrentUser(toAuthenticatedUser(refreshed.user as SessionUser));
+            transitionAuthState('authenticated', 'startup_refresh_success', toAuthenticatedUser(refreshed.data.user as SessionUser));
             scheduleRefresh();
+          } else if ('reason' in refreshed && refreshed.reason === 'invalid') {
+            transitionAuthState('unauthenticated', 'startup_refresh_invalid', null);
+          } else if ('reason' in refreshed) {
+            authEvent('STARTUP_REFRESH_TRANSIENT', {
+              source: 'AuthSessionProvider',
+              status: refreshed.status,
+              message: refreshed.message,
+            });
+            transitionAuthState('unauthenticated', 'startup_refresh_transient_no_user', null);
           }
           return;
         }
-        if (error instanceof ApiError && error.status === 429) return;
+        if (error instanceof ApiError && error.status === 429) {
+          authEvent('STARTUP_ME_RATE_LIMITED', { source: 'AuthSessionProvider', status: error.status });
+          return;
+        }
+        authEvent('STARTUP_ME_FAILED', {
+          source: 'AuthSessionProvider',
+          status: error instanceof ApiError ? error.status : 0,
+          reason: 'non_401',
+        });
       } finally {
         setIsHydrated(true);
       }
@@ -100,10 +158,10 @@ export function AuthSessionProvider({ children }: { children: React.ReactNode })
     const authenticatedUser = toAuthenticatedUser(user);
     // The login response already carries the session user, so no /me is needed.
     lastMeAt = Date.now();
-    setCurrentUser(authenticatedUser);
+    transitionAuthState('authenticated', 'login_success', authenticatedUser);
     scheduleRefresh();
     return authenticatedUser;
-  }, [scheduleRefresh]);
+  }, [scheduleRefresh, transitionAuthState]);
 
   const logout = useCallback(async () => {
     try {
@@ -111,10 +169,10 @@ export function AuthSessionProvider({ children }: { children: React.ReactNode })
     } catch {
       // Local session still ends if the API is briefly unreachable.
     } finally {
-      setCurrentUser(null);
+      transitionAuthState('unauthenticated', 'manual_logout', null);
       clearRefreshTimer();
     }
-  }, [clearRefreshTimer]);
+  }, [clearRefreshTimer, transitionAuthState]);
 
   const refresh = useCallback(async (force?: boolean) => {
     const now = Date.now();
@@ -122,18 +180,25 @@ export function AuthSessionProvider({ children }: { children: React.ReactNode })
     lastMeAt = now;
     try {
       const user = await authApi.me();
-      setCurrentUser(toAuthenticatedUser(user));
+      transitionAuthState('authenticated', force ? 'manual_refresh_success' : 'visibility_refresh_success', toAuthenticatedUser(user));
       scheduleRefresh();
     } catch (error: unknown) {
       if (error instanceof ApiError && error.status === 401 && !authApi.hasSession()) {
         // Refresh already failed and the credentials were dropped.
-        setCurrentUser(null);
+        transitionAuthState('unauthenticated', 'refresh_me_401_no_stored_session', null);
         clearRefreshTimer();
         return;
       }
-      if (error instanceof ApiError && (error.status === 401 || error.status === 429)) return;
+      if (error instanceof ApiError && (error.status === 401 || error.status === 429)) {
+        authEvent('SESSION_REFRESH_IGNORED', {
+          source: 'AuthSessionProvider',
+          status: error.status,
+          reason: error.status === 429 ? 'rate_limited' : 'stored_session_present',
+        });
+        return;
+      }
     }
-  }, [clearRefreshTimer, scheduleRefresh]);
+  }, [clearRefreshTimer, scheduleRefresh, transitionAuthState]);
 
   useEffect(() => {
     // Not forced: returning to the tab should not re-fetch the session when it

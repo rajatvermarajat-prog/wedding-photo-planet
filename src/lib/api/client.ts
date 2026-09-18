@@ -1,3 +1,5 @@
+import { authEvent } from '@/lib/auth/authDebug';
+
 export interface ApiMeta {
   requestId?: string;
   pagination?: {
@@ -59,6 +61,11 @@ interface RefreshSessionData {
   user?: unknown;
 }
 
+type RefreshSessionResult =
+  | { ok: true; data: RefreshSessionData }
+  | { ok: false; reason: 'invalid'; status: number; message?: string }
+  | { ok: false; reason: 'transient'; status: number; message?: string };
+
 /**
  * Access tokens may be mirrored for Authorization headers, but refresh tokens
  * stay in the backend-issued httpOnly cookie. Older builds stored
@@ -68,14 +75,31 @@ export function setAuthTokens(tokens: AuthTokens | null): void {
   if (typeof window === 'undefined') return;
   window.localStorage.removeItem(LEGACY_REFRESH_KEY);
   if (!tokens) {
+    authEvent('TOKEN_CLEAR', { source: 'client.ts', reason: 'setAuthTokens_null' });
     window.localStorage.removeItem(TOKEN_KEY);
     document.cookie = `${CLIENT_SESSION_COOKIE}=; Path=/; Max-Age=0; SameSite=Lax`;
     return;
   }
   if (tokens.accessToken) {
+    const existingExpiry = getAccessTokenExpiryMs();
+    const nextExpiry = getAccessTokenExpiryMs(tokens.accessToken);
+    if (existingExpiry && nextExpiry && nextExpiry < existingExpiry) {
+      authEvent('TOKEN_WRITE_SKIPPED', {
+        source: 'client.ts',
+        reason: 'stale_access_token',
+        existingExpiry: new Date(existingExpiry).toISOString(),
+        nextExpiry: new Date(nextExpiry).toISOString(),
+      });
+      return;
+    }
     window.localStorage.setItem(TOKEN_KEY, tokens.accessToken);
     const maxAge = tokens.refreshTokenExpiresIn ?? tokens.accessTokenExpiresIn ?? DEFAULT_CLIENT_SESSION_MAX_AGE;
     document.cookie = `${CLIENT_SESSION_COOKIE}=1; Path=/; Max-Age=${maxAge}; SameSite=Lax`;
+    authEvent('TOKEN_WRITE', {
+      source: 'client.ts',
+      accessTokenExpiresAt: nextExpiry ? new Date(nextExpiry).toISOString() : null,
+      clientSessionMaxAge: maxAge,
+    });
   }
 }
 
@@ -89,28 +113,42 @@ export function hasStoredSession(): boolean {
   return Boolean(getAccessToken());
 }
 
-export function getAccessTokenExpiryMs(token = getAccessToken()): number | null {
+function getAccessTokenNumericClaimMs(claim: 'exp' | 'iat', token = getAccessToken()): number | null {
   if (!token) return null;
   const [, payload] = token.split('.');
   if (!payload) return null;
   try {
     const normalized = payload.replace(/-/g, '+').replace(/_/g, '/');
-    const decoded = JSON.parse(window.atob(normalized)) as { exp?: unknown };
-    return typeof decoded.exp === 'number' ? decoded.exp * 1000 : null;
+    const decoded = JSON.parse(window.atob(normalized)) as Record<string, unknown>;
+    return typeof decoded[claim] === 'number' ? decoded[claim] * 1000 : null;
   } catch {
     return null;
   }
 }
 
-let refreshInFlight: Promise<RefreshSessionData | null> | null = null;
+export function getAccessTokenExpiryMs(token = getAccessToken()): number | null {
+  return getAccessTokenNumericClaimMs('exp', token);
+}
+
+function getAccessTokenIssuedAtMs(token = getAccessToken()): number | null {
+  return getAccessTokenNumericClaimMs('iat', token);
+}
+
+let refreshInFlight: Promise<RefreshSessionResult> | null = null;
 
 /**
  * Exchanges the httpOnly refresh cookie for a new access token. Single-flight,
  * so a burst of 401s from concurrent dashboard reads produces one refresh.
  */
-export function refreshSession(): Promise<RefreshSessionData | null> {
+export function refreshSession(): Promise<RefreshSessionResult> {
+  if (refreshInFlight) {
+    authEvent('REFRESH_JOIN', { source: 'client.ts' });
+    return refreshInFlight;
+  }
   refreshInFlight ??= (async () => {
+    const startedAt = Date.now();
     try {
+      authEvent('REFRESH_START', { source: 'client.ts', path: '/auth/refresh' });
       const response = await fetch(`${baseUrl}/auth/refresh`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
@@ -119,15 +157,53 @@ export function refreshSession(): Promise<RefreshSessionData | null> {
       });
       const payload = await response.json().catch(() => null) as
         | { success?: boolean; data?: { tokens?: AuthTokens; user?: unknown } }
+        | { success?: false; error?: { message?: string; code?: string } }
         | null;
       if (!response.ok || !payload?.success || !payload.data?.tokens?.accessToken) {
-        setAuthTokens(null);
-        return null;
+        const message = payload && 'error' in payload ? payload.error?.message : undefined;
+        const reason = response.status === 401 || response.status === 403 ? 'invalid' : 'transient';
+        authEvent('REFRESH_FAILED', {
+          source: 'client.ts',
+          path: '/auth/refresh',
+          status: response.status,
+          reason,
+          message,
+          setCookieReceived: response.headers.has('set-cookie'),
+        });
+        if (reason === 'invalid') {
+          const currentIssuedAt = getAccessTokenIssuedAtMs();
+          if (currentIssuedAt && currentIssuedAt >= startedAt - 1_000) {
+            authEvent('REFRESH_INVALID_IGNORED', {
+              source: 'client.ts',
+              reason: 'newer_access_token_present',
+              refreshStartedAt: new Date(startedAt).toISOString(),
+              currentTokenIssuedAt: new Date(currentIssuedAt).toISOString(),
+            });
+            return { ok: false, reason: 'transient', status: response.status, message: 'Newer access token already present' };
+          }
+          setAuthTokens(null);
+        }
+        return { ok: false, reason, status: response.status, message };
       }
       setAuthTokens(payload.data.tokens);
-      return { tokens: payload.data.tokens, user: payload.data.user };
-    } catch {
-      return null;
+      authEvent('REFRESH_SUCCESS', {
+        source: 'client.ts',
+        path: '/auth/refresh',
+        status: response.status,
+        hasUser: Boolean(payload.data.user),
+        setCookieReceived: response.headers.has('set-cookie'),
+      });
+      return { ok: true, data: { tokens: payload.data.tokens, user: payload.data.user } };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown refresh error';
+      authEvent('REFRESH_FAILED', {
+        source: 'client.ts',
+        path: '/auth/refresh',
+        status: 0,
+        reason: 'transient',
+        message,
+      });
+      return { ok: false, reason: 'transient', status: 0, message };
     } finally {
       refreshInFlight = null;
     }
@@ -212,13 +288,15 @@ export async function apiBlobRequest(path: string, isRetry = false): Promise<{ b
   const expiresAt = getAccessTokenExpiryMs(token);
   if (token && expiresAt !== null && expiresAt - Date.now() <= ACCESS_TOKEN_REFRESH_WINDOW_MS) {
     const refreshed = await refreshSession();
-    token = refreshed ? getAccessToken() : token;
+    token = refreshed.ok ? getAccessToken() : token;
   }
   if (token) headers.set('Authorization', `Bearer ${token}`);
   try {
     const response = await fetch(`${baseUrl}${path.startsWith('/') ? path : `/${path}`}`, { headers, credentials: 'include' });
-    if (response.status === 401 && !isRetry && hasStoredSession() && await refreshSession()) {
-      return apiBlobRequest(path, true);
+    if (response.status === 401 && !isRetry && hasStoredSession()) {
+      authEvent('API_401', { source: 'client.ts', path, kind: 'blob', retry: false });
+      const refreshed = await refreshSession();
+      if (refreshed.ok) return apiBlobRequest(path, true);
     }
     if (!response.ok) {
       const payload = await response.json().catch(() => null) as ApiErrorEnvelope | null;
@@ -240,6 +318,7 @@ async function performRequest<T>(
   init: RequestInit & { timeoutMs?: number } = {},
   isRetry = false,
 ): Promise<{ data: T; meta: ApiMeta }> {
+  const method = (init.method ?? 'GET').toUpperCase();
   const controller = new AbortController();
   const timeout = window.setTimeout(() => controller.abort(), init.timeoutMs ?? REQUEST_TIMEOUT_MS);
   const headers = new Headers(init.headers);
@@ -254,7 +333,7 @@ async function performRequest<T>(
     !NO_REFRESH_PATHS.includes(path)
   ) {
     const refreshed = await refreshSession();
-    token = refreshed ? getAccessToken() : token;
+    token = refreshed.ok ? getAccessToken() : token;
   }
   if (token && !headers.has('Authorization')) headers.set('Authorization', `Bearer ${token}`);
 
@@ -275,8 +354,9 @@ async function performRequest<T>(
     ) {
       // The access token lives ~15 minutes; renew it once and replay the call
       // so an expired token never surfaces as a lost session.
+      authEvent('API_401', { source: 'client.ts', path, method, retry: false });
       const renewed = await refreshSession();
-      if (renewed) {
+      if (renewed.ok) {
         const retryHeaders = new Headers(init.headers);
         retryHeaders.delete('Authorization');
         return performRequest<T>(path, { ...init, headers: retryHeaders }, true);
@@ -286,6 +366,14 @@ async function performRequest<T>(
     const payload = await response.json().catch(() => null) as ApiEnvelope<T> | ApiErrorEnvelope | null;
     if (!response.ok || !payload || !payload.success) {
       const error = payload as ApiErrorEnvelope | null;
+      authEvent('API_ERROR', {
+        source: 'client.ts',
+        path,
+        method,
+        status: response.status,
+        code: error?.error?.code,
+        message: error?.error?.message ?? statusMessage(response.status),
+      });
       throw new ApiError(
         response.status,
         error?.error?.message ?? statusMessage(response.status),
