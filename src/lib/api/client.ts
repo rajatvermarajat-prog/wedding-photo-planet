@@ -45,12 +45,18 @@ const TOKEN_KEY = 'wpp.accessToken';
 const LEGACY_REFRESH_KEY = 'wpp.refreshToken';
 const CLIENT_SESSION_COOKIE = 'wpp_client_session';
 const DEFAULT_CLIENT_SESSION_MAX_AGE = 60 * 60 * 24 * 7;
+const ACCESS_TOKEN_REFRESH_WINDOW_MS = 90_000;
 
 export interface AuthTokens {
   accessToken?: string;
   refreshToken?: string;
   accessTokenExpiresIn?: number;
   refreshTokenExpiresIn?: number;
+}
+
+interface RefreshSessionData {
+  tokens: AuthTokens;
+  user?: unknown;
 }
 
 /**
@@ -83,13 +89,26 @@ export function hasStoredSession(): boolean {
   return Boolean(getAccessToken());
 }
 
-let refreshInFlight: Promise<boolean> | null = null;
+export function getAccessTokenExpiryMs(token = getAccessToken()): number | null {
+  if (!token) return null;
+  const [, payload] = token.split('.');
+  if (!payload) return null;
+  try {
+    const normalized = payload.replace(/-/g, '+').replace(/_/g, '/');
+    const decoded = JSON.parse(window.atob(normalized)) as { exp?: unknown };
+    return typeof decoded.exp === 'number' ? decoded.exp * 1000 : null;
+  } catch {
+    return null;
+  }
+}
+
+let refreshInFlight: Promise<RefreshSessionData | null> | null = null;
 
 /**
  * Exchanges the httpOnly refresh cookie for a new access token. Single-flight,
  * so a burst of 401s from concurrent dashboard reads produces one refresh.
  */
-function refreshSession(): Promise<boolean> {
+export function refreshSession(): Promise<RefreshSessionData | null> {
   refreshInFlight ??= (async () => {
     try {
       const response = await fetch(`${baseUrl}/auth/refresh`, {
@@ -99,16 +118,16 @@ function refreshSession(): Promise<boolean> {
         body: JSON.stringify({}),
       });
       const payload = await response.json().catch(() => null) as
-        | { success?: boolean; data?: { tokens?: AuthTokens } }
+        | { success?: boolean; data?: { tokens?: AuthTokens; user?: unknown } }
         | null;
       if (!response.ok || !payload?.success || !payload.data?.tokens?.accessToken) {
         setAuthTokens(null);
-        return false;
+        return null;
       }
       setAuthTokens(payload.data.tokens);
-      return true;
+      return { tokens: payload.data.tokens, user: payload.data.user };
     } catch {
-      return false;
+      return null;
     } finally {
       refreshInFlight = null;
     }
@@ -189,7 +208,12 @@ export async function apiRequest<T>(
 /** Authenticated binary download with the same one-time refresh behavior as API JSON calls. */
 export async function apiBlobRequest(path: string, isRetry = false): Promise<{ blob: Blob; filename: string | null }> {
   const headers = new Headers({ Accept: 'application/pdf' });
-  const token = getAccessToken();
+  let token = getAccessToken();
+  const expiresAt = getAccessTokenExpiryMs(token);
+  if (token && expiresAt !== null && expiresAt - Date.now() <= ACCESS_TOKEN_REFRESH_WINDOW_MS) {
+    const refreshed = await refreshSession();
+    token = refreshed ? getAccessToken() : token;
+  }
   if (token) headers.set('Authorization', `Bearer ${token}`);
   try {
     const response = await fetch(`${baseUrl}${path.startsWith('/') ? path : `/${path}`}`, { headers, credentials: 'include' });
@@ -221,7 +245,17 @@ async function performRequest<T>(
   const headers = new Headers(init.headers);
   if (init.body && !headers.has('Content-Type')) headers.set('Content-Type', 'application/json');
   headers.set('Accept', 'application/json');
-  const token = getAccessToken();
+  let token = getAccessToken();
+  const expiresAt = getAccessTokenExpiryMs(token);
+  if (
+    token &&
+    expiresAt !== null &&
+    expiresAt - Date.now() <= ACCESS_TOKEN_REFRESH_WINDOW_MS &&
+    !NO_REFRESH_PATHS.includes(path)
+  ) {
+    const refreshed = await refreshSession();
+    token = refreshed ? getAccessToken() : token;
+  }
   if (token && !headers.has('Authorization')) headers.set('Authorization', `Bearer ${token}`);
 
   try {
