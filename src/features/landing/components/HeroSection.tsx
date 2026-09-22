@@ -1,6 +1,6 @@
 import Image from 'next/image';
 import Link from 'next/link';
-import { ArrowRight, BarChart3, Camera, Image as ImageIcon, Mouse, Play, Users } from 'lucide-react';
+import { ArrowRight, BarChart3, Camera, Image as ImageIcon, Mouse, Users } from 'lucide-react';
 
 const heroStats = [
   { value: '500+', label: 'Studios' },
@@ -60,20 +60,6 @@ export function HeroSection() {
                 Get Started Today
                 <ArrowRight className="h-5 w-5" aria-hidden="true" />
               </Link>
-
-              <button
-                type="button"
-                className="group inline-flex items-center gap-4 text-left text-[#FFF8EE]"
-                aria-label="Watch the story"
-              >
-                <span className="grid h-14 w-14 place-items-center rounded-full border border-[rgba(255,248,238,0.75)] transition-colors group-hover:bg-[rgba(255,248,238,0.12)]">
-                  <Play className="ml-1 h-5 w-5 fill-current" aria-hidden="true" />
-                </span>
-                <span>
-                  <span className="block text-base font-bold">Watch the Story</span>
-                  <span className="block text-sm text-[rgba(255,248,238,0.58)]">2 min overview</span>
-                </span>
-              </button>
             </div>
 
             <dl className="mt-11 grid w-full max-w-[48rem] grid-cols-2 gap-x-8 gap-y-5 sm:grid-cols-4 sm:gap-x-0 lg:w-[62vw] lg:max-w-[58rem] xl:w-[54vw]">
@@ -96,18 +82,6 @@ export function HeroSection() {
           </div>
 
           <div className="relative hidden min-h-[36rem] lg:block">
-            <div className="absolute left-[16%] top-[60%] grid h-40 w-40 -translate-y-1/2 place-items-center rounded-full border border-[rgba(226,124,151,0.42)] bg-[rgba(45,15,26,0.30)] text-center shadow-[0_0_64px_rgba(206,89,126,0.22)] backdrop-blur-sm">
-              <span className="text-[0.82rem] font-bold uppercase leading-[2] text-[rgba(255,248,238,0.78)]">
-                Weddings
-                <br />
-                People
-                <br />
-                Places
-                <br />
-                Stories
-              </span>
-            </div>
-
             <p className="absolute right-[4%] top-[4%] max-w-[18rem] rotate-[-9deg] font-[var(--font-display)] text-[2.55rem] italic leading-[1.05] text-[#D8B074] opacity-90">
               Capturing what forever feels like
             </p>
