@@ -2,17 +2,23 @@ import type { NextConfig } from 'next';
 
 const publicApiUrl = process.env.NEXT_PUBLIC_API_URL;
 const configuredApiProxyTarget = process.env.API_PROXY_TARGET?.replace(/\/$/, '');
+const publicApiProxyTarget = publicApiUrl?.startsWith('http')
+  ? publicApiUrl.replace(/\/api\/v1\/?$/, '').replace(/\/$/, '')
+  : undefined;
+const defaultApiProxyTarget = 'https://wedding-photo-planet-backend.vercel.app';
 const apiProxyTarget =
   configuredApiProxyTarget ??
-  (process.env.NODE_ENV !== 'production' && publicApiUrl?.startsWith('/') ? 'http://localhost:5050' : undefined);
+  publicApiProxyTarget ??
+  (process.env.NODE_ENV !== 'production' && publicApiUrl?.startsWith('/') ? 'http://localhost:5050' : undefined) ??
+  (publicApiUrl?.startsWith('/') ?? true ? defaultApiProxyTarget : undefined);
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   outputFileTracingRoot: process.cwd(),
   /**
-   * In local development, proxy API calls through Next so the browser talks
-   * only to localhost. This avoids requiring the production API to grant CORS
-   * access to every developer machine, while still forwarding auth headers.
+   * Proxy browser API calls through Next so auth cookies stay first-party to
+   * the CRM origin. This avoids third-party cookie loss on /auth/refresh when
+   * the backend is hosted on a separate domain.
    */
   async rewrites() {
     if (!apiProxyTarget) return [];

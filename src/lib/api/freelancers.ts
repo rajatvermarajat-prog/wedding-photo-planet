@@ -68,6 +68,46 @@ export interface FreelancerListQuery {
   sortOrder?: 'asc' | 'desc';
 }
 
+export interface FreelancerSearchQuery {
+  q?: string;
+  location?: string;
+  specialization?: BackendCrewRole;
+  skill?: string;
+  availabilityDate?: string;
+  availabilityStatus?: 'AVAILABLE' | 'PARTIALLY_AVAILABLE' | 'UNAVAILABLE';
+  page?: number;
+  pageSize?: number;
+}
+
+export interface FreelancerSearchResult {
+  id: string;
+  code: string;
+  displayName: string;
+  city?: string | null;
+  specialization: BackendCrewRole;
+  experienceYears?: number | null;
+  skills: string[];
+  searchable: boolean;
+  availability?: { id: string; date: string; status: string; startTime?: string | null; endTime?: string | null } | null;
+  portfolioCount: number;
+  portfolioPreview: Array<{ id: string; title: string; fileObject?: { id: string; originalName: string; mimeType: string; sizeBytes: string | number } | null }>;
+  connection?: { id: string; status: string; projectId?: string | null; shootId?: string | null; createdAt: string } | null;
+}
+
+export interface FreelancerConnection {
+  id: string;
+  freelancerId: string;
+  projectId?: string | null;
+  shootId?: string | null;
+  status: 'INTERESTED' | 'CONTACTED' | 'ACCEPTED' | 'DECLINED' | 'EXPIRED' | 'ASSIGNED';
+  notes?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  freelancer?: { id: string; code: string; fullName: string; primarySkill: BackendCrewRole; city?: string | null };
+  project?: { id: string; projectNumber: string; name: string } | null;
+  shoot?: { id: string; title: string; shootDate: string } | null;
+}
+
 export interface FreelancerInput {
   fullName: string;
   phone: string;
@@ -95,7 +135,7 @@ export interface FreelancerInput {
   status?: BackendFreelancerStatus;
 }
 
-const queryString = (query: FreelancerListQuery = {}) => {
+const queryString = (query: object = {}) => {
   const params = new URLSearchParams();
   Object.entries(query).forEach(([key, value]) => {
     if (value !== undefined && value !== '') params.set(key, String(value));
@@ -112,4 +152,14 @@ export const freelancersApi = {
   update: async (id: string, input: Partial<FreelancerInput>) =>
     (await apiRequest<BackendFreelancer>(`/freelancers/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(input) })).data,
   remove: async (id: string) => apiRequest<void>(`/freelancers/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+  search: async (query?: FreelancerSearchQuery): Promise<{ data: FreelancerSearchResult[]; meta: ApiMeta }> =>
+    apiRequest<FreelancerSearchResult[]>(`/freelancers/search${queryString(query)}`),
+  listConnections: async (query?: { status?: FreelancerConnection['status']; freelancerId?: string; projectId?: string; shootId?: string; page?: number; limit?: number }) =>
+    apiRequest<FreelancerConnection[]>(`/freelancers/connections${queryString(query)}`),
+  createConnection: async (input: { freelancerId: string; projectId?: string; shootId?: string; status?: FreelancerConnection['status']; notes?: string }) =>
+    (await apiRequest<FreelancerConnection>('/freelancers/connections', { method: 'POST', body: JSON.stringify(input) })).data,
+  updateConnection: async (id: string, input: { status?: FreelancerConnection['status']; notes?: string | null }) =>
+    (await apiRequest<FreelancerConnection>(`/freelancers/connections/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(input) })).data,
+  connect: async (id: string, input: { projectId: string; shootId?: string; role?: BackendCrewRole; notes?: string }) =>
+    (await apiRequest<{ connection: FreelancerConnection; assignment?: unknown }>(`/freelancers/connections/${encodeURIComponent(id)}/connect`, { method: 'POST', body: JSON.stringify(input) })).data,
 };

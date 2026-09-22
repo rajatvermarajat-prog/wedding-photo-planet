@@ -14,6 +14,7 @@ import {
 } from '@/types';
 import { FreelancerDashboardView } from './FreelancerDashboardView';
 import { AllFreelancersView } from './AllFreelancersView';
+import { FreelancerMarketplaceView } from './FreelancerMarketplaceView';
 import { AssignShootModal } from './AssignShootModal';
 import { ShootCalendarView } from './ShootCalendarView';
 import { FreelancerPaymentsView } from './FreelancerPaymentsView';
@@ -282,41 +283,11 @@ export const FreelancerTeamManager: React.FC<FreelancerTeamManagerProps> = (prop
       )}
 
       {activeSubTab === 'all_freelancers' && (
-        <AllFreelancersView
-          freelancers={freelancers}
-          categories={categories}
-          assignments={assignments}
-          payments={payments}
-          onOpenProfile={(f) => setSelectedProfileFreelancer(f)}
-          onEditFreelancer={canEdit ? handleOpenEditForm : undefined}
-          onAddFreelancerClick={canCreate ? handleOpenAddForm : undefined}
-          onAssignShootClick={canAssign ? (id) => openAssign(id) : undefined}
-          onRecordPaymentClick={canPay ? () => setActiveSubTab('payments') : undefined}
-          onDeleteFreelancer={canDelete ? onDeleteFreelancer : undefined}
-          onManageCategoriesClick={canEdit ? () => setShowCategoriesModal(true) : undefined}
-          onMarkInterested={canEdit ? handleMarkInterested : undefined}
-          onApproveFreelancer={canEdit ? handleApproveFreelancer : undefined}
-          initialCategory={listCategory}
-          mode="find"
-        />
+        <FreelancerMarketplaceView mode="find" projects={projects} />
       )}
 
       {activeSubTab === 'interested' && (
-        <AllFreelancersView
-          freelancers={freelancers}
-          categories={categories}
-          assignments={assignments}
-          payments={payments}
-          onOpenProfile={(f) => setSelectedProfileFreelancer(f)}
-          onEditFreelancer={canEdit ? handleOpenEditForm : undefined}
-          onAssignShootClick={canAssign ? (id) => openAssign(id) : undefined}
-          onRecordPaymentClick={canPay ? () => setActiveSubTab('payments') : undefined}
-          onDeleteFreelancer={canDelete ? onDeleteFreelancer : undefined}
-          onManageCategoriesClick={canEdit ? () => setShowCategoriesModal(true) : undefined}
-          onApproveFreelancer={canEdit ? handleApproveFreelancer : undefined}
-          initialCategory={listCategory}
-          mode="interested"
-        />
+        <FreelancerMarketplaceView mode="interested" projects={projects} />
       )}
 
       {activeSubTab === 'applications' && (

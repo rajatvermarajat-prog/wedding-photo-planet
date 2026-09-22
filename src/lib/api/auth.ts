@@ -28,12 +28,12 @@ export const authApi = {
     setAuthTokens(data.tokens ?? null);
     return data.user;
   },
-  /** True when this browser holds a JavaScript-readable access token. */
+  /** True when this browser still believes it holds a session. */
   hasSession(): boolean {
     return hasStoredSession();
   },
-  async me(): Promise<SessionUser> {
-    const { data } = await apiRequest<SessionUser>('/auth/me');
+  async me(init?: RequestInit): Promise<SessionUser> {
+    const { data } = await apiRequest<SessionUser>('/auth/me', init);
     return data;
   },
   async logout(): Promise<void> {
