@@ -54,8 +54,13 @@ function apiBaseUrl(): string {
 }
 
 const REQUEST_TIMEOUT_MS = 15_000;
-const TOKEN_KEY = 'wpp.accessToken';
-const LEGACY_REFRESH_KEY = 'wpp.refreshToken';
+/**
+ * Older builds mirrored the token pair into localStorage. Nothing reads them
+ * any more — authentication is carried entirely by the backend's httpOnly
+ * cookies — but they are purged whenever auth state is touched so an existing
+ * browser does not keep a readable access token lying around.
+ */
+const LEGACY_TOKEN_KEYS = ['wpp.accessToken', 'wpp.refreshToken'];
 const CLIENT_SESSION_COOKIE = 'wpp_client_session';
 const DEFAULT_CLIENT_SESSION_MAX_AGE = 60 * 60 * 24 * 7;
 const ACCESS_TOKEN_REFRESH_WINDOW_MS = 90_000;
@@ -78,71 +83,89 @@ type RefreshSessionResult =
   | { ok: false; reason: 'transient'; status: number; message?: string };
 
 /**
- * Access tokens may be mirrored for Authorization headers, but refresh tokens
- * stay in the backend-issued httpOnly cookie. Older builds stored
- * `wpp.refreshToken`; remove it whenever auth state is touched.
+ * The access and refresh tokens are never stored by this app. They live only in
+ * the backend's httpOnly cookies, which the browser attaches automatically to
+ * every same-origin `/api/v1` call (Next proxies those to the API, so the
+ * cookies stay first-party). What is kept here is deliberately non-sensitive:
+ *
+ *  - `accessTokenExpiresAt`, in memory only, so the session can be renewed
+ *    slightly before it lapses instead of after a user-visible 401.
+ *  - `wpp_client_session`, a readable "this browser has a session" flag with no
+ *    credential value, which lets the edge middleware and the session provider
+ *    tell "signed out" apart from "cookie present but access token expired".
  */
+let accessTokenExpiresAt: number | null = null;
+let lastAuthWriteAt = 0;
+
+function purgeLegacyTokenStorage(): void {
+  if (typeof window === 'undefined') return;
+  for (const key of LEGACY_TOKEN_KEYS) {
+    try {
+      window.localStorage.removeItem(key);
+    } catch {
+      // Private mode / blocked storage: nothing to purge.
+    }
+  }
+}
+
+// Purge on load too, so a browser upgrading to this build stops holding tokens
+// even if it never signs in or out again.
+purgeLegacyTokenStorage();
+
 export function setAuthTokens(tokens: AuthTokens | null): void {
   if (typeof window === 'undefined') return;
-  window.localStorage.removeItem(LEGACY_REFRESH_KEY);
+  purgeLegacyTokenStorage();
   if (!tokens) {
     authEvent('TOKEN_CLEAR', { source: 'client.ts', reason: 'setAuthTokens_null' });
-    window.localStorage.removeItem(TOKEN_KEY);
-    document.cookie = `${CLIENT_SESSION_COOKIE}=; Path=/; Max-Age=0; SameSite=Lax`;
+    accessTokenExpiresAt = null;
+    document.cookie = `${CLIENT_SESSION_COOKIE}=; Path=/; Max-Age=0; SameSite=Lax${sessionCookieSuffix()}`;
     return;
   }
-  if (tokens.accessToken) {
-    const existingExpiry = getAccessTokenExpiryMs();
-    const nextExpiry = getAccessTokenExpiryMs(tokens.accessToken);
-    if (existingExpiry && nextExpiry && nextExpiry < existingExpiry) {
-      authEvent('TOKEN_WRITE_SKIPPED', {
-        source: 'client.ts',
-        reason: 'stale_access_token',
-        existingExpiry: new Date(existingExpiry).toISOString(),
-        nextExpiry: new Date(nextExpiry).toISOString(),
-      });
-      return;
-    }
-    window.localStorage.setItem(TOKEN_KEY, tokens.accessToken);
-    const maxAge = tokens.refreshTokenExpiresIn ?? tokens.accessTokenExpiresIn ?? DEFAULT_CLIENT_SESSION_MAX_AGE;
-    document.cookie = `${CLIENT_SESSION_COOKIE}=1; Path=/; Max-Age=${maxAge}; SameSite=Lax`;
-    authEvent('TOKEN_WRITE', {
+  const nextExpiry = tokens.accessTokenExpiresIn
+    ? Date.now() + tokens.accessTokenExpiresIn * 1000
+    : null;
+  if (accessTokenExpiresAt && nextExpiry && nextExpiry < accessTokenExpiresAt) {
+    // An older in-flight response landing after a newer one must not move the
+    // renewal schedule backwards.
+    authEvent('TOKEN_WRITE_SKIPPED', {
       source: 'client.ts',
-      accessTokenExpiresAt: nextExpiry ? new Date(nextExpiry).toISOString() : null,
-      clientSessionMaxAge: maxAge,
+      reason: 'stale_expiry',
+      existingExpiry: new Date(accessTokenExpiresAt).toISOString(),
+      nextExpiry: new Date(nextExpiry).toISOString(),
     });
+    return;
   }
+  accessTokenExpiresAt = nextExpiry;
+  lastAuthWriteAt = Date.now();
+  const maxAge = tokens.refreshTokenExpiresIn ?? tokens.accessTokenExpiresIn ?? DEFAULT_CLIENT_SESSION_MAX_AGE;
+  document.cookie = `${CLIENT_SESSION_COOKIE}=1; Path=/; Max-Age=${maxAge}; SameSite=Lax${sessionCookieSuffix()}`;
+  authEvent('TOKEN_WRITE', {
+    source: 'client.ts',
+    accessTokenExpiresAt: nextExpiry ? new Date(nextExpiry).toISOString() : null,
+    clientSessionMaxAge: maxAge,
+  });
 }
 
-export function getAccessToken(): string | null {
-  if (typeof window === 'undefined') return null;
-  return window.localStorage.getItem(TOKEN_KEY);
+/** `Secure` on HTTPS so the flag is not echoed over a plaintext downgrade. */
+const sessionCookieSuffix = () =>
+  typeof location !== 'undefined' && location.protocol === 'https:' ? '; Secure' : '';
+
+function hasClientSessionCookie(): boolean {
+  if (typeof document === 'undefined') return false;
+  return document.cookie
+    .split(';')
+    .map((cookie) => cookie.trim())
+    .some((cookie) => cookie.startsWith(`${CLIENT_SESSION_COOKIE}=`));
 }
 
-/** True when this browser has a JavaScript-readable access token. */
+/** True when this browser still believes it holds a session. */
 export function hasStoredSession(): boolean {
-  return Boolean(getAccessToken());
+  return hasClientSessionCookie();
 }
 
-function getAccessTokenNumericClaimMs(claim: 'exp' | 'iat', token = getAccessToken()): number | null {
-  if (!token) return null;
-  const [, payload] = token.split('.');
-  if (!payload) return null;
-  try {
-    const normalized = payload.replace(/-/g, '+').replace(/_/g, '/');
-    const decoded = JSON.parse(window.atob(normalized)) as Record<string, unknown>;
-    return typeof decoded[claim] === 'number' ? decoded[claim] * 1000 : null;
-  } catch {
-    return null;
-  }
-}
-
-export function getAccessTokenExpiryMs(token = getAccessToken()): number | null {
-  return getAccessTokenNumericClaimMs('exp', token);
-}
-
-function getAccessTokenIssuedAtMs(token = getAccessToken()): number | null {
-  return getAccessTokenNumericClaimMs('iat', token);
+/** When the current access token lapses, or null if that is unknown. */
+export function getAccessTokenExpiryMs(): number | null {
+  return accessTokenExpiresAt;
 }
 
 let refreshInFlight: Promise<RefreshSessionResult> | null = null;
@@ -182,15 +205,16 @@ export function refreshSession(): Promise<RefreshSessionResult> {
           setCookieReceived: response.headers.has('set-cookie'),
         });
         if (reason === 'invalid') {
-          const currentIssuedAt = getAccessTokenIssuedAtMs();
-          if (currentIssuedAt && currentIssuedAt >= startedAt - 1_000) {
+          if (lastAuthWriteAt >= startedAt - 1_000) {
+            // A newer successful refresh landed while this one was in flight.
+            // Do not tear down a session that is demonstrably alive.
             authEvent('REFRESH_INVALID_IGNORED', {
               source: 'client.ts',
-              reason: 'newer_access_token_present',
+              reason: 'newer_session_present',
               refreshStartedAt: new Date(startedAt).toISOString(),
-              currentTokenIssuedAt: new Date(currentIssuedAt).toISOString(),
+              lastAuthWriteAt: new Date(lastAuthWriteAt).toISOString(),
             });
-            return { ok: false, reason: 'transient', status: response.status, message: 'Newer access token already present' };
+            return { ok: false, reason: 'transient', status: response.status, message: 'Newer session already present' };
           }
           setAuthTokens(null);
         }
@@ -295,13 +319,7 @@ export async function apiRequest<T>(
 /** Authenticated binary download with the same one-time refresh behavior as API JSON calls. */
 export async function apiBlobRequest(path: string, isRetry = false): Promise<{ blob: Blob; filename: string | null }> {
   const headers = new Headers({ Accept: 'application/pdf' });
-  let token = getAccessToken();
-  const expiresAt = getAccessTokenExpiryMs(token);
-  if (token && expiresAt !== null && expiresAt - Date.now() <= ACCESS_TOKEN_REFRESH_WINDOW_MS) {
-    const refreshed = await refreshSession();
-    token = refreshed.ok ? getAccessToken() : token;
-  }
-  if (token) headers.set('Authorization', `Bearer ${token}`);
+  await renewIfExpiring(path);
   try {
     const response = await fetch(`${apiBaseUrl()}${path.startsWith('/') ? path : `/${path}`}`, { headers, credentials: 'include' });
     if (response.status === 401 && !isRetry && hasStoredSession()) {
@@ -324,36 +342,53 @@ export async function apiBlobRequest(path: string, isRetry = false): Promise<{ b
 
 const NO_REFRESH_PATHS = ['/auth/login', '/auth/refresh', '/auth/logout'];
 
+/**
+ * Renews the session cookie shortly before the access token lapses, so a long
+ * page session does not have to surface a 401 first. Single-flight, and never
+ * on the auth endpoints themselves — refreshing before a login or a refresh
+ * would be the first step of an infinite loop.
+ */
+async function renewIfExpiring(path: string): Promise<void> {
+  if (NO_REFRESH_PATHS.includes(path)) return;
+  const expiresAt = getAccessTokenExpiryMs();
+  if (expiresAt === null) return;
+  if (expiresAt - Date.now() > ACCESS_TOKEN_REFRESH_WINDOW_MS) return;
+  await refreshSession();
+}
+
+function linkedSignal(timeoutMs: number, externalSignal?: AbortSignal): { signal: AbortSignal; cleanup: () => void } {
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), timeoutMs);
+  const abort = () => controller.abort();
+  externalSignal?.addEventListener('abort', abort, { once: true });
+  if (externalSignal?.aborted) controller.abort();
+  return {
+    signal: controller.signal,
+    cleanup: () => {
+      window.clearTimeout(timeout);
+      externalSignal?.removeEventListener('abort', abort);
+    },
+  };
+}
+
 async function performRequest<T>(
   path: string,
   init: RequestInit & { timeoutMs?: number } = {},
   isRetry = false,
 ): Promise<{ data: T; meta: ApiMeta }> {
   const method = (init.method ?? 'GET').toUpperCase();
-  const controller = new AbortController();
-  const timeout = window.setTimeout(() => controller.abort(), init.timeoutMs ?? REQUEST_TIMEOUT_MS);
+  const { signal, cleanup } = linkedSignal(init.timeoutMs ?? REQUEST_TIMEOUT_MS, init.signal ?? undefined);
   const headers = new Headers(init.headers);
   if (init.body && !headers.has('Content-Type')) headers.set('Content-Type', 'application/json');
   headers.set('Accept', 'application/json');
-  let token = getAccessToken();
-  const expiresAt = getAccessTokenExpiryMs(token);
-  if (
-    token &&
-    expiresAt !== null &&
-    expiresAt - Date.now() <= ACCESS_TOKEN_REFRESH_WINDOW_MS &&
-    !NO_REFRESH_PATHS.includes(path)
-  ) {
-    const refreshed = await refreshSession();
-    token = refreshed.ok ? getAccessToken() : token;
-  }
-  if (token && !headers.has('Authorization')) headers.set('Authorization', `Bearer ${token}`);
+  await renewIfExpiring(path);
 
   try {
     const response = await fetch(`${apiBaseUrl()}${path.startsWith('/') ? path : `/${path}`}`, {
       ...init,
       headers,
       credentials: 'include',
-      signal: controller.signal,
+      signal,
     });
     if (response.status === 204) return { data: undefined as T, meta: {} };
 
@@ -367,11 +402,7 @@ async function performRequest<T>(
       // so an expired token never surfaces as a lost session.
       authEvent('API_401', { source: 'client.ts', path, method, retry: false });
       const renewed = await refreshSession();
-      if (renewed.ok) {
-        const retryHeaders = new Headers(init.headers);
-        retryHeaders.delete('Authorization');
-        return performRequest<T>(path, { ...init, headers: retryHeaders }, true);
-      }
+      if (renewed.ok) return performRequest<T>(path, init, true);
     }
 
     const payload = await response.json().catch(() => null) as ApiEnvelope<T> | ApiErrorEnvelope | null;
@@ -400,7 +431,7 @@ async function performRequest<T>(
     }
     throw new ApiError(0, 'Unable to reach the CRM service. Check your connection and try again.');
   } finally {
-    window.clearTimeout(timeout);
+    cleanup();
   }
 }
 

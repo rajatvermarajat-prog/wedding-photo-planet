@@ -1,13 +1,14 @@
 'use client';
 
 import { useState } from 'react';
+import { Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Camera, Loader2 } from 'lucide-react';
 import { ApiError } from '@/lib/api/client';
 import { freelancerPortalApi } from '@/lib/api/freelancerPortal';
 
-export default function FreelancerLoginPage() {
+function FreelancerLoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [identifier, setIdentifier] = useState('');
@@ -59,5 +60,13 @@ export default function FreelancerLoginPage() {
         </p>
       </section>
     </main>
+  );
+}
+
+export default function FreelancerLoginPage() {
+  return (
+    <Suspense fallback={<main className="grid min-h-screen place-items-center bg-[#F7F6F3] px-4 text-sm font-bold text-[#686164]">Loading sign in...</main>}>
+      <FreelancerLoginForm />
+    </Suspense>
   );
 }

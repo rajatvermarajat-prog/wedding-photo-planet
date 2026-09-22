@@ -1,16 +1,20 @@
-import { FoundationPage } from '@/components/experience/ExperienceLayouts';
+import { Section } from '@/features/landing/components/Editorial';
+import { PageHeader } from '@/features/landing/components/PageHeader';
+import { LegalNotice } from '@/features/landing/components/LegalNotice';
 
 export const metadata = { title: 'Terms' };
 
 export default function TermsPage() {
   return (
-    <div className="pt-20">
-      <FoundationPage
-        audience="public"
-        eyebrow="Legal"
-        title="Terms foundation"
-        description="Placeholder route for final platform terms. Replace with approved legal copy before launch."
+    <>
+      <PageHeader
+        mark="Legal · Terms"
+        title={<>The terms of use.</>}
+        lead="Wedding Photo Planet is provided to studios as an operational workspace, and to freelancers and couples through access a studio grants."
       />
-    </div>
+      <Section tone="paper">
+        <LegalNotice document="platform terms" />
+      </Section>
+    </>
   );
 }

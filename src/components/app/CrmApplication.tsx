@@ -83,10 +83,19 @@ export default function App() {
   const { currentUser, isHydrated, login, logout, refresh } = useAuthSession();
 
   const [showLoginModal, setShowLoginModal] = useState<boolean>(false);
+  const routeTab = ROUTE_TABS[pathname] || (pathname.startsWith('/projects/') ? 'projects' : undefined);
+  const [activeTab, setActiveTabState] = useState<TabType>(() => routeTab || 'dashboard');
+  const visibleTab = routeTab || activeTab;
+  const routedProjectId = pathname.startsWith('/projects/')
+    ? decodeURIComponent(pathname.slice('/projects/'.length))
+    : null;
+  const isNewProjectPage = pathname === '/projects/new';
+  const isScheduleShootPage = pathname === '/shoots/schedule';
+  const isRecordPaymentPage = pathname === '/payments/new';
 
   // CRM entities are intentionally not restored from browser storage. They will
   // be supplied by feature API queries during the next integration phase.
-  const isDashboard = pathname === '/dashboard';
+  const isDashboard = visibleTab === 'dashboard';
   // One aggregated read for the dashboard's counts, today's attendance and the
   // next shoots, instead of deriving them from full paginated datasets.
   const summaryQuery = useDashboardSummary(Boolean(currentUser) && isDashboard);
@@ -96,17 +105,48 @@ export default function App() {
 
   const [projects, setProjects] = useState<Project[]>([]);
   const hydratedProjectData = useRef<unknown>(null);
+  const hydratedProjectExtrasData = useRef<unknown>(null);
+  const projectScreens = new Set<TabType>([
+    'dashboard',
+    'owner_workspace',
+    'roles',
+    'projects',
+    'shoots',
+    'expenses',
+    'data',
+    'team',
+    'freelancers',
+    'clients',
+    'deliveries',
+  ]);
+  const shouldLoadProjects = Boolean(currentUser) && (
+    Boolean(routedProjectId) ||
+    isNewProjectPage ||
+    isScheduleShootPage ||
+    isRecordPaymentPage ||
+    (projectScreens.has(visibleTab) && (!isDashboard || secondaryReady))
+  );
+  const shouldHydrateProjectExtras = Boolean(currentUser) && shouldLoadProjects && (
+    Boolean(routedProjectId) ||
+    isScheduleShootPage ||
+    isRecordPaymentPage ||
+    ['projects', 'shoots', 'expenses', 'data', 'team', 'freelancers', 'clients', 'deliveries', 'owner_workspace', 'roles'].includes(visibleTab)
+  );
   const projectQuery = useProjects(
     { page: 1, limit: 100 },
-    Boolean(currentUser) && secondaryReady,
+    shouldLoadProjects,
   );
 
   useEffect(() => {
     if (!currentUser || projectQuery.loading || projectQuery.error) return;
-    if (hydratedProjectData.current === projectQuery.data) return;
-    hydratedProjectData.current = projectQuery.data;
-    const mapped = projectQuery.data.map(normalizeProject);
-    setProjects(mapped);
+    if (hydratedProjectData.current !== projectQuery.data) {
+      hydratedProjectData.current = projectQuery.data;
+      const mapped = projectQuery.data.map(normalizeProject);
+      setProjects(mapped);
+    }
+    if (!shouldHydrateProjectExtras) return;
+    if (hydratedProjectExtrasData.current === projectQuery.data) return;
+    hydratedProjectExtrasData.current = projectQuery.data;
     // Shoot Management groups the complete studio schedule by project.  Fetch
     // every API page before attaching, otherwise projects whose shoots land on
     // page 2+ disappear from that screen.
@@ -143,7 +183,7 @@ export default function App() {
         }));
       })
       .catch(() => undefined);
-  }, [currentUser, isDashboard, projectQuery.data, projectQuery.error, projectQuery.loading]);
+  }, [currentUser, projectQuery.data, projectQuery.error, projectQuery.loading, shouldHydrateProjectExtras]);
   const projectMutations = useProjectMutation(projectQuery.retry);
   const [team, setTeam] = useState<TeamMember[]>([]);
   const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
@@ -157,7 +197,13 @@ export default function App() {
     currentUser?.permissions?.includes('ATTENDANCE_UPDATE') ||
     currentUser?.permissions?.includes('ATTENDANCE_MANAGE')
   );
-  const shouldLoadTeam = Boolean(currentUser) && secondaryReady;
+  const shouldLoadTeam = Boolean(currentUser) && (
+    isNewProjectPage ||
+    isScheduleShootPage ||
+    Boolean(routedProjectId) ||
+    ['team', 'roles', 'projects', 'shoots', 'freelancers'].includes(visibleTab) ||
+    (isDashboard && secondaryReady)
+  );
   const teamQuery = useTeam(
     { page: 1, limit: 100 },
     shouldLoadTeam,
@@ -196,7 +242,7 @@ export default function App() {
   const tasksAreCritical = isEmployeeAttendanceUser(currentUser);
   const shouldLoadTasks = Boolean(currentUser) && canViewTasks &&
     (tasksAreCritical || secondaryReady) && (
-      pathname === '/dashboard' || pathname === '/team' || pathname === '/workspaces'
+      visibleTab === 'dashboard' || visibleTab === 'team' || visibleTab === 'roles'
     );
   const taskQueryInput = useMemo(() => ({
     page: 1,
@@ -310,7 +356,9 @@ export default function App() {
   const canReadFreelancers = hasPermission(currentUser, accessRoles, 'freelancers.view');
   const freelancerQuery = useFreelancers(
     { page: 1, limit: 100, sortBy: 'createdAt', sortOrder: 'desc' },
-    Boolean(currentUser) && secondaryReady && canReadFreelancers,
+    Boolean(currentUser) &&
+      canReadFreelancers &&
+      (visibleTab === 'freelancers' || visibleTab === 'team' || visibleTab === 'expenses'),
   );
   const freelancerMutations = useFreelancerMutation(freelancerQuery.retry);
   const freelancers = useMemo(
@@ -329,9 +377,6 @@ export default function App() {
   const [freelancerActivityLogs, setFreelancerActivityLogs] = useState<FreelancerActivityLog[]>([]);
 
   // Tab, Sidebar & Filter States
-  const routeTab = ROUTE_TABS[pathname] || (pathname.startsWith('/projects/') ? 'projects' : undefined);
-  const [activeTab, setActiveTabState] = useState<TabType>(() => routeTab || 'dashboard');
-  const visibleTab = routeTab || activeTab;
   const setActiveTab = useCallback((tab: TabType) => {
     setActiveTabState(tab);
     router.push(TAB_ROUTES[tab]);
@@ -390,16 +435,10 @@ export default function App() {
     router.push(`/projects/${encodeURIComponent(project.id)}`);
   };
 
-  const routedProjectId = pathname.startsWith('/projects/')
-    ? decodeURIComponent(pathname.slice('/projects/'.length))
-    : null;
   const routedProject = routedProjectId
     ? projects.find((project) => project.id === routedProjectId) || null
     : null;
   const canOpenRoutedProject = !!(routedProject && canAccessProject(currentUser, accessRoles, routedProject));
-  const isNewProjectPage = pathname === '/projects/new';
-  const isScheduleShootPage = pathname === '/shoots/schedule';
-  const isRecordPaymentPage = pathname === '/payments/new';
 
   // Status counts for Header & Filters
   const counts = {

@@ -1,59 +1,146 @@
 import Image from 'next/image';
 import Link from 'next/link';
-import { ArrowRight, BriefcaseBusiness, Heart, UsersRound } from 'lucide-react';
-import { primaryButton, secondaryButton } from './SectionChrome';
+import { ArrowRight, BarChart3, Camera, Image as ImageIcon, Mouse, Play, Users } from 'lucide-react';
 
-const entryPoints = [
-  { href: '#studios', label: 'For Studios', icon: BriefcaseBusiness },
-  { href: '#freelancers', label: 'For Freelancers', icon: UsersRound },
-  { href: '#clients', label: 'For Clients', icon: Heart },
+const heroStats = [
+  { value: '500+', label: 'Studios' },
+  { value: '2,500+', label: 'Freelancers' },
+  { value: '15,000+', label: 'Weddings' },
+  { value: '1M+', label: 'Memories Delivered' },
+];
+
+const heroRails = [
+  { icon: Camera, title: 'Manage', body: 'Your Business' },
+  { icon: Users, title: 'Connect', body: 'With Talent' },
+  { icon: ImageIcon, title: 'Deliver', body: 'Unforgettable Memories' },
+  { icon: BarChart3, title: 'Grow', body: 'A Stronger Brand' },
 ];
 
 export function HeroSection() {
   return (
-    <section className="relative isolate overflow-hidden bg-[#F7F6F3] pt-24">
-      <div className="absolute inset-x-0 top-0 -z-10 h-[42rem] bg-[radial-gradient(circle_at_78%_12%,rgba(221,200,156,.34),transparent_27rem),radial-gradient(circle_at_12%_4%,rgba(141,82,101,.16),transparent_24rem)]" />
-      <div className="mx-auto grid min-h-[calc(100vh-4rem)] max-w-7xl items-center gap-10 px-4 pb-16 pt-8 sm:px-6 lg:grid-cols-[.95fr_1.05fr] lg:px-8">
-        <div className="max-w-2xl">
-          <p className="motion-safe:animate-[wpp-fade-up_520ms_ease-out_both] text-[11px] font-extrabold uppercase tracking-[.18em] text-[#8D5265]">
-            Wedding Photo Planet
-          </p>
-          <h1 className="mt-4 text-4xl font-black leading-[1.02] tracking-tight text-[#302C2E] motion-safe:animate-[wpp-fade-up_620ms_ease-out_80ms_both] sm:text-6xl xl:text-7xl">
-            Every Wedding. Every Memory. One Beautiful Workspace.
-          </h1>
-          <p className="mt-6 max-w-xl text-base font-medium leading-8 text-[#686164] motion-safe:animate-[wpp-fade-up_620ms_ease-out_160ms_both] sm:text-lg">
-            Wedding Photo Planet helps photography businesses manage operations, connect with professional freelancers, and deliver beautiful wedding galleries to clients.
-          </p>
-          <div className="mt-8 flex flex-col gap-3 motion-safe:animate-[wpp-fade-up_620ms_ease-out_240ms_both] sm:flex-row">
-            <Link href="/contact" className={primaryButton}>Get Started <ArrowRight className="ml-2 size-4" aria-hidden="true" /></Link>
-            <Link href="#features" className={secondaryButton}>Explore Platform</Link>
-          </div>
-          <div className="mt-8 grid gap-2 motion-safe:animate-[wpp-fade-up_620ms_ease-out_320ms_both] sm:grid-cols-3">
-            {entryPoints.map(({ href, label, icon: Icon }) => (
-              <Link key={label} href={href} className="group flex min-h-12 items-center gap-2 rounded-2xl border border-[#DFD9D2] bg-white/72 px-3 py-2 text-xs font-extrabold text-[#5A2F3E] backdrop-blur-sm transition hover:border-[#B99A5E] hover:bg-white">
-                <Icon className="size-4 text-[#8D5265]" aria-hidden="true" />
-                {label}
+    <section className="ed-hero-scene ed-ink relative isolate min-h-[100svh] overflow-hidden bg-[#210912]">
+      <Image
+        src="/images/wpp-landing-hero-cinematic.png"
+        alt="Bride under a floral stone arch at sunset with wedding photographs, a camera and burgundy silk."
+        fill
+        priority
+        sizes="100vw"
+        className="absolute inset-0 -z-30 object-cover object-[54%_50%]"
+      />
+      <div className="absolute inset-0 -z-20 bg-[linear-gradient(90deg,rgba(30,8,16,0.76)_0%,rgba(35,9,18,0.36)_34%,rgba(35,9,18,0.05)_62%,rgba(35,9,18,0.24)_100%)]" />
+      <div className="absolute inset-x-0 bottom-0 -z-10 h-[27vh] bg-[linear-gradient(180deg,transparent_0%,rgba(30,8,15,0.72)_36%,rgba(31,8,15,0.98)_100%)]" />
+
+      <div className="relative z-10 flex min-h-[100svh] flex-col px-[clamp(1.25rem,5vw,7.5rem)] pb-7 pt-[calc(var(--nav-h)+1.5rem)] lg:pb-8 lg:pt-[calc(var(--nav-h)+2.25rem)]">
+        <div className="grid flex-1 items-center gap-10 lg:grid-cols-[minmax(31rem,0.52fr)_1fr]">
+          <div className="max-w-[42rem] self-center lg:-mt-8">
+            <div className="mb-6 flex items-center gap-4">
+              <span className="h-px w-10 bg-[#C9A55A]" aria-hidden="true" />
+              <span className="ed-label text-[#D2AF72]">More than a CRM</span>
+            </div>
+
+            <h1 className="ed-display text-[clamp(3.2rem,5.15vw,6.35rem)] font-medium leading-[0.88] text-[#FFF8EE]">
+              <span className="block">A Season</span>
+              <span className="block pl-[0.02em]">of Weddings.</span>
+              <em className="block font-light leading-[0.9] text-[#E5C792]">
+                A Lifetime
+              </em>
+              <span className="block pl-[0.08em]">of Stories.</span>
+            </h1>
+
+            <p className="mt-6 max-w-[37rem] text-[clamp(0.95rem,1.1vw,1.15rem)] font-medium leading-[1.65] text-[rgba(255,248,238,0.78)]">
+              The all-in-one workspace for wedding photography studios, freelancers and clients. Manage
+              inquiries, projects, shoots, payments and client galleries - beautifully, in one place.
+            </p>
+
+            <div className="mt-8 flex flex-wrap items-center gap-6">
+              <Link
+                href="/contact"
+                className="inline-flex h-14 min-w-[16.5rem] items-center justify-center gap-4 rounded-full border border-[rgba(231,190,124,0.28)] bg-[linear-gradient(180deg,#C75F8B_0%,#B54674_100%)] px-8 text-base font-bold text-white shadow-[0_18px_44px_rgba(174,61,103,0.42),inset_0_1px_0_rgba(255,255,255,0.2)] transition-transform hover:-translate-y-0.5"
+              >
+                Get Started Today
+                <ArrowRight className="h-5 w-5" aria-hidden="true" />
               </Link>
-            ))}
+
+              <button
+                type="button"
+                className="group inline-flex items-center gap-4 text-left text-[#FFF8EE]"
+                aria-label="Watch the story"
+              >
+                <span className="grid h-14 w-14 place-items-center rounded-full border border-[rgba(255,248,238,0.75)] transition-colors group-hover:bg-[rgba(255,248,238,0.12)]">
+                  <Play className="ml-1 h-5 w-5 fill-current" aria-hidden="true" />
+                </span>
+                <span>
+                  <span className="block text-base font-bold">Watch the Story</span>
+                  <span className="block text-sm text-[rgba(255,248,238,0.58)]">2 min overview</span>
+                </span>
+              </button>
+            </div>
+
+            <dl className="mt-11 grid w-full max-w-[48rem] grid-cols-2 gap-x-8 gap-y-5 sm:grid-cols-4 sm:gap-x-0 lg:w-[62vw] lg:max-w-[58rem] xl:w-[54vw]">
+              {heroStats.map((item, index) => (
+                <div
+                  key={item.label}
+                  className={`min-w-0 ${index > 0 ? 'sm:border-l sm:border-[rgba(255,248,238,0.35)] sm:pl-6 lg:pl-8 xl:pl-10' : ''} ${
+                    index < heroStats.length - 1 ? 'sm:pr-6 lg:pr-8 xl:pr-10' : ''
+                  }`}
+                >
+                  <dt className="font-[var(--font-display)] text-[clamp(1.9rem,2.05vw,2.55rem)] leading-none text-[#E7CA94]">
+                    {item.value}
+                  </dt>
+                  <dd className="mt-2 max-w-[8rem] text-sm font-medium leading-snug text-[rgba(255,248,238,0.72)]">
+                    {item.label}
+                  </dd>
+                </div>
+              ))}
+            </dl>
+          </div>
+
+          <div className="relative hidden min-h-[36rem] lg:block">
+            <div className="absolute left-[16%] top-[60%] grid h-40 w-40 -translate-y-1/2 place-items-center rounded-full border border-[rgba(226,124,151,0.42)] bg-[rgba(45,15,26,0.30)] text-center shadow-[0_0_64px_rgba(206,89,126,0.22)] backdrop-blur-sm">
+              <span className="text-[0.82rem] font-bold uppercase leading-[2] text-[rgba(255,248,238,0.78)]">
+                Weddings
+                <br />
+                People
+                <br />
+                Places
+                <br />
+                Stories
+              </span>
+            </div>
+
+            <p className="absolute right-[4%] top-[4%] max-w-[18rem] rotate-[-9deg] font-[var(--font-display)] text-[2.55rem] italic leading-[1.05] text-[#D8B074] opacity-90">
+              Capturing what forever feels like
+            </p>
           </div>
         </div>
 
-        <div className="motion-safe:animate-[wpp-soft-reveal_900ms_ease-out_220ms_both]">
-          <div className="relative mx-auto aspect-[4/5] max-h-[44rem] max-w-[38rem] overflow-hidden rounded-[2rem] border border-white/70 bg-white p-3 shadow-[0_26px_70px_rgba(48,44,46,.18)] sm:rounded-[2.4rem]">
-            <div className="relative h-full overflow-hidden rounded-[1.45rem]">
-              <Image
-                src="/images/wedding-login-hero.png"
-                alt="A cinematic wedding couple portrait used to represent the future client gallery experience"
-                fill
-                priority
-                sizes="(min-width: 1024px) 45vw, 92vw"
-                className="object-cover motion-safe:animate-[wpp-ken-burns_16s_ease-out_both]"
-              />
-              <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(33,30,32,.08),rgba(33,30,32,.42))]" />
-              <div className="absolute bottom-5 left-5 right-5 rounded-2xl border border-white/20 bg-[#211E20]/56 p-4 text-white backdrop-blur-md">
-                <p className="text-[10px] font-extrabold uppercase tracking-[.16em] text-[#DDC89C]">Client Gallery Direction</p>
-                <p className="mt-2 text-lg font-black">A beautiful handoff for memories, albums and delivery.</p>
-              </div>
+        <div className="relative mt-7 border-t border-[rgba(223,181,111,0.48)] pt-6">
+          <div className="grid gap-5 md:grid-cols-4 lg:grid-cols-[1fr_1fr_1.2fr_1fr_auto]">
+            {heroRails.map((item, index) => {
+              const Icon = item.icon;
+              return (
+                <div
+                  key={item.title}
+                  className={`flex items-center gap-4 ${index > 0 ? 'md:border-l md:border-[rgba(255,248,238,0.18)] md:pl-8' : ''}`}
+                >
+                  <Icon className="h-8 w-8 text-[#E7CA94]" aria-hidden="true" />
+                  <span>
+                    <span className="block text-sm font-bold uppercase text-[#FFF8EE]">
+                      {item.title}
+                    </span>
+                    <span className="mt-1 block text-sm text-[rgba(255,248,238,0.62)]">{item.body}</span>
+                  </span>
+                </div>
+              );
+            })}
+
+            <div className="hidden items-center justify-end gap-4 text-[0.72rem] font-bold uppercase text-[rgba(255,248,238,0.42)] lg:flex">
+              <Mouse className="h-9 w-9 text-[#E7CA94]" aria-hidden="true" />
+              <span>
+                Scroll
+                <br />
+                to explore
+              </span>
             </div>
           </div>
         </div>

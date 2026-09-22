@@ -1,5 +1,5 @@
-import { SimplePortalListPage } from '@/features/freelancer-portal/components/PortalPages';
+import { PaymentsPage } from '@/features/freelancer-portal/components/OperationalPortalPages';
 
 export default function FreelancerPaymentsPage() {
-  return <SimplePortalListPage kind="payments" />;
+  return <PaymentsPage />;
 }

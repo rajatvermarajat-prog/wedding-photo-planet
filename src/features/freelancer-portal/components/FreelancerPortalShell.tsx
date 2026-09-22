@@ -2,18 +2,22 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { BriefcaseBusiness, CalendarDays, CreditCard, Image, LayoutDashboard, LogOut, Menu, UserRound, WalletCards } from 'lucide-react';
+import { Bell, BriefcaseBusiness, CalendarDays, ClipboardList, CreditCard, Image, LayoutDashboard, LogOut, Menu, UserRound, Video, WalletCards } from 'lucide-react';
 import { freelancerPortalApi } from '@/lib/api/freelancerPortal';
 
 const nav = [
-  { href: '/freelancer/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { href: '/freelancer/dashboard', label: 'Home', icon: LayoutDashboard },
+  { href: '/freelancer/shoots', label: 'Shoots', icon: Video },
+  { href: '/freelancer/tasks', label: 'Tasks', icon: ClipboardList },
+  { href: '/freelancer/payments', label: 'Payments', icon: WalletCards },
   { href: '/freelancer/profile', label: 'Profile', icon: UserRound },
+  { href: '/freelancer/projects', label: 'Projects', icon: BriefcaseBusiness },
   { href: '/freelancer/portfolio', label: 'Portfolio', icon: Image },
   { href: '/freelancer/availability', label: 'Availability', icon: CalendarDays },
   { href: '/freelancer/subscription', label: 'Plan', icon: CreditCard },
   { href: '/freelancer/connections', label: 'Connections', icon: BriefcaseBusiness },
   { href: '/freelancer/assignments', label: 'Assignments', icon: BriefcaseBusiness },
-  { href: '/freelancer/payments', label: 'Payments', icon: WalletCards },
+  { href: '/freelancer/notifications', label: 'Notifications', icon: Bell },
 ];
 
 export function FreelancerPortalShell({ children }: { children: React.ReactNode }) {

@@ -1,32 +1,40 @@
+/** Three access tiers the product is structured around. Prices are deliberately
+ *  unset: no number is published until commercial terms are agreed. */
 export const pricingPlans = [
   {
     name: 'Studio',
-    label: 'CRM workspace',
-    price: 'Configurable',
-    description: 'For wedding photography teams managing inquiries, shoots, teams, payments and delivery.',
-    cta: 'Explore the CRM',
+    label: 'The workspace',
+    price: 'Quoted',
+    priceNote: 'by studio volume',
+    description:
+      'The full CRM for a studio and its internal team: leads, projects, shoots, crew, freelancers, payments and reporting.',
+    cta: 'Open the CRM',
     href: '/dashboard',
-    features: ['Admin CRM', 'Projects and shoots', 'Freelancers and teams', 'Payments and reporting'],
+    features: ['Nine live modules', 'Role-based access', 'Freelancer + payout tracking', 'Dashboards and reporting'],
     highlighted: true,
   },
   {
     name: 'Freelancer',
-    label: 'Portal direction',
-    price: 'To be finalized',
-    description: 'For professional freelancers who want a profile, assignments and payment visibility.',
-    cta: 'Join as a Freelancer',
+    label: 'The profile',
+    price: 'To be set',
+    priceNote: 'portal in build',
+    description:
+      'For photographers, cinematographers and editors who want one profile, visible assignments and their own payout history.',
+    cta: 'Join as a freelancer',
     href: '/freelancer/join',
-    features: ['Professional profile', 'Portfolio direction', 'Availability direction', 'Assignment access'],
+    features: ['Professional profile', 'Portfolio and availability', 'Assignment visibility', 'Payout history'],
     highlighted: false,
   },
   {
     name: 'Client',
-    label: 'Gallery access',
-    price: 'Included with studio experience',
-    description: 'For couples and families receiving wedding memories from their photography team.',
-    cta: 'Explore Client Experience',
+    label: 'The gallery',
+    price: 'Included',
+    priceNote: 'with the studio',
+    description:
+      'For the couple and their family. Never billed to the client — it arrives as part of what the studio delivers.',
+    cta: 'See the client experience',
     href: '/client/projects',
-    features: ['Project access direction', 'Gallery direction', 'Albums and downloads', 'Shareable experience'],
+    features: ['Project access', 'Albums and galleries', 'Favourites and downloads', 'Sharing when permitted'],
     highlighted: false,
   },
 ];

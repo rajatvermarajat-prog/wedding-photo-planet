@@ -1,27 +1,36 @@
 import Link from 'next/link';
+import { Container } from './Editorial';
 
-const footerGroups = [
+/**
+ * Footer as a colophon.
+ *
+ * The wordmark is set at display scale so the page closes on the brand rather
+ * than trailing off into four columns of small links. The link groups sit to
+ * the right on a hairline grid.
+ */
+const groups = [
   {
     title: 'Product',
     links: [
-      { href: '#features', label: 'Features' },
+      { href: '#capabilities', label: 'Capabilities' },
       { href: '#pricing', label: 'Pricing' },
-      { href: '#studios', label: 'For Studios' },
-      { href: '#freelancers', label: 'For Freelancers' },
-      { href: '#clients', label: 'For Clients' },
-    ],
-  },
-  {
-    title: 'Company',
-    links: [
-      { href: '/', label: 'About' },
-      { href: '#contact', label: 'Contact' },
-    ],
-  },
-  {
-    title: 'Resources',
-    links: [
       { href: '#faq', label: 'FAQ' },
+    ],
+  },
+  {
+    title: 'Audiences',
+    links: [
+      { href: '#studios', label: 'Studios' },
+      { href: '#freelancers', label: 'Freelancers' },
+      { href: '#clients', label: 'Clients' },
+    ],
+  },
+  {
+    title: 'Access',
+    links: [
+      { href: '/login', label: 'Sign in' },
+      { href: '/freelancer/join', label: 'Freelancer join' },
+      { href: '/contact', label: 'Contact' },
     ],
   },
   {
@@ -34,33 +43,50 @@ const footerGroups = [
 ];
 
 export function LandingFooter() {
+  const year = new Date().getFullYear();
+
   return (
-    <footer className="border-t border-[#DFD9D2] bg-[#F7F6F3]">
-      <div className="mx-auto grid max-w-7xl gap-8 px-4 py-10 sm:px-6 md:grid-cols-[1.2fr_2fr] lg:px-8">
-        <div>
-          <Link href="/" className="text-base font-black text-[#302C2E]">Wedding Photo Planet</Link>
-          <p className="mt-3 max-w-sm text-sm font-medium leading-6 text-[#686164]">
-            A warm, professional ecosystem for wedding photography operations, freelancers and client memories.
+    <footer className="ed-ink">
+      <Container className="pb-10 pt-[clamp(3.5rem,7vw,6rem)]">
+        <div className="grid gap-x-8 gap-y-12 border-t border-[var(--ed-rule-ink)] pt-12 lg:grid-cols-12">
+          <div className="lg:col-span-5">
+            <Link href="/" className="ed-display block max-w-[14ch] text-[clamp(1.75rem,3.4vw,2.5rem)] leading-[1.06] tracking-[-0.02em] text-[var(--ed-on-ink)]">
+              Wedding Photo Planet
+            </Link>
+            <p className="mt-6 max-w-[34ch] text-[0.8125rem] leading-[1.7] text-[var(--ed-on-ink-dim)]">
+              Studio operations for wedding photography — from the first inquiry to the photographs a
+              couple keeps.
+            </p>
+          </div>
+
+          <div className="grid gap-x-8 gap-y-10 sm:grid-cols-2 lg:col-span-6 lg:col-start-7 lg:grid-cols-4">
+            {groups.map((group) => (
+              <div key={group.title}>
+                <h2 className="ed-label text-[var(--ed-brass)]">{group.title}</h2>
+                <ul className="mt-5 space-y-2.5">
+                  {group.links.map((link) => (
+                    <li key={link.label}>
+                      <Link
+                        href={link.href}
+                        className="text-[0.8125rem] text-[var(--ed-on-ink-dim)] transition-colors duration-300 hover:text-[var(--ed-on-ink)]"
+                      >
+                        {link.label}
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="mt-14 flex flex-col gap-3 border-t border-[var(--ed-rule-ink)] pt-6 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-[0.75rem] text-[var(--ed-on-ink-dim)]">© {year} Wedding Photo Planet</p>
+          <p className="ed-numeral text-[0.6875rem] uppercase tracking-[0.16em] text-[var(--ed-on-ink-dim)]">
+            Set in Fraunces &amp; Instrument Sans
           </p>
         </div>
-        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-          {footerGroups.map((group) => (
-            <div key={group.title}>
-              <h3 className="text-xs font-black uppercase tracking-[.14em] text-[#8D5265]">{group.title}</h3>
-              <ul className="mt-3 space-y-2">
-                {group.links.map((link) => (
-                  <li key={link.label}>
-                    <Link href={link.href} className="text-sm font-semibold text-[#686164] hover:text-[#5A2F3E]">{link.label}</Link>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ))}
-        </div>
-      </div>
-      <div className="border-t border-[#DFD9D2] px-4 py-5 text-center text-xs font-bold text-[#686164]">
-        © Wedding Photo Planet
-      </div>
+      </Container>
     </footer>
   );
 }

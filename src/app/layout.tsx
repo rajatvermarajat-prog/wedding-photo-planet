@@ -3,6 +3,7 @@ import { AuthSessionProvider } from '@/components/auth/AuthSessionProvider';
 import './globals.css';
 
 export const metadata: Metadata = {
+  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? 'https://weddingphotoplanet.com'),
   title: { default: 'Wedding Photo Planet CRM', template: '%s | WPP CRM' },
   description: 'Wedding Photo Planet studio operations and client relationship management.',
 };

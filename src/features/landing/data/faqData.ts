@@ -1,34 +1,44 @@
+/** Answers state what exists today and what is still being built. No promises
+ *  about backend functionality that has not shipped. */
 export const faqs = [
   {
     question: 'What is Wedding Photo Planet?',
-    answer: 'Wedding Photo Planet is being shaped as a connected ecosystem for wedding photography businesses: an admin CRM, freelancer portal direction and client gallery experience.',
+    answer:
+      'A studio operations product for wedding photography businesses. The admin CRM is live and in use. A freelancer portal and a client gallery are being built on the same data foundation.',
+  },
+  {
+    question: 'What can I actually use today?',
+    answer:
+      'The CRM: leads, clients, projects, shoots, tasks, attendance, freelancers, payments, role-based access and the dashboards that sit over them. Nine modules, all writing to the same project record.',
   },
   {
     question: 'Who is it for?',
-    answer: 'It is for photography studios, business owners, internal teams, freelancers and clients involved in wedding production and delivery.',
-  },
-  {
-    question: 'How does the CRM work?',
-    answer: 'The CRM already supports operational workflows such as leads, clients, projects, shoots, tasks, attendance, freelancers, payments, RBAC and dashboard views.',
+    answer:
+      'Studio owners and their internal teams first. Freelance photographers, cinematographers and editors who work with those studios second. Couples receiving the finished work third.',
   },
   {
     question: 'How do freelancers join?',
-    answer: 'A freelancer join route exists. The current phase presents the entry point and marketing experience; dedicated freelancer authentication and subscriptions are planned for later.',
+    answer:
+      'The join route is open and studios can already hold freelancer records, assignments and payouts in the CRM. Freelancer sign-in, portfolio and availability tools are still in build.',
   },
   {
-    question: 'How do clients access their galleries?',
-    answer: 'Client portal and gallery routes now exist as a frontend foundation. Client authentication, project access rules and gallery data models will be implemented in a later phase.',
+    question: 'How do clients reach their galleries?',
+    answer:
+      'Client routes and the delivery foundation exist, and studios track client assets against each project. Client authentication, per-project access rules and the gallery view itself are in build.',
   },
   {
-    question: 'Can clients share galleries?',
-    answer: 'Sharing is part of the client gallery product direction, but secure share links and permissions still require backend implementation.',
+    question: 'Can a gallery be shared with family?',
+    answer:
+      'That is the intent, and it needs secure share links and permissions that have not been implemented yet. We would rather say so than ship a link that leaks a wedding.',
   },
   {
-    question: 'Can studios manage freelancers?',
-    answer: 'Yes. The existing CRM includes freelancer management, shoot assignments and freelancer payout-related workflows.',
+    question: 'Can studios manage freelancers and payouts?',
+    answer:
+      'Yes, today. Freelancer records, shoot assignments and payout tracking are part of the live CRM.',
   },
   {
-    question: 'How are wedding photos delivered?',
-    answer: 'The CRM already has file and project client asset foundations. A polished client gallery delivery experience is planned on top of that foundation.',
+    question: 'What does it cost?',
+    answer:
+      'Commercial terms are still being set. The product is structured around three access tiers — studio, freelancer and client. Talk to us and we will quote against your volume.',
   },
 ];

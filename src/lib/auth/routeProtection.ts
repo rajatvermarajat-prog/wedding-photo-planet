@@ -16,7 +16,7 @@ const PUBLIC_PREFIXES = [
   '/freelancers/join',
 ];
 
-const PUBLIC_FREELANCER_ROUTES = ['/freelancer/login', '/freelancer/join'];
+const PUBLIC_FREELANCER_ROUTES = ['/freelancer/login', '/freelancer/join', '/freelancer/onboarding'];
 const PROTECTED_FREELANCER_PREFIXES = ['/freelancer'];
 
 const PUBLIC_ROUTES = [
@@ -59,6 +59,7 @@ export function hasFreelancerAuthCookie(cookies: { has: (name: string) => boolea
 
 export function safeReturnPath(value: string | null): string {
   if (!value || !value.startsWith('/') || value.startsWith('//')) return '/dashboard';
-  if (isPublicRoute(value) || isFrameworkRoute(value)) return '/dashboard';
+  const pathname = value.split(/[?#]/, 1)[0] || '/';
+  if (isPublicRoute(pathname) || isFrameworkRoute(pathname)) return '/dashboard';
   return value;
 }

@@ -1,26 +1,37 @@
 import { ClientSection, FreelancerSection, StudioSection } from './AudienceSections';
+import { CapabilityIndex } from './CapabilityIndex';
 import { FaqSection } from './FaqSection';
-import { FeatureShowcase } from './FeatureShowcase';
 import { FinalCta } from './FinalCta';
-import { GalleryShowcase } from './GalleryShowcase';
 import { HeroSection } from './HeroSection';
-import { HowItWorks } from './HowItWorks';
 import { PricingSection } from './PricingSection';
-import { ProductIntro } from './ProductIntro';
-import { TrustSection } from './TrustSection';
+import { Process } from './Process';
 
+/**
+ * Landing composition.
+ *
+ * The page alternates ink and paper as its structural rhythm, so the reader
+ * crosses a light/dark threshold four times on the way down instead of scrolling
+ * through twelve variations of the same white card grid:
+ *
+ *   ink    hero            — the claim, and the photograph
+ *   ink    the index       — what ships today (the set piece)
+ *   paper  studios         — the buyer
+ *   paper² freelancers     — the supply side
+ *   ink    clients         — the cinematic break, written for the couple
+ *   paper  the thread      — how the three connect
+ *   paper² pricing         — the rate card
+ *   ink    questions       — objection handling
+ *   paper  closing         — one action
+ */
 export function LandingPage() {
   return (
     <>
       <HeroSection />
-      <TrustSection />
-      <ProductIntro />
-      <FeatureShowcase />
+      <CapabilityIndex />
       <StudioSection />
       <FreelancerSection />
       <ClientSection />
-      <HowItWorks />
-      <GalleryShowcase />
+      <Process />
       <PricingSection />
       <FaqSection />
       <FinalCta />

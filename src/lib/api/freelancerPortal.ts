@@ -2,7 +2,6 @@ import { ApiError, ApiMeta } from './client';
 
 const configuredApiUrl = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:5050/api/v1';
 const baseUrl = configuredApiUrl.replace(/[“”"']/g, '').trim().replace(/\/$/, '');
-const ACCESS_KEY = 'wpp.freelancerAccessToken';
 const SESSION_COOKIE = 'wpp_freelancer_session';
 
 function apiBaseUrl(): string {
@@ -20,7 +19,6 @@ export interface PortalFileObject {
   originalName: string;
   mimeType: string;
   sizeBytes: string | number;
-  objectKey: string;
 }
 
 export interface PortalPortfolioItem {
@@ -93,7 +91,77 @@ export interface PortalPayout {
   amount: string | number;
   paymentDate: string;
   paymentMethod: string;
+  transactionRef?: string | null;
   notes?: string | null;
+  assignment?: { id: string; role: string; status: string; shoot?: { id: string; title: string; shootDate: string; project?: PortalProjectSummary } | null } | null;
+}
+
+export interface PortalProjectSummary {
+  id: string;
+  projectNumber: string;
+  name: string;
+  type: string;
+  status: string;
+  weddingDate?: string | null;
+  venueName?: string | null;
+  venueCity?: string | null;
+}
+
+export interface PortalShootSummary {
+  id: string;
+  title: string;
+  shootType: string;
+  shootDate: string;
+  startTime?: string | null;
+  endTime?: string | null;
+  location?: string | null;
+  city?: string | null;
+  status: string;
+  project?: PortalProjectSummary;
+  assignment?: { id: string; role: string; status: string; callTime?: string | null; assignedAt?: string | null };
+  crew?: Array<{ id: string; role: string; status: string; isSelf: boolean; displayName?: string | null }>;
+}
+
+export interface PortalTaskSummary {
+  id: string;
+  title: string;
+  description?: string | null;
+  category: string;
+  status: string;
+  priority: string;
+  dueDate?: string | null;
+  startedAt?: string | null;
+  completedAt?: string | null;
+  project?: PortalProjectSummary | null;
+  shoot?: Omit<PortalShootSummary, 'project' | 'assignment' | 'crew'> | null;
+}
+
+export interface PortalNotification {
+  id: string;
+  type: string;
+  channel?: string;
+  title: string;
+  message: string;
+  entityType?: string | null;
+  entityId?: string | null;
+  isRead: boolean;
+  readAt?: string | null;
+  createdAt: string;
+}
+
+export interface PortalList<T> {
+  items: T[];
+  meta: { page: number; limit: number; total: number; totalPages: number };
+}
+
+export interface PortalDashboard {
+  profile: PortalMe;
+  subscription: PortalSubscription | null;
+  upcomingShoots: PortalShootSummary[];
+  todaysWork: { shoots: PortalShootSummary[]; tasks: PortalTaskSummary[] };
+  tasks: PortalTaskSummary[];
+  payments: { recent: PortalPayout[]; summary: { paidAmount: number; currency: string } };
+  notifications: PortalNotification[];
 }
 
 export interface PortalFreelancer {
@@ -143,30 +211,31 @@ export interface PublicApplicationInput {
   notes?: string;
 }
 
+export interface OnboardingValidation {
+  valid: boolean;
+  status: 'valid' | 'invalid' | 'expired' | 'used' | 'revoked';
+  freelancer?: {
+    displayName: string;
+    email?: string | null;
+  };
+  expiresAt?: string;
+}
+
 interface Envelope<T> { success: boolean; data: T; meta?: ApiMeta; error?: { message?: string; code?: string; details?: unknown[] } }
 
-export function setFreelancerToken(token: string | null, maxAge = 60 * 60 * 24 * 7) {
+export function setFreelancerSessionMarker(active: boolean, maxAge = 60 * 60 * 24 * 7) {
   if (typeof window === 'undefined') return;
-  if (!token) {
-    window.localStorage.removeItem(ACCESS_KEY);
+  if (!active) {
     document.cookie = `${SESSION_COOKIE}=; Path=/; Max-Age=0; SameSite=Lax`;
     return;
   }
-  window.localStorage.setItem(ACCESS_KEY, token);
   document.cookie = `${SESSION_COOKIE}=1; Path=/; Max-Age=${maxAge}; SameSite=Lax`;
-}
-
-export function getFreelancerToken() {
-  if (typeof window === 'undefined') return null;
-  return window.localStorage.getItem(ACCESS_KEY);
 }
 
 async function portalRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
   const headers = new Headers(init.headers);
   if (init.body && !headers.has('Content-Type')) headers.set('Content-Type', 'application/json');
   headers.set('Accept', 'application/json');
-  const token = getFreelancerToken();
-  if (token) headers.set('Authorization', `Bearer ${token}`);
   const response = await fetch(`${apiBaseUrl()}/freelancer-portal${path}`, {
     ...init,
     headers,
@@ -182,19 +251,31 @@ async function portalRequest<T>(path: string, init: RequestInit = {}): Promise<T
 
 export const freelancerPortalApi = {
   submitApplication: (input: PublicApplicationInput) => portalRequest<PortalApplication>('/applications', { method: 'POST', body: JSON.stringify(input) }),
+  validateOnboarding: (token: string) => portalRequest<OnboardingValidation>(`/onboarding/${encodeURIComponent(token)}`),
+  setOnboardingPassword: (token: string, input: { password: string; confirmPassword: string }) =>
+    portalRequest<{ passwordSet: boolean }>(`/onboarding/${encodeURIComponent(token)}/password`, { method: 'POST', body: JSON.stringify(input) }),
   login: async (input: { identifier: string; password: string }) => {
-    const result = await portalRequest<{ me: PortalMe; tokens: { accessToken: string; accessTokenExpiresIn?: number; refreshTokenExpiresIn?: number } }>('/auth/login', { method: 'POST', body: JSON.stringify(input) });
-    setFreelancerToken(result.tokens.accessToken, result.tokens.refreshTokenExpiresIn);
+    const result = await portalRequest<{ me: PortalMe; session: { expiresIn?: number } }>('/auth/login', { method: 'POST', body: JSON.stringify(input) });
+    setFreelancerSessionMarker(true, result.session.expiresIn);
     return result.me;
   },
   logout: async () => {
     try {
       await portalRequest('/auth/logout', { method: 'POST' });
     } finally {
-      setFreelancerToken(null);
+      setFreelancerSessionMarker(false);
     }
   },
   me: () => portalRequest<PortalMe>('/me'),
+  dashboard: () => portalRequest<PortalDashboard>('/dashboard'),
+  projects: (query = '') => portalRequest<PortalList<PortalProjectSummary & { shoots?: Array<{ id: string; title: string; shootDate: string; status: string }> }>>(`/projects${query}`),
+  project: (id: string) => portalRequest<PortalProjectSummary & { venueAddress?: string | null; shoots: PortalShootSummary[]; tasks: PortalTaskSummary[] }>(`/projects/${encodeURIComponent(id)}`),
+  shoots: (query = '') => portalRequest<PortalList<PortalShootSummary>>(`/shoots${query}`),
+  shoot: (id: string) => portalRequest<PortalShootSummary & { notes?: string | null; event?: { id: string; name: string; eventDate: string; venueName?: string | null; city?: string | null; status: string } | null; tasks: PortalTaskSummary[] }>(`/shoots/${encodeURIComponent(id)}`),
+  tasks: (query = '') => portalRequest<PortalList<PortalTaskSummary>>(`/tasks${query}`),
+  updateTaskStatus: (id: string, status: string) => portalRequest<PortalTaskSummary>(`/tasks/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify({ status }) }),
+  payments: (query = '') => portalRequest<PortalList<PortalPayout>>(`/payments${query}`),
+  notifications: (query = '') => portalRequest<PortalList<PortalNotification>>(`/notifications${query}`),
   updateProfile: (input: Partial<PortalFreelancer>) => portalRequest<PortalFreelancer>('/profile', { method: 'PATCH', body: JSON.stringify(input) }),
   setPassword: (password: string) => portalRequest<{ passwordSet: boolean }>('/password', { method: 'POST', body: JSON.stringify({ password }) }),
   saveAvailability: (input: { date: string; status: AvailabilityStatus; startTime?: string | null; endTime?: string | null; notes?: string | null }) =>

@@ -1,7 +1,7 @@
 'use client';
 
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
-import { ApiError, getAccessTokenExpiryMs, refreshSession } from '@/lib/api/client';
+import { ApiError, getAccessTokenExpiryMs, hasStoredSession, refreshSession } from '@/lib/api/client';
 import { authEvent, authTimer } from '@/lib/auth/authDebug';
 import { authApi, LoginInput, SessionUser } from '@/lib/api/auth';
 import { TeamMemberStatus } from '@/types';
@@ -104,17 +104,42 @@ export function AuthSessionProvider({ children }: { children: React.ReactNode })
     // StrictMode runs mount effects twice; hydrating once avoids a second /me.
     if (hydrated.current) return;
     hydrated.current = true;
+    const controller = new AbortController();
     const restore = async () => {
+      if (!hasStoredSession()) {
+        authEvent('STARTUP_ME_SKIPPED', {
+          source: 'AuthSessionProvider',
+          reason: 'no_session_hint',
+        });
+        transitionAuthState('unauthenticated', 'startup_no_session_hint', null);
+        setIsHydrated(true);
+        return;
+      }
       try {
         // `/auth/me` is the authoritative session check. If the JS access token
         // is missing/expired but the httpOnly refresh cookie is still valid,
         // recover the access token once before declaring the browser signed out.
-        const user = await authApi.me();
+        const user = await authApi.me({ signal: controller.signal });
+        if (controller.signal.aborted) return;
         lastMeAt = Date.now();
         transitionAuthState('authenticated', 'startup_me_success', toAuthenticatedUser(user));
         scheduleRefresh();
       } catch (error: unknown) {
+        if (controller.signal.aborted) return;
         if (error instanceof ApiError && error.status === 401) {
+          // `apiRequest` already tried a single-flight refresh before this 401
+          // surfaced. If that refresh was rejected it cleared the stored
+          // session, so retrying here would only add a second doomed
+          // /auth/refresh to every cold start.
+          if (!hasStoredSession()) {
+            authEvent('STARTUP_ME_FAILED', {
+              source: 'AuthSessionProvider',
+              status: error.status,
+              reason: 'refresh_already_rejected',
+            });
+            transitionAuthState('unauthenticated', 'startup_refresh_invalid', null);
+            return;
+          }
           authEvent('STARTUP_ME_FAILED', {
             source: 'AuthSessionProvider',
             status: error.status,
@@ -147,11 +172,12 @@ export function AuthSessionProvider({ children }: { children: React.ReactNode })
           reason: 'non_401',
         });
       } finally {
-        setIsHydrated(true);
+        if (!controller.signal.aborted) setIsHydrated(true);
       }
     };
     void restore();
-  }, [scheduleRefresh]);
+    return () => controller.abort();
+  }, [scheduleRefresh, transitionAuthState]);
 
   const login = useCallback(async (input: LoginInput) => {
     const user = await authApi.login(input);
@@ -175,6 +201,7 @@ export function AuthSessionProvider({ children }: { children: React.ReactNode })
   }, [clearRefreshTimer, transitionAuthState]);
 
   const refresh = useCallback(async (force?: boolean) => {
+    if (!force && !hasStoredSession()) return;
     const now = Date.now();
     if (!force && now - lastMeAt < 15_000) return;
     lastMeAt = now;

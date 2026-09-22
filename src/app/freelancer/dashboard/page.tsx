@@ -1,5 +1,5 @@
-import { DashboardPage } from '@/features/freelancer-portal/components/PortalPages';
+import { OperationalDashboardPage } from '@/features/freelancer-portal/components/OperationalPortalPages';
 
 export default function FreelancerDashboardPage() {
-  return <DashboardPage />;
+  return <OperationalDashboardPage />;
 }
