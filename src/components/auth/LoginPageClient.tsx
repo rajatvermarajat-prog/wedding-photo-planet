@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { LoginScreen } from '@/components/auth/LoginScreen';
 import { LoginInput } from '@/lib/api/auth';
@@ -12,26 +12,28 @@ export function LoginPageClient() {
   const searchParams = useSearchParams();
   const { currentUser, isHydrated, login } = useAuthSession();
   const returnTo = safeReturnPath(searchParams.get('returnTo'));
+  const loginRedirectingRef = useRef(false);
 
   useEffect(() => {
-    if (isHydrated && currentUser) router.replace(returnTo);
+    router.prefetch(returnTo);
+    if (returnTo !== '/dashboard') router.prefetch('/dashboard');
+    void import('@/components/app/CrmApplication');
+  }, [returnTo, router]);
+
+  useEffect(() => {
+    if (isHydrated && currentUser && !loginRedirectingRef.current) router.replace(returnTo);
   }, [currentUser, isHydrated, returnTo, router]);
 
   const handleLogin = async (input: LoginInput) => {
-    await login(input);
-    router.replace(returnTo);
+    loginRedirectingRef.current = true;
+    try {
+      await login(input);
+      router.replace(returnTo);
+    } catch (error) {
+      loginRedirectingRef.current = false;
+      throw error;
+    }
   };
-
-  if (!isHydrated) {
-    return (
-      <main className="grid min-h-screen place-items-center bg-[#2b1b21] text-[#f8e9df]">
-        <div className="flex items-center gap-3 text-sm font-semibold">
-          <span className="h-5 w-5 animate-spin rounded-full border-2 border-[#b64b70] border-t-transparent" />
-          Restoring your studio session…
-        </div>
-      </main>
-    );
-  }
 
   return <LoginScreen onLogin={handleLogin} />;
 }

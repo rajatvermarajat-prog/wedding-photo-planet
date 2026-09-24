@@ -427,7 +427,7 @@ async function performRequest<T>(
   } catch (error) {
     if (error instanceof ApiError) throw error;
     if (error instanceof DOMException && error.name === 'AbortError') {
-      throw new ApiError(408, 'The request timed out. Please try again.');
+      throw new ApiError(408, 'This is taking longer than expected. Please try again.');
     }
     throw new ApiError(0, 'Unable to reach the CRM service. Check your connection and try again.');
   } finally {

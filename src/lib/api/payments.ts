@@ -1,6 +1,7 @@
 import { apiRequest } from './client';
 
 export type PaymentMethod = 'CASH' | 'UPI' | 'BANK_TRANSFER' | 'CREDIT_CARD' | 'DEBIT_CARD' | 'CHEQUE' | 'OTHER';
+export const PAYMENT_METHODS = ['UPI', 'CASH', 'BANK_TRANSFER', 'CHEQUE', 'CREDIT_CARD', 'OTHER'] as const satisfies readonly PaymentMethod[];
 
 export interface ApiProjectPayment {
   id: string;
@@ -51,6 +52,7 @@ export const paymentsApi = {
       method: 'POST',
       headers: { 'Idempotency-Key': idempotencyKey },
       body: JSON.stringify(input),
+      timeoutMs: 60000,
     });
     return result.data;
   },
@@ -121,6 +123,11 @@ export const paymentMethodLabel = (method: PaymentMethod): string => ({
   CHEQUE: 'Cheque',
   OTHER: 'Other',
 }[method]);
+
+export const PAYMENT_MODE_OPTIONS = PAYMENT_METHODS.map((method) => ({
+  value: paymentMethodLabel(method),
+  paymentMethod: method,
+}));
 
 export const toPaymentMethod = (label: string): PaymentMethod => ({
   'UPI / GPay': 'UPI',

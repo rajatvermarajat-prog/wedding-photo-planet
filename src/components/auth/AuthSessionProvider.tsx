@@ -31,6 +31,7 @@ const AuthSessionContext = createContext<AuthSessionValue | null>(null);
 let lastMeAt = 0;
 const REFRESH_SAFETY_WINDOW_MS = 90_000;
 const MIN_REFRESH_DELAY_MS = 5_000;
+const STARTUP_SESSION_TIMEOUT_MS = 6_000;
 
 export function AuthSessionProvider({ children }: { children: React.ReactNode }) {
   const [currentUser, setCurrentUser] = useState<AuthenticatedUser | null>(null);
@@ -105,6 +106,12 @@ export function AuthSessionProvider({ children }: { children: React.ReactNode })
     if (hydrated.current) return;
     hydrated.current = true;
     const controller = new AbortController();
+    let cancelled = false;
+    let timedOut = false;
+    const timeout = window.setTimeout(() => {
+      timedOut = true;
+      controller.abort();
+    }, STARTUP_SESSION_TIMEOUT_MS);
     const restore = async () => {
       if (!hasStoredSession()) {
         authEvent('STARTUP_ME_SKIPPED', {
@@ -125,7 +132,17 @@ export function AuthSessionProvider({ children }: { children: React.ReactNode })
         transitionAuthState('authenticated', 'startup_me_success', toAuthenticatedUser(user));
         scheduleRefresh();
       } catch (error: unknown) {
-        if (controller.signal.aborted) return;
+        if (controller.signal.aborted) {
+          if (timedOut) {
+            authEvent('STARTUP_ME_FAILED', {
+              source: 'AuthSessionProvider',
+              status: 408,
+              reason: 'startup_timeout',
+            });
+            transitionAuthState('unauthenticated', 'startup_timeout', null);
+          }
+          return;
+        }
         if (error instanceof ApiError && error.status === 401) {
           // `apiRequest` already tried a single-flight refresh before this 401
           // surfaced. If that refresh was rejected it cleared the stored
@@ -172,11 +189,16 @@ export function AuthSessionProvider({ children }: { children: React.ReactNode })
           reason: 'non_401',
         });
       } finally {
-        if (!controller.signal.aborted) setIsHydrated(true);
+        window.clearTimeout(timeout);
+        if (!cancelled) setIsHydrated(true);
       }
     };
     void restore();
-    return () => controller.abort();
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timeout);
+      controller.abort();
+    };
   }, [scheduleRefresh, transitionAuthState]);
 
   const login = useCallback(async (input: LoginInput) => {

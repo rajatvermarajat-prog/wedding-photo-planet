@@ -1,8 +1,19 @@
+import Image from 'next/image';
 import { Camera, Heart } from 'lucide-react';
 
 export function LoginHero() {
   return (
-    <section aria-label="Wedding Photo Planet introduction" className="relative min-h-24 bg-[linear-gradient(180deg,rgba(37,8,21,.72),rgba(51,15,28,.14)_55%,rgba(35,10,21,.55)),url('/images/wedding-login-hero.png')] bg-cover bg-center px-5 py-4 text-[#fff4ed] sm:min-h-44 sm:px-10 sm:py-6 lg:min-h-0 lg:px-[7%] lg:py-[clamp(24px,4vh,48px)]">
+    <section aria-label="Wedding Photo Planet introduction" className="relative min-h-24 overflow-hidden bg-[#2b0b18] px-5 py-4 text-[#fff4ed] sm:min-h-44 sm:px-10 sm:py-6 lg:min-h-0 lg:px-[7%] lg:py-[clamp(24px,4vh,48px)]">
+      <Image
+        src="/images/wedding-login-hero.png"
+        alt=""
+        aria-hidden="true"
+        fill
+        priority
+        sizes="(min-width: 1280px) 48vw, (min-width: 1024px) 46vw, 100vw"
+        className="absolute inset-0 object-cover object-center"
+      />
+      <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(37,8,21,.72),rgba(51,15,28,.14)_55%,rgba(35,10,21,.55))]" />
       <div className="relative z-1 flex items-center gap-3 uppercase tracking-[.16em] sm:gap-4.5">
         <Camera className="size-10 stroke-[1.35] text-[#f1cbb7] sm:size-12 lg:size-16" />
         <div><strong className="block font-serif text-base font-medium leading-[1.14] sm:text-lg lg:text-2xl">Wedding<br />Photo Planet</strong><span className="mt-2 hidden text-[9px] font-extrabold tracking-[.22em] sm:block">Capturing memories, creating stories</span></div>
