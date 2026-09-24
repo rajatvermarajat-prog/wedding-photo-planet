@@ -5,16 +5,25 @@ const statusMap = { PRESENT: 'present_office', HALF_DAY: 'half_day', ABSENT: 'ab
 function time(value: string | null): string | undefined { return value ? new Date(value).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : undefined; }
 
 export function normalizeAttendance(record: BackendAttendance): AttendanceRecord {
+  const status = record.status === 'PRESENT'
+    ? record.workLocation === 'WFH'
+      ? 'present_wfh'
+      : record.workLocation === 'ON_SHOOT'
+        ? 'present_shoot'
+        : 'present_office'
+    : statusMap[record.status];
+
   return {
     id: record.id,
     date: record.date.slice(0, 10),
     teamMemberId: record.userId,
     teamMemberName: record.user?.fullName ?? 'Team member',
     role: 'Other',
-    status: statusMap[record.status],
+    status,
     inTime: time(record.checkIn),
     outTime: time(record.checkOut),
     payAmount: 0,
     paidStatus: 'pending',
+    notes: record.notes ?? undefined,
   };
 }

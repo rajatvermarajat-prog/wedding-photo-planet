@@ -1,8 +1,10 @@
 'use client';
 
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { usePathname } from 'next/navigation';
 import { ApiError, getAccessTokenExpiryMs, hasStoredSession, refreshSession } from '@/lib/api/client';
 import { authEvent, authTimer } from '@/lib/auth/authDebug';
+import { isPublicRoute } from '@/lib/auth/routeProtection';
 import { authApi, LoginInput, SessionUser } from '@/lib/api/auth';
 import { TeamMemberStatus } from '@/types';
 
@@ -34,10 +36,10 @@ const MIN_REFRESH_DELAY_MS = 5_000;
 const STARTUP_SESSION_TIMEOUT_MS = 6_000;
 
 export function AuthSessionProvider({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
   const [currentUser, setCurrentUser] = useState<AuthenticatedUser | null>(null);
   const [isHydrated, setIsHydrated] = useState(false);
 
-  const hydrated = useRef(false);
   const refreshTimer = useRef<number | null>(null);
   const authState = useRef<'initializing' | 'authenticated' | 'unauthenticated'>('initializing');
 
@@ -102,9 +104,6 @@ export function AuthSessionProvider({ children }: { children: React.ReactNode })
   }, [clearRefreshTimer, transitionAuthState]);
 
   useEffect(() => {
-    // StrictMode runs mount effects twice; hydrating once avoids a second /me.
-    if (hydrated.current) return;
-    hydrated.current = true;
     const controller = new AbortController();
     let cancelled = false;
     let timedOut = false;
@@ -113,7 +112,8 @@ export function AuthSessionProvider({ children }: { children: React.ReactNode })
       controller.abort();
     }, STARTUP_SESSION_TIMEOUT_MS);
     const restore = async () => {
-      if (!hasStoredSession()) {
+      const hasSessionHint = hasStoredSession();
+      if (!hasSessionHint && isPublicRoute(pathname)) {
         authEvent('STARTUP_ME_SKIPPED', {
           source: 'AuthSessionProvider',
           reason: 'no_session_hint',
@@ -148,15 +148,6 @@ export function AuthSessionProvider({ children }: { children: React.ReactNode })
           // surfaced. If that refresh was rejected it cleared the stored
           // session, so retrying here would only add a second doomed
           // /auth/refresh to every cold start.
-          if (!hasStoredSession()) {
-            authEvent('STARTUP_ME_FAILED', {
-              source: 'AuthSessionProvider',
-              status: error.status,
-              reason: 'refresh_already_rejected',
-            });
-            transitionAuthState('unauthenticated', 'startup_refresh_invalid', null);
-            return;
-          }
           authEvent('STARTUP_ME_FAILED', {
             source: 'AuthSessionProvider',
             status: error.status,
@@ -199,7 +190,7 @@ export function AuthSessionProvider({ children }: { children: React.ReactNode })
       window.clearTimeout(timeout);
       controller.abort();
     };
-  }, [scheduleRefresh, transitionAuthState]);
+  }, [pathname, scheduleRefresh, transitionAuthState]);
 
   const login = useCallback(async (input: LoginInput) => {
     const user = await authApi.login(input);

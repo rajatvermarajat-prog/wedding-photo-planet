@@ -2,6 +2,8 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { TeamMember, Project, AttendanceRecord, TeamTask, TeamRole, EditingStatus, ProjectTask, OwnerLead } from '@/types';
 import { ConfirmDeleteModal } from '@/components/common/ConfirmDeleteModal';
 import { PersonalTodoPanel } from '@/features/tasks/PersonalTodoPanel';
+import { OwnerNotepad } from '@/features/owner/components/OwnerNotepad';
+import { usePersonalJsonNote } from '@/hooks/usePersonalJsonNote';
 import { usePermission } from '@/features/access';
 import { SocialMediaCalendarWidget } from './SocialMediaCalendarWidget';
 import { 
@@ -380,11 +382,12 @@ interface RoleNoteItem {
 }
 
 const RoleNotepadWidget: React.FC<{ activeMember: TeamMember | null }> = ({ activeMember }) => {
+  return <OwnerNotepad />;
   const memberKey = `wpp_private_notes_${activeMember?.id || activeMember?.role || 'default'}`;
 
   const [notes, setNotes] = useState<RoleNoteItem[]>(() => {
     try {
-      const saved = localStorage.getItem(memberKey);
+      const saved = null;
       if (saved) return JSON.parse(saved);
     } catch (e) {
       console.error(e);
@@ -402,7 +405,7 @@ const RoleNotepadWidget: React.FC<{ activeMember: TeamMember | null }> = ({ acti
 
   const [isHidden, setIsHidden] = useState<boolean>(() => {
     try {
-      return localStorage.getItem(`${memberKey}_hidden`) === 'true';
+      return false;
     } catch {
       return false;
     }
@@ -412,7 +415,7 @@ const RoleNotepadWidget: React.FC<{ activeMember: TeamMember | null }> = ({ acti
     const next = !isHidden;
     setIsHidden(next);
     try {
-      localStorage.setItem(`${memberKey}_hidden`, String(next));
+      void next;
     } catch (e) {
       console.error(e);
     }
@@ -425,7 +428,7 @@ const RoleNotepadWidget: React.FC<{ activeMember: TeamMember | null }> = ({ acti
 
   useEffect(() => {
     try {
-      const saved = localStorage.getItem(memberKey);
+      const saved = null;
       let loaded: RoleNoteItem[] = [];
       if (saved) {
         loaded = JSON.parse(saved);
@@ -453,7 +456,7 @@ const RoleNotepadWidget: React.FC<{ activeMember: TeamMember | null }> = ({ acti
 
   useEffect(() => {
     try {
-      localStorage.setItem(memberKey, JSON.stringify(notes));
+      void notes;
     } catch (e) {
       console.error(e);
     }
@@ -1051,32 +1054,25 @@ const VideoEditorMonthlyTargetBoard: React.FC<{
   tasks: TeamTask[];
 }> = ({ projects, activeMember, tasks }) => {
   const memberKey = `wpp_editor_targets_${activeMember?.id || 'default'}`;
+  const defaultTargets = useMemo(() => ({
+    reels: 10,
+    teaser: 5,
+    longVideo: 3,
+    highlights: 4,
+  }), []);
+  const { value: persistedTargets, save: savePersistedTargets } = usePersonalJsonNote(memberKey, defaultTargets);
 
   // Default target goals per deliverable type
-  const [targets, setTargets] = useState(() => {
-    try {
-      const saved = localStorage.getItem(memberKey);
-      if (saved) return JSON.parse(saved);
-    } catch (e) {
-      /* ignore */
-    }
-    return {
-      reels: 10,
-      teaser: 5,
-      longVideo: 3,
-      highlights: 4,
-    };
-  });
+  const [targets, setTargets] = useState(defaultTargets);
+
+  useEffect(() => {
+    setTargets(persistedTargets);
+  }, [persistedTargets]);
 
   const [isEditingTargets, setIsEditingTargets] = useState(false);
 
   const handleSaveTargets = () => {
-    try {
-      localStorage.setItem(memberKey, JSON.stringify(targets));
-    } catch (e) {
-      /* ignore */
-    }
-    setIsEditingTargets(false);
+    void savePersistedTargets(targets).then(() => setIsEditingTargets(false));
   };
 
   const memberName = activeMember?.name || '';
@@ -1836,20 +1832,7 @@ export const RoleDashboards: React.FC<RoleDashboardsProps> = ({
     );
   }, [projects, activeMember?.name]);
 
-  // Office Expenses State & Initial Pre-populated records
-  const [officeExpenses, setOfficeExpenses] = useState<OfficeExpense[]>(() => {
-    const saved = localStorage.getItem('wpp_studio_office_expenses');
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed;
-        }
-      } catch (e) {
-        console.error(e);
-      }
-    }
-    return [
+  const defaultOfficeExpenses = useMemo<OfficeExpense[]>(() => [
       {
         id: 'exp-1',
         title: 'Studio Main Office Rent (July 2026)',
@@ -1960,16 +1943,23 @@ export const RoleDashboards: React.FC<RoleDashboardsProps> = ({
         notes: 'High-speed scratch disk SSDs for 4K video editing',
         monthYear: '2026-08'
       }
-    ];
-  });
+    ], []);
+  const { value: persistedOfficeExpenses, save: savePersistedOfficeExpenses } = usePersonalJsonNote('wpp_studio_office_expenses', defaultOfficeExpenses);
+
+  // Office Expenses State & Initial Pre-populated records
+  const [officeExpenses, setOfficeExpenses] = useState<OfficeExpense[]>(defaultOfficeExpenses);
 
   useEffect(() => {
-    try {
-      localStorage.setItem('wpp_studio_office_expenses', JSON.stringify(officeExpenses));
-    } catch (e) {
-      console.error(e);
-    }
-  }, [officeExpenses]);
+    setOfficeExpenses(persistedOfficeExpenses);
+  }, [persistedOfficeExpenses]);
+
+  const updateOfficeExpenses = (next: OfficeExpense[] | ((current: OfficeExpense[]) => OfficeExpense[])) => {
+    setOfficeExpenses((current) => {
+      const resolved = typeof next === 'function' ? next(current) : next;
+      void savePersistedOfficeExpenses(resolved);
+      return resolved;
+    });
+  };
 
   // Expense Filtering State
   const [expenseCategoryFilter, setExpenseCategoryFilter] = useState<string>('all');
@@ -2233,7 +2223,7 @@ export const RoleDashboards: React.FC<RoleDashboardsProps> = ({
       notes: newExpNotes,
       monthYear: m,
     };
-    setOfficeExpenses((prev) => [newExp, ...prev]);
+    updateOfficeExpenses((prev) => [newExp, ...prev]);
     setShowAddExpenseModal(false);
     setNewExpTitle('');
     setNewExpAmount(0);
@@ -2253,11 +2243,11 @@ export const RoleDashboards: React.FC<RoleDashboardsProps> = ({
     const idx = officeExpenses.findIndex((e) => e.id === deletedItem.id);
     if (idx === -1) return;
 
-    setOfficeExpenses((prev) => prev.filter((e) => e.id !== deletedItem.id));
+    updateOfficeExpenses((prev) => prev.filter((e) => e.id !== deletedItem.id));
     setUndoToast({
       message: `Expense "${deletedItem.title}" (₹${deletedItem.amount.toLocaleString('en-IN')}) deleted`,
       onUndo: () => {
-        setOfficeExpenses((prev) => {
+        updateOfficeExpenses((prev) => {
           const copy = [...prev];
           copy.splice(idx >= 0 && idx <= copy.length ? idx : 0, 0, deletedItem);
           return copy;
@@ -2821,32 +2811,7 @@ export const RoleDashboards: React.FC<RoleDashboardsProps> = ({
       {/* ROLE 2: SALES MANAGER & SALES EXECUTIVE DASHBOARD             */}
       {/* ------------------------------------------------------------- */}
       {(activeMember?.role === 'Sales Manager' || activeMember?.role === 'Sales Executive' || activeMember?.role === 'Sales Team') && (() => {
-        // Calculate actual booked deals & revenue from Leads storage
-        const savedLeadsStr = localStorage.getItem('wpp_owner_crm_leads');
-        let currentBookedLeads: OwnerLead[] = [];
-        if (savedLeadsStr) {
-          try {
-            const parsed: OwnerLead[] = JSON.parse(savedLeadsStr);
-            currentBookedLeads = parsed.filter((l) => l.status === 'booked');
-          } catch (e) {
-            currentBookedLeads = [];
-          }
-        } else {
-          // Default 1 booked lead (Mehta Family, ₹1,80,000)
-          currentBookedLeads = [
-            {
-              id: 'lead-3',
-              clientName: 'Mehta Family (Rohan Weds Ananya)',
-              mobile: '9988776655',
-              eventType: 'Engagement & Sangeet',
-              budgetEstimate: 180000,
-              finalAmount: 180000,
-              status: 'booked',
-              source: 'Website',
-              createdDate: '2026-07-28',
-            } as OwnerLead
-          ];
-        }
+        const currentBookedLeads: OwnerLead[] = [];
 
         const salesClosedDealsCount = currentBookedLeads.length;
         const salesRevenueAchieved = currentBookedLeads.reduce((acc, l) => acc + (l.finalAmount || l.budgetEstimate || 0), 0);
