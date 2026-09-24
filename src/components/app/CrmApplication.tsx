@@ -81,17 +81,45 @@ export default function App() {
   const router = useRouter();
   const pathname = usePathname();
   const { currentUser, isHydrated, login, logout, refresh } = useAuthSession();
+  const [restoreTimedOut, setRestoreTimedOut] = useState(false);
+  const [currentPath, setCurrentPath] = useState(pathname);
 
   const [showLoginModal, setShowLoginModal] = useState<boolean>(false);
-  const routeTab = ROUTE_TABS[pathname] || (pathname.startsWith('/projects/') ? 'projects' : undefined);
+  const routeTab = ROUTE_TABS[currentPath] || (currentPath.startsWith('/projects/') ? 'projects' : undefined);
   const [activeTab, setActiveTabState] = useState<TabType>(() => routeTab || 'dashboard');
   const visibleTab = routeTab || activeTab;
-  const routedProjectId = pathname.startsWith('/projects/')
-    ? decodeURIComponent(pathname.slice('/projects/'.length))
+  const routedProjectId = currentPath.startsWith('/projects/')
+    ? decodeURIComponent(currentPath.slice('/projects/'.length))
     : null;
-  const isNewProjectPage = pathname === '/projects/new';
-  const isScheduleShootPage = pathname === '/shoots/schedule';
-  const isRecordPaymentPage = pathname === '/payments/new';
+  const isNewProjectPage = currentPath === '/projects/new';
+  const isScheduleShootPage = currentPath === '/shoots/schedule';
+  const isRecordPaymentPage = currentPath === '/payments/new';
+
+  useEffect(() => {
+    if (isHydrated) {
+      setRestoreTimedOut(false);
+      return;
+    }
+    const handle = window.setTimeout(() => setRestoreTimedOut(true), 3000);
+    return () => window.clearTimeout(handle);
+  }, [isHydrated]);
+
+  useEffect(() => {
+    setCurrentPath(pathname);
+  }, [pathname]);
+
+  const navigateInsideCrm = useCallback((path: string) => {
+    setCurrentPath(path);
+    if (window.location.pathname !== path) {
+      window.history.pushState(null, '', path);
+    }
+  }, []);
+
+  useEffect(() => {
+    const handlePopState = () => setCurrentPath(window.location.pathname);
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
 
   // CRM entities are intentionally not restored from browser storage. They will
   // be supplied by feature API queries during the next integration phase.
@@ -210,7 +238,7 @@ export default function App() {
   );
   const teamMutations = useTeamMutation(teamQuery.refresh);
   const rbacQuery = useRbac(
-    Boolean(currentUser) && (pathname === '/team' || pathname === '/roles-permissions'),
+    Boolean(currentUser) && (currentPath === '/team' || currentPath === '/roles-permissions'),
   );
 
   useEffect(() => {
@@ -225,7 +253,7 @@ export default function App() {
     Boolean(currentUser) &&
       canManageTeamAttendance &&
       secondaryReady &&
-      (pathname === '/dashboard' || pathname === '/team'),
+      (currentPath === '/dashboard' || currentPath === '/team'),
   );
 
   useEffect(() => {
@@ -342,7 +370,7 @@ export default function App() {
   );
   const leaveQuery = useLeaveRequests(
     { page: 1, limit: 100 },
-    Boolean(currentUser) && secondaryReady && canUseLeave && pathname === '/team',
+    Boolean(currentUser) && secondaryReady && canUseLeave && currentPath === '/team',
   );
 
   useEffect(() => {
@@ -379,16 +407,16 @@ export default function App() {
   // Tab, Sidebar & Filter States
   const setActiveTab = useCallback((tab: TabType) => {
     setActiveTabState(tab);
-    router.push(TAB_ROUTES[tab]);
-  }, [router]);
+    navigateInsideCrm(TAB_ROUTES[tab]);
+  }, [navigateInsideCrm]);
   const [statusFilter, setStatusFilter] = useState<ProjectStatus | 'all'>('all');
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [freelancerFocus, setFreelancerFocus] = useState<{ date: string; projectId: string; shootId: string } | null>(null);
 
   useEffect(() => {
     if (routeTab) setActiveTabState(routeTab);
-    else if (pathname.startsWith('/projects/')) setActiveTabState('projects');
-  }, [pathname, routeTab]);
+    else if (currentPath.startsWith('/projects/')) setActiveTabState('projects');
+  }, [currentPath, routeTab]);
 
   const canAccessTab = useCallback(
     (tab: TabType) => {
@@ -879,7 +907,7 @@ export default function App() {
   };
 
   // Wait for the persisted browser session before deciding whether login is needed.
-  if (!isHydrated) {
+  if (!isHydrated && !restoreTimedOut) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[#2b1b21] text-[#f8e9df]">
         <div className="flex items-center gap-3 text-sm font-semibold">

@@ -45,7 +45,7 @@ const chunkRecoveryScript = `
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en">
+    <html lang="en" data-scroll-behavior="smooth">
       <body>
         <script dangerouslySetInnerHTML={{ __html: chunkRecoveryScript }} />
         <AuthSessionProvider>{children}</AuthSessionProvider>

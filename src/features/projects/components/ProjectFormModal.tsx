@@ -7,7 +7,7 @@ import { useToast } from '@/components/common';
 import { mergeAssignees, FREELANCER_ASSIGNEE, UNASSIGNED_ASSIGNEE, assigneeSelectValue } from '@/features/projects/assigneeOptions';
 import { useTeam } from '@/hooks/useTeam';
 import { CLIENT_ASSET_ACCEPT, CLIENT_ASSET_MAX_BYTES, clientAssetsApi, type ProjectClientAsset, uploadProjectClientAsset } from '@/lib/api/clientAssets';
-import { paymentsApi, toPaymentMethod, type PaymentMethod } from '@/lib/api/payments';
+import { PAYMENT_MODE_OPTIONS, paymentsApi, toPaymentMethod, type PaymentMethod } from '@/lib/api/payments';
 import { ApiError } from '@/lib/api/client';
 import { indianMobileError, nextIndianMobileValue } from '@/lib/validation/indianMobile';
 import { getTodayDateString } from '@/utils/shootTracking';
@@ -984,18 +984,23 @@ export const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
                   onChange={(e) => setAdvanceReceived(e.target.value === '' ? '' : Number(e.target.value))}
                   className="w-full bg-white border border-slate-200 rounded px-3 py-1.5 text-slate-800 focus:outline-none focus:ring-1 focus:ring-indigo-500 transition"
                 />
-                {!existingProject && Number(advanceReceived) > 0 && (
-                  <select
-                    value={advanceMode}
-                    onChange={(e) => setAdvanceMode(e.target.value)}
-                    aria-label="How the advance was received"
-                    className="mt-1.5 w-full bg-white border border-slate-200 rounded px-3 py-1.5 text-[11px] font-semibold text-slate-700 focus:outline-none focus:ring-1 focus:ring-indigo-500 transition"
-                  >
-                    {['UPI / GPay', 'Bank Transfer', 'Cash', 'Card', 'Cheque', 'Other'].map((mode) => (
-                      <option key={mode} value={mode}>{`Received via ${mode}`}</option>
-                    ))}
-                  </select>
-                )}
+              </div>
+
+              {/* Payment Mode */}
+              <div>
+                <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">
+                  Mode
+                </label>
+                <select
+                  value={advanceMode}
+                  onChange={(e) => setAdvanceMode(e.target.value)}
+                  aria-label="Payment mode"
+                  className="w-full bg-white border border-slate-200 rounded px-3 py-1.5 text-slate-800 focus:outline-none focus:ring-1 focus:ring-indigo-500 transition"
+                >
+                  {PAYMENT_MODE_OPTIONS.map((mode) => (
+                    <option key={mode.paymentMethod} value={mode.value}>{mode.value}</option>
+                  ))}
+                </select>
               </div>
 
               {/* Payment Date */}

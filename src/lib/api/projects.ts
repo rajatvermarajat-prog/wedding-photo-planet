@@ -1,12 +1,13 @@
 import { apiRequest, ApiMeta } from './client';
 import type { BackendCrewRole, BackendShoot, BackendShootStatus, BackendShootType } from './shoots';
 import type { BackendTask, BackendTaskCategory, BackendTaskPriority, BackendTaskStatus } from './tasks';
+import type { PaymentMethod } from './payments';
 export type BackendProjectStatus='UPCOMING'|'LEAD'|'CONFIRMED'|'PLANNING'|'SHOOTING'|'EDITING'|'DELIVERY'|'COMPLETED'|'CANCELLED';
 export type BackendProjectType='ROKA'|'ENGAGEMENT'|'PRE_WEDDING'|'WEDDING'|'COMPLETE_WEDDING_SERVICES'|'HALDI_MEHENDI'|'SANGEET'|'RECEPTION'|'ANNIVERSARY'|'CORPORATE'|'OTHER';
 export interface ProjectClient { id:string; clientCode:string; displayName:string; primaryPhone:string; }
 export interface ProjectPayment { id:string; paymentDate:string; amount:string|number; paymentMethod:string; notes?:string|null; receiptFileId?:string|null; }
 export interface PaymentMilestone { id:string; title:string; amount:string|number; percentage:string|number; dueDate:string|null; status:'PENDING'|'RECEIVED'|'OVERDUE'; notes?:string|null; }
-export interface Project { id:string; projectNumber:string; name:string; type:BackendProjectType; status:BackendProjectStatus; isUrgent:boolean; weddingDate:string|null; deliveryDueDate:string|null; venueName:string|null; venueAddress:string|null; venueCity:string|null; totalQuotation:string; totalStorageCapacityGb?:string|number; customServiceType:string|null; otherClientDetails:string|null; notes:string|null; client:ProjectClient; tasks?:BackendTask[]; shoots?:BackendShoot[]; payments?:ProjectPayment[]; paymentMilestones?:PaymentMilestone[]; dataBackup?:unknown; deliveryStatus?:unknown; createdAt:string; updatedAt:string; _count?:{events:number;shoots:number;tasks:number;deliveries:number}; }
+export interface Project { id:string; projectNumber:string; name:string; type:BackendProjectType; status:BackendProjectStatus; isUrgent:boolean; weddingDate:string|null; deliveryDueDate:string|null; venueName:string|null; venueAddress:string|null; venueCity:string|null; totalQuotation:string; totalStorageCapacityGb?:string|number; paymentMode?:PaymentMethod|null; customServiceType:string|null; otherClientDetails:string|null; notes:string|null; client:ProjectClient; tasks?:BackendTask[]; shoots?:BackendShoot[]; payments?:ProjectPayment[]; paymentMilestones?:PaymentMilestone[]; dataBackup?:unknown; deliveryStatus?:unknown; createdAt:string; updatedAt:string; _count?:{events:number;shoots:number;tasks:number;deliveries:number}; }
 export interface CreateProjectEventInput {name:string;eventDate:string;venueName?:string;address?:string;city?:string;notes?:string;}
 export interface CreateProjectClientInput {displayName:string;primaryPhone:string;primaryEmail?:string;}
 export interface CreateProjectTaskInput {title:string;description?:string;category?:BackendTaskCategory;priority?:BackendTaskPriority;quantity?:number;unit?:string;dueDate?:string;assigneeId?:string;status?:BackendTaskStatus;}
@@ -20,7 +21,7 @@ const query=(q:ProjectListQuery={})=>{const p=new URLSearchParams();Object.entri
 export const projectsApi={
   list:async(q?:ProjectListQuery)=>apiRequest<Project[]>(`/projects${query(q)}`),
   get:async(id:string)=>(await apiRequest<Project>(`/projects/${encodeURIComponent(id)}`)).data,
-  create:async(input:CreateProjectInput)=>(await apiRequest<Project>('/projects',{method:'POST',body:JSON.stringify(input)})).data,
+  create:async(input:CreateProjectInput)=>(await apiRequest<Project>('/projects',{method:'POST',body:JSON.stringify(input),timeoutMs:60000})).data,
   update:async(id:string,input:UpdateProjectInput)=>(await apiRequest<Project>(`/projects/${encodeURIComponent(id)}`,{method:'PATCH',body:JSON.stringify(input)})).data,
   updateDataBackup:async(id:string,dataBackup:unknown)=>(await apiRequest<Project>(`/projects/${encodeURIComponent(id)}/data-backup`,{method:'PATCH',body:JSON.stringify(dataBackup)})).data,
   updateDeliveries:async(id:string,deliveryStatus:unknown)=>(await apiRequest<Project>(`/projects/${encodeURIComponent(id)}/deliveries`,{method:'PATCH',body:JSON.stringify(deliveryStatus)})).data,
