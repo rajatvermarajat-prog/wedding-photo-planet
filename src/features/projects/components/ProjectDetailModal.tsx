@@ -152,7 +152,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
   const isFullAdmin = canEditProject || canViewPayments || canViewFinancials;
   const isVideoEditor = !canEditProject && !canViewPayments && !canViewFinancials;
 
-  const teamQuery = useTeam({ page: 1, limit: 100 }, Boolean(project));
+  const teamQuery = useTeam({ page: 1, limit: 100 }, Boolean(project) && team.length === 0);
   const activeTeamMembers = mergeAssignees(team, teamQuery.data.map(normalizeTeamMember));
 
   const [activeTab, setActiveTab] = useState<'overview' | 'vault' | 'tasks' | 'shoots' | 'data' | 'payments' | 'deliveries'>('overview');
@@ -167,7 +167,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
   // this workspace from the authoritative, project-scoped endpoint so its
   // Shoots tab never depends on which global page happened to load first.
   useEffect(() => {
-    if (!isPersistedProjectId(project.id) || !can('shoots.view')) return;
+    if (!isPersistedProjectId(project.id) || !can('shoots.view') || (activeTab !== 'shoots' && activeTab !== 'data')) return;
     let active = true;
     void shootsApi.list({
       projectId: project.id,
@@ -186,7 +186,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
     // Project ID is the data boundary.  Depending on `project` or the update
     // callback would turn this hydration into a render/update request loop.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [project.id, can]);
+  }, [project.id, activeTab, can]);
 
   useEffect(() => {
     if (activeTab === 'vault' && !canViewClientAssets) setActiveTab('overview');
@@ -226,7 +226,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
     finally { setVaultLoading(false); }
   };
 
-  useEffect(() => { if (canViewClientAssets) void refreshClientAssets(); }, [project.id, canViewClientAssets]);
+  useEffect(() => { if (canViewClientAssets && activeTab === 'vault') void refreshClientAssets(); }, [project.id, canViewClientAssets, activeTab]);
 
   /** Opens a client asset with a URL signed right now. */
   const openAsset = async (assetId: string) => {
@@ -278,7 +278,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
   const [paymentSchedules, setPaymentSchedules] = useState<ScheduledPayment[]>([]);
 
   useEffect(() => {
-    if (!canViewPaymentMilestones) return;
+    if (!canViewPaymentMilestones || activeTab !== 'payments') return;
     let active = true;
     void projectsApi.listPaymentMilestones(project.id).then((items) => {
       if (!active) return;
@@ -288,7 +288,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
       })));
     }).catch(() => undefined);
     return () => { active = false; };
-  }, [project.id, canViewPaymentMilestones]);
+  }, [project.id, canViewPaymentMilestones, activeTab]);
 
   // Payments are hydrated from the DB-backed finance resource, never from
   // generated browser ids or a project-local fallback.
@@ -313,18 +313,24 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
     return { advanceReceived: received, balanceDue: Math.max(0, project.totalBudget - received) };
   };
 
-  const hydratePaymentRecords = async (items: ApiProjectPayment[]) => Promise.all(items.map(async (item) => ({
+  useEffect(() => {
+    setPayments(project.payments || []);
+    setTaskList(project.tasks || []);
+    setSavedTasks(project.tasks || []);
+  }, [project.id, project.payments, project.tasks]);
+
+  const hydratePaymentRecords = async (items: ApiProjectPayment[], includeReceipts = false) => Promise.all(items.map(async (item) => ({
     ...toPaymentRecord(item),
-    // The FileObject is the durable receipt reference. A new signed URL is
-    // requested on every read instead of persisting an expiring browser URL.
-    receiptScreenshot: await getProjectPaymentReceiptUrl(item.id).catch(() => undefined),
+    // The FileObject is the durable receipt reference. Receipt URLs are fetched
+    // only when the payments tab is open so overview render is not blocked.
+    receiptScreenshot: includeReceipts ? await getProjectPaymentReceiptUrl(item.id).catch(() => undefined) : undefined,
   })));
 
   const refreshProjectPayments = async () => {
     setPaymentsLoading(true);
     try {
       const items = await paymentsApi.getProjectPayments(project.id);
-      const next = await hydratePaymentRecords(items);
+      const next = await hydratePaymentRecords(items, activeTab === 'payments');
       setPayments(next);
       return next;
     } finally {
@@ -346,12 +352,12 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
   };
 
   useEffect(() => {
-    if (!canViewPayments) return;
+    if (!canViewPayments || activeTab !== 'payments') return;
     let active = true;
     setPaymentsLoading(true);
     void paymentsApi.getProjectPayments(project.id)
       .then(async (items) => {
-        const next = await hydratePaymentRecords(items);
+        const next = await hydratePaymentRecords(items, true);
         if (active) setPayments(next);
       })
       .catch((error: unknown) => {
@@ -359,7 +365,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
       })
       .finally(() => { if (active) setPaymentsLoading(false); });
     return () => { active = false; };
-  }, [project.id, canViewPayments]);
+  }, [project.id, canViewPayments, activeTab]);
 
   const [showAddScheduleModal, setShowAddScheduleModal] = useState(false);
   const [editingScheduleItem, setEditingScheduleItem] = useState<ScheduledPayment | null>(null);
@@ -731,7 +737,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
   const [savedTasks, setSavedTasks] = useState<ProjectTask[]>(project.tasks || []);
 
   useEffect(() => {
-    if (!isPersistedProjectId(project.id) || !canViewTasks) return;
+    if (!isPersistedProjectId(project.id) || !canViewTasks || activeTab !== 'tasks') return;
     let cancelled = false;
     void loadProjectTasks(project.id)
       .then((rows) => {
@@ -743,7 +749,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
     return () => {
       cancelled = true;
     };
-  }, [project.id, canViewTasks]);
+  }, [project.id, canViewTasks, activeTab]);
 
   const handleAddTask = () => {
     if (!canAddTask || !isEditingTasks) return;

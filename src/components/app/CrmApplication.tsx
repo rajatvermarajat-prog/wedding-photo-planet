@@ -460,7 +460,7 @@ export default function App() {
 
   const handleSelectProject = (project: Project, roleContext?: string) => {
     setSelectedProjectRole(roleContext || currentUser?.role);
-    router.push(`/projects/${encodeURIComponent(project.id)}`);
+    navigateInsideCrm(`/projects/${encodeURIComponent(project.id)}`);
   };
 
   const routedProject = routedProjectId
@@ -1010,7 +1010,7 @@ export default function App() {
               project={routedProject}
               onClose={() => {
                 setSelectedProjectRole(undefined);
-                router.push('/projects');
+                navigateInsideCrm('/projects');
               }}
               onUpdateProject={hasPermission(currentUser, accessRoles, 'weddings.edit') || canMutateShoots ? handleUpdateProject : () => undefined}
               onGenerateInvoice={(project) => {

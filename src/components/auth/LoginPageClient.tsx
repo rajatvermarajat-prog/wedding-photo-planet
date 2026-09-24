@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { LoginScreen } from '@/components/auth/LoginScreen';
 import { LoginInput } from '@/lib/api/auth';
@@ -12,14 +12,27 @@ export function LoginPageClient() {
   const searchParams = useSearchParams();
   const { currentUser, isHydrated, login } = useAuthSession();
   const returnTo = safeReturnPath(searchParams.get('returnTo'));
+  const loginRedirectingRef = useRef(false);
 
   useEffect(() => {
-    if (isHydrated && currentUser) router.replace(returnTo);
+    router.prefetch(returnTo);
+    if (returnTo !== '/dashboard') router.prefetch('/dashboard');
+    void import('@/components/app/CrmApplication');
+  }, [returnTo, router]);
+
+  useEffect(() => {
+    if (isHydrated && currentUser && !loginRedirectingRef.current) router.replace(returnTo);
   }, [currentUser, isHydrated, returnTo, router]);
 
   const handleLogin = async (input: LoginInput) => {
-    await login(input);
-    router.replace(returnTo);
+    loginRedirectingRef.current = true;
+    try {
+      await login(input);
+      router.replace(returnTo);
+    } catch (error) {
+      loginRedirectingRef.current = false;
+      throw error;
+    }
   };
 
   return <LoginScreen onLogin={handleLogin} />;
