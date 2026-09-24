@@ -33,7 +33,7 @@ export const authApi = {
     return hasStoredSession();
   },
   async me(init?: RequestInit): Promise<SessionUser> {
-    const { data } = await apiRequest<SessionUser>('/auth/me', init);
+    const { data } = await apiRequest<SessionUser>('/auth/me', { ...init, fresh: true });
     return data;
   },
   async logout(): Promise<void> {
