@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { Project, VideoPipeline, PhotoPipeline, ShootEvent, PaymentRecord, EditingStatus, ProjectTask, TeamMember, ClientVaultDocument, CrewMemberAssignment, DataBackup, ProjectStatus, ScheduledPayment } from '@/types';
@@ -134,6 +134,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
   const canUploadClientAssets = can('media.upload_photos') || can('media.upload_videos');
   const canDeleteClientAssets = can('media.delete_photos') || can('media.delete_videos');
   const canAddShoot = can('shoots.create');
+  const canViewShoots = can('shoots.view');
   const canEditShoot = can('shoots.edit');
   const canDeleteShoot = can('shoots.delete');
   const canAssignShoot =
@@ -156,6 +157,8 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
   const activeTeamMembers = mergeAssignees(team, teamQuery.data.map(normalizeTeamMember));
 
   const [activeTab, setActiveTab] = useState<'overview' | 'vault' | 'tasks' | 'shoots' | 'data' | 'payments' | 'deliveries'>('overview');
+  const latestProjectRef = useRef(project);
+  const hydratedShootProjectIdsRef = useRef<Set<string>>(new Set());
   const [storageUnits, setStorageUnits] = useState<Record<string, StorageUnit>>({});
   const unitFor = (key: string): StorageUnit => storageUnits[key] || 'GB';
   const setUnitFor = (key: string, unit: StorageUnit) => setStorageUnits((current) => ({ ...current, [key]: unit }));
@@ -166,8 +169,12 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
   // therefore have shoots outside its first page of global results.  Hydrate
   // this workspace from the authoritative, project-scoped endpoint so its
   // Shoots tab never depends on which global page happened to load first.
+  latestProjectRef.current = project;
+
   useEffect(() => {
-    if (!isPersistedProjectId(project.id) || !can('shoots.view') || (activeTab !== 'shoots' && activeTab !== 'data')) return;
+    if (!isPersistedProjectId(project.id) || !canViewShoots || (activeTab !== 'shoots' && activeTab !== 'data')) return;
+    if (hydratedShootProjectIdsRef.current.has(project.id)) return;
+    hydratedShootProjectIdsRef.current.add(project.id);
     let active = true;
     void shootsApi.list({
       projectId: project.id,
@@ -177,25 +184,29 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
       sortOrder: 'asc',
     }).then((result) => {
       if (!active) return;
+      const latestProject = latestProjectRef.current;
+      if (!latestProject || latestProject.id !== project.id) return;
       onUpdateProject({
-        ...project,
+        ...latestProject,
         shoots: result.items.map(toShootEvent),
       }, { persistShoots: false });
-    }).catch(() => undefined);
+    }).catch(() => {
+      hydratedShootProjectIdsRef.current.delete(project.id);
+    });
     return () => { active = false; };
     // Project ID is the data boundary.  Depending on `project` or the update
     // callback would turn this hydration into a render/update request loop.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [project.id, activeTab, can]);
+  }, [project.id, activeTab, canViewShoots]);
 
   useEffect(() => {
     if (activeTab === 'vault' && !canViewClientAssets) setActiveTab('overview');
-    if (activeTab === 'shoots' && !can('shoots.view')) setActiveTab('overview');
+    if (activeTab === 'shoots' && !canViewShoots) setActiveTab('overview');
     if (activeTab === 'data' && !canViewDeliveries) setActiveTab('overview');
     if (activeTab === 'tasks' && !canViewTasks) setActiveTab('overview');
     if (activeTab === 'payments' && !canViewPayments) setActiveTab('overview');
     if (activeTab === 'deliveries' && !canViewDeliveries) setActiveTab('overview');
-  }, [activeTab, canViewClientAssets, canViewPayments, canViewDeliveries, canViewTasks, can]);
+  }, [activeTab, canViewClientAssets, canViewPayments, canViewDeliveries, canViewTasks, canViewShoots]);
 
   // Always hydrate Client Vault from the project-scoped client-assets API.
   const [vaultDocs, setVaultDocs] = useState<ClientVaultDocument[]>([]);
