@@ -4238,14 +4238,14 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
                   <div>
                     <p className="text-[10px] font-extrabold uppercase tracking-[.14em] text-[#ecc8d3]">Total Package Amount</p>
                     <p className="mt-2 font-mono text-xl font-black text-[#ddc89c]">
-                      ₹{remainingMilestoneBase.toLocaleString('en-IN')}
+                      ₹{(project.totalBudget || 0).toLocaleString('en-IN')}
                     </p>
                   </div>
-                  {remainingMilestoneBase > 0 && (
+                  {project.totalBudget > 0 && (
                     <div className="text-right">
                       <p className="text-[10px] font-extrabold uppercase tracking-[.14em] text-[#ecc8d3]">This Milestone</p>
                       <p className="mt-2 text-lg font-extrabold text-white">
-                        {schedAmount > 0 ? `${((schedAmount / remainingMilestoneBase) * 100).toFixed(1)}% of Total` : '0% of Total'}
+                        {schedAmount > 0 ? `${((schedAmount / project.totalBudget) * 100).toFixed(1)}% of Total` : '0% of Total'}
                       </p>
                     </div>
                   )}
@@ -4283,14 +4283,14 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
                         step="0.01"
                         placeholder="e.g. 30"
                         value={
-                          remainingMilestoneBase > 0 && schedAmount > 0
-                            ? Number(((schedAmount / remainingMilestoneBase) * 100).toFixed(2))
+                          project.totalBudget > 0 && schedAmount > 0
+                            ? Number(((schedAmount / project.totalBudget) * 100).toFixed(2))
                             : ''
                         }
                         onChange={(e) => {
                           const pct = parseFloat(e.target.value);
-                          if (!isNaN(pct) && remainingMilestoneBase > 0) {
-                            setSchedAmount(Math.round((remainingMilestoneBase * pct) / 100));
+                          if (!isNaN(pct) && project.totalBudget > 0) {
+                            setSchedAmount(Math.round((project.totalBudget * pct) / 100));
                           } else if (e.target.value === '') {
                             setSchedAmount(0);
                           }
