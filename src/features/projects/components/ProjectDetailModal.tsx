@@ -278,14 +278,15 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
   const [paymentSchedules, setPaymentSchedules] = useState<ScheduledPayment[]>([]);
 
   useEffect(() => {
-    if (!canViewPaymentMilestones || activeTab !== 'payments') return;
+    if (!canViewPaymentMilestones || !['overview', 'payments'].includes(activeTab)) return;
     let active = true;
     void projectsApi.listPaymentMilestones(project.id).then((items) => {
       if (!active) return;
-      setPaymentSchedules(items.map((item) => ({
+      const updated = items.map((item) => ({
         id: String(item.id), stageName: String(item.title), dueDate: item.dueDate ? String(item.dueDate).slice(0, 10) : 'TBD',
         amount: Number(item.amount), status: String(item.status).toLowerCase() as ScheduledPayment['status'], notes: item.notes || '',
-      })));
+      }));
+      setPaymentSchedules(updated);
     }).catch(() => undefined);
     return () => { active = false; };
   }, [project.id, canViewPaymentMilestones, activeTab]);
@@ -297,19 +298,19 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
   const [paymentSubmitting, setPaymentSubmitting] = useState(false);
 
   const receiptReceivedAmount = payments.reduce((sum, payment) => sum + (payment.amount || 0), 0);
-  // A received milestone is a confirmed collection in the schedule.  The
-  // payment ledger may contain the same collection, so take the larger total
-  // instead of adding both and inflating the amount received.
+  // A received milestone is a confirmed collection in the schedule. Actual
+  // payment receipts remain separate ledger rows, so both sources contribute.
   const milestoneReceivedAmount = paymentSchedules
     .filter((item) => item.status === 'received')
     .reduce((sum, item) => sum + item.amount, 0);
-  const receivedAmount = Math.max(receiptReceivedAmount, milestoneReceivedAmount);
+  const receivedAmount = receiptReceivedAmount + milestoneReceivedAmount;
   const balanceDue = Math.max(0, project.totalBudget - receivedAmount);
+  const remainingMilestoneBase = Math.max(0, project.totalBudget - receiptReceivedAmount);
   const paymentSummaryForSchedule = (schedule: ScheduledPayment[]) => {
     const scheduleReceived = schedule
       .filter((item) => item.status === 'received')
       .reduce((sum, item) => sum + item.amount, 0);
-    const received = Math.max(receiptReceivedAmount, scheduleReceived);
+    const received = receiptReceivedAmount + scheduleReceived;
     return { advanceReceived: received, balanceDue: Math.max(0, project.totalBudget - received) };
   };
 
@@ -339,10 +340,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
   };
 
   const syncPaymentSummary = (nextPayments: PaymentRecord[]) => {
-    const received = Math.max(
-      nextPayments.reduce((sum, payment) => sum + payment.amount, 0),
-      milestoneReceivedAmount,
-    );
+    const received = nextPayments.reduce((sum, payment) => sum + payment.amount, 0) + milestoneReceivedAmount;
     onUpdateProject({
       ...project,
       payments: nextPayments,
@@ -375,6 +373,102 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
   const [schedStatus, setSchedStatus] = useState<'pending' | 'received' | 'overdue'>('pending');
   const [schedNotes, setSchedNotes] = useState('');
   const [scheduleSubmitting, setScheduleSubmitting] = useState(false);
+  const mapMilestoneToSchedule = (item: Awaited<ReturnType<typeof projectsApi.listPaymentMilestones>>[number]): ScheduledPayment => ({
+    id: String(item.id),
+    stageName: String(item.title),
+    dueDate: item.dueDate ? String(item.dueDate).slice(0, 10) : 'TBD',
+    amount: Number(item.amount),
+    status: String(item.status).toLowerCase() as ScheduledPayment['status'],
+    notes: item.notes || '',
+  });
+
+  const refreshPaymentMilestones = async () => {
+    const items = await projectsApi.listPaymentMilestones(project.id);
+    const updated = items.map(mapMilestoneToSchedule);
+    setPaymentSchedules(updated);
+    onUpdateProject({ ...project, paymentSchedule: updated, ...paymentSummaryForSchedule(updated) });
+    return updated;
+  };
+
+  const createPresetSchedule = async (preset: Array<Pick<ScheduledPayment, 'stageName' | 'dueDate' | 'amount' | 'status' | 'notes'>>) => {
+    if (!canManagePaymentMilestones || scheduleSubmitting) return;
+    if (paymentSchedules.length > 0) {
+      showToast('Existing custom milestones are preserved. Delete or edit them manually before applying a preset.', { variant: 'error' });
+      return;
+    }
+    const totalScheduled = preset.reduce((sum, item) => sum + item.amount, 0);
+    if (totalScheduled > project.totalBudget) {
+      showToast('Preset total cannot exceed the project total.', { variant: 'error' });
+      return;
+    }
+    setScheduleSubmitting(true);
+    try {
+      for (const item of preset) {
+        await projectsApi.createPaymentMilestone(project.id, {
+          title: item.stageName,
+          amount: item.amount,
+          percentage: project.totalBudget > 0 ? Number(((item.amount / project.totalBudget) * 100).toFixed(2)) : 0,
+          dueDate: firstIsoDate(item.dueDate) || getTodayDateString(),
+          status: item.status.toUpperCase() as 'PENDING' | 'RECEIVED' | 'OVERDUE',
+          notes: item.notes,
+        });
+      }
+      await refreshPaymentMilestones();
+      showToast('Payment preset saved.', { variant: 'success' });
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Could not save the payment preset. Please try again.', { variant: 'error' });
+    } finally {
+      setScheduleSubmitting(false);
+    }
+  };
+
+  const standardPaymentPreset = (): Array<Pick<ScheduledPayment, 'stageName' | 'dueDate' | 'amount' | 'status' | 'notes'>> => [
+    {
+      stageName: '30% Booking Token Advance',
+      dueDate: project.createdAt || getTodayDateString(),
+      amount: Math.round((project.totalBudget || 0) * 0.30),
+      status: (project.advanceReceived || 0) >= Math.round((project.totalBudget || 0) * 0.30) ? 'received' : 'pending',
+      notes: 'Token advance on booking',
+    },
+    {
+      stageName: '60% On Wedding Shoot Date',
+      dueDate: firstIsoDate(project.weddingFunctionDates) || getTodayDateString(),
+      amount: Math.round((project.totalBudget || 0) * 0.60),
+      status: (project.advanceReceived || 0) >= Math.round((project.totalBudget || 0) * 0.90) ? 'received' : 'pending',
+      notes: 'Second installment on main event',
+    },
+    {
+      stageName: '10% Final Delivery & Album Handover',
+      dueDate: firstIsoDate(project.finalDeliveryDeadline) || getTodayDateString(),
+      amount: Math.round((project.totalBudget || 0) * 0.10),
+      status: (project.balanceDue || 0) === 0 ? 'received' : 'pending',
+      notes: 'Final settlement on deliverable handover',
+    },
+  ];
+
+  const alternatePaymentPreset = (): Array<Pick<ScheduledPayment, 'stageName' | 'dueDate' | 'amount' | 'status' | 'notes'>> => [
+    {
+      stageName: '25% Booking Token Advance',
+      dueDate: project.createdAt || getTodayDateString(),
+      amount: Math.round((project.totalBudget || 0) * 0.25),
+      status: (project.advanceReceived || 0) >= Math.round((project.totalBudget || 0) * 0.25) ? 'received' : 'pending',
+      notes: 'Token advance on booking',
+    },
+    {
+      stageName: '50% On Wedding Shoot Date',
+      dueDate: firstIsoDate(project.weddingFunctionDates) || getTodayDateString(),
+      amount: Math.round((project.totalBudget || 0) * 0.50),
+      status: (project.advanceReceived || 0) >= Math.round((project.totalBudget || 0) * 0.75) ? 'received' : 'pending',
+      notes: 'Second installment on main event',
+    },
+    {
+      stageName: '25% Final Delivery & Album Handover',
+      dueDate: firstIsoDate(project.finalDeliveryDeadline) || getTodayDateString(),
+      amount: Math.round((project.totalBudget || 0) * 0.25),
+      status: (project.balanceDue || 0) === 0 ? 'received' : 'pending',
+      notes: 'Final settlement on deliverable handover',
+    },
+  ];
 
   const handleSaveScheduleItem = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -387,10 +481,18 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
       showToast('Please select a due date.', { variant: 'error' });
       return;
     }
+    const nextAmount = Number(schedAmount) || 0;
+    const scheduledWithoutCurrent = paymentSchedules
+      .filter((item) => item.id !== editingScheduleItem?.id)
+      .reduce((sum, item) => sum + item.amount, 0);
+    if (scheduledWithoutCurrent + nextAmount > project.totalBudget) {
+      showToast('Scheduled milestones cannot exceed the project total.', { variant: 'error' });
+      return;
+    }
 
     const payload = {
       title: schedStageName.trim(),
-      amount: Number(schedAmount) || 0,
+      amount: nextAmount,
       percentage: project.totalBudget > 0
         ? Number(((Number(schedAmount) / project.totalBudget) * 100).toFixed(2))
         : 0,
@@ -406,13 +508,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
       } else {
         await projectsApi.createPaymentMilestone(project.id, payload);
       }
-      const items = await projectsApi.listPaymentMilestones(project.id);
-      const updated = items.map((item) => ({
-        id: String(item.id), stageName: String(item.title), dueDate: item.dueDate ? String(item.dueDate).slice(0, 10) : 'TBD',
-        amount: Number(item.amount), status: String(item.status).toLowerCase() as ScheduledPayment['status'], notes: item.notes || '',
-      }));
-      setPaymentSchedules(updated);
-      onUpdateProject({ ...project, paymentSchedule: updated, ...paymentSummaryForSchedule(updated) });
+      await refreshPaymentMilestones();
       setShowAddScheduleModal(false);
       setEditingScheduleItem(null);
       setSchedStageName('');
@@ -1625,36 +1721,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
 
                       {canManagePaymentMilestones && <button
                         type="button"
-                        onClick={() => {
-                          const defaults: ScheduledPayment[] = [
-                              {
-                                id: `sched-${Date.now()}-1`,
-                                stageName: '30% Booking Token Advance',
-                                dueDate: project.createdAt || new Date().toISOString().split('T')[0],
-                                amount: Math.round((project.totalBudget || 0) * 0.30),
-                                status: (project.advanceReceived || 0) >= Math.round((project.totalBudget || 0) * 0.30) ? 'received' : 'pending',
-                                notes: 'Token advance on booking',
-                              },
-                              {
-                                id: `sched-${Date.now()}-2`,
-                                stageName: '60% On Wedding Shoot Date',
-                                dueDate: project.weddingFunctionDates ? project.weddingFunctionDates.split(' ')[0] : 'Shoot Date',
-                                amount: Math.round((project.totalBudget || 0) * 0.60),
-                                status: (project.advanceReceived || 0) >= Math.round((project.totalBudget || 0) * 0.90) ? 'received' : 'pending',
-                                notes: 'Second installment on main event',
-                              },
-                              {
-                                id: `sched-${Date.now()}-3`,
-                                stageName: '10% Final Delivery & Album Handover',
-                                dueDate: project.finalDeliveryDeadline || 'Final Delivery',
-                                amount: Math.round((project.totalBudget || 0) * 0.10),
-                                status: (project.balanceDue || 0) === 0 ? 'received' : 'pending',
-                                notes: 'Final settlement on deliverable handover',
-                              },
-                            ];
-                            setPaymentSchedules(defaults);
-                            onUpdateProject({ ...project, paymentSchedule: defaults });
-                        }}
+                        onClick={() => void createPresetSchedule(standardPaymentPreset())}
                         className="px-2.5 py-1.5 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-800 font-bold text-xs flex items-center gap-1 border border-amber-300 transition cursor-pointer"
                         title="Reset schedule to standard 30%-60%-10% plan"
                       >
@@ -1688,36 +1755,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
                       {canManagePaymentMilestones && <div className="flex flex-wrap justify-center gap-2">
                         <button
                           type="button"
-                          onClick={() => {
-                            const defaults: ScheduledPayment[] = [
-                              {
-                                id: `sched-${Date.now()}-1`,
-                                stageName: '30% Booking Token Advance',
-                                dueDate: project.createdAt || new Date().toISOString().split('T')[0],
-                                amount: Math.round((project.totalBudget || 0) * 0.30),
-                                status: (project.advanceReceived || 0) >= Math.round((project.totalBudget || 0) * 0.30) ? 'received' : 'pending',
-                                notes: 'Token advance on booking',
-                              },
-                              {
-                                id: `sched-${Date.now()}-2`,
-                                stageName: '60% On Wedding Shoot Date',
-                                dueDate: project.weddingFunctionDates ? project.weddingFunctionDates.split(' ')[0] : 'Shoot Date',
-                                amount: Math.round((project.totalBudget || 0) * 0.60),
-                                status: (project.advanceReceived || 0) >= Math.round((project.totalBudget || 0) * 0.90) ? 'received' : 'pending',
-                                notes: 'Second installment on main event',
-                              },
-                              {
-                                id: `sched-${Date.now()}-3`,
-                                stageName: '10% Final Delivery & Album Handover',
-                                dueDate: project.finalDeliveryDeadline || 'Final Delivery',
-                                amount: Math.round((project.totalBudget || 0) * 0.10),
-                                status: (project.balanceDue || 0) === 0 ? 'received' : 'pending',
-                                notes: 'Final settlement on deliverable handover',
-                              },
-                            ];
-                            setPaymentSchedules(defaults);
-                            onUpdateProject({ ...project, paymentSchedule: defaults });
-                          }}
+                          onClick={() => void createPresetSchedule(standardPaymentPreset())}
                           className="px-3.5 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-xs inline-flex items-center gap-1.5 cursor-pointer shadow-xs"
                         >
                           <Sparkles className="w-3.5 h-3.5 text-amber-300" />
@@ -1726,36 +1764,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
 
                         <button
                           type="button"
-                          onClick={() => {
-                            const defaults: ScheduledPayment[] = [
-                              {
-                                id: `sched-${Date.now()}-1`,
-                                stageName: '25% Booking Token Advance',
-                                dueDate: project.createdAt || new Date().toISOString().split('T')[0],
-                                amount: Math.round((project.totalBudget || 0) * 0.25),
-                                status: (project.advanceReceived || 0) >= Math.round((project.totalBudget || 0) * 0.25) ? 'received' : 'pending',
-                                notes: 'Token advance on booking',
-                              },
-                              {
-                                id: `sched-${Date.now()}-2`,
-                                stageName: '50% On Wedding Shoot Date',
-                                dueDate: project.weddingFunctionDates ? project.weddingFunctionDates.split(' ')[0] : 'Shoot Date',
-                                amount: Math.round((project.totalBudget || 0) * 0.50),
-                                status: (project.advanceReceived || 0) >= Math.round((project.totalBudget || 0) * 0.75) ? 'received' : 'pending',
-                                notes: 'Second installment on main event',
-                              },
-                              {
-                                id: `sched-${Date.now()}-3`,
-                                stageName: '25% Final Delivery & Album Handover',
-                                dueDate: project.finalDeliveryDeadline || 'Final Delivery',
-                                amount: Math.round((project.totalBudget || 0) * 0.25),
-                                status: (project.balanceDue || 0) === 0 ? 'received' : 'pending',
-                                notes: 'Final settlement on deliverable handover',
-                              },
-                            ];
-                            setPaymentSchedules(defaults);
-                            onUpdateProject({ ...project, paymentSchedule: defaults });
-                          }}
+                          onClick={() => void createPresetSchedule(alternatePaymentPreset())}
                           className="px-3 py-2 rounded-lg bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 font-bold text-xs inline-flex items-center gap-1 cursor-pointer"
                         >
                           <span>Alternate 25%-50%-25% Plan</span>
@@ -4229,14 +4238,14 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
                   <div>
                     <p className="text-[10px] font-extrabold uppercase tracking-[.14em] text-[#ecc8d3]">Total Package Amount</p>
                     <p className="mt-2 font-mono text-xl font-black text-[#ddc89c]">
-                      ₹{(project.totalBudget || 0).toLocaleString('en-IN')}
+                      ₹{remainingMilestoneBase.toLocaleString('en-IN')}
                     </p>
                   </div>
-                  {project.totalBudget > 0 && (
+                  {remainingMilestoneBase > 0 && (
                     <div className="text-right">
                       <p className="text-[10px] font-extrabold uppercase tracking-[.14em] text-[#ecc8d3]">This Milestone</p>
                       <p className="mt-2 text-lg font-extrabold text-white">
-                        {schedAmount > 0 ? `${((schedAmount / project.totalBudget) * 100).toFixed(1)}% of Total` : '0% of Total'}
+                        {schedAmount > 0 ? `${((schedAmount / remainingMilestoneBase) * 100).toFixed(1)}% of Total` : '0% of Total'}
                       </p>
                     </div>
                   )}
@@ -4274,14 +4283,14 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
                         step="0.01"
                         placeholder="e.g. 30"
                         value={
-                          project.totalBudget > 0 && schedAmount > 0
-                            ? Number(((schedAmount / project.totalBudget) * 100).toFixed(2))
+                          remainingMilestoneBase > 0 && schedAmount > 0
+                            ? Number(((schedAmount / remainingMilestoneBase) * 100).toFixed(2))
                             : ''
                         }
                         onChange={(e) => {
                           const pct = parseFloat(e.target.value);
-                          if (!isNaN(pct) && project.totalBudget > 0) {
-                            setSchedAmount(Math.round((project.totalBudget * pct) / 100));
+                          if (!isNaN(pct) && remainingMilestoneBase > 0) {
+                            setSchedAmount(Math.round((remainingMilestoneBase * pct) / 100));
                           } else if (e.target.value === '') {
                             setSchedAmount(0);
                           }

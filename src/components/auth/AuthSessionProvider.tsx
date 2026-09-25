@@ -33,7 +33,7 @@ const AuthSessionContext = createContext<AuthSessionValue | null>(null);
 let lastMeAt = 0;
 const REFRESH_SAFETY_WINDOW_MS = 90_000;
 const MIN_REFRESH_DELAY_MS = 5_000;
-const STARTUP_SESSION_TIMEOUT_MS = 6_000;
+const STARTUP_SESSION_TIMEOUT_MS = 20_000;
 
 export function AuthSessionProvider({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -139,7 +139,9 @@ export function AuthSessionProvider({ children }: { children: React.ReactNode })
               status: 408,
               reason: 'startup_timeout',
             });
-            transitionAuthState('unauthenticated', 'startup_timeout', null);
+            if (!hasStoredSession()) {
+              transitionAuthState('unauthenticated', 'startup_timeout_no_session_hint', null);
+            }
           }
           return;
         }

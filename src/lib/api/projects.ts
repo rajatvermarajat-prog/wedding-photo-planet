@@ -27,9 +27,9 @@ export const projectsApi={
   updateDeliveries:async(id:string,deliveryStatus:unknown)=>(await apiRequest<Project>(`/projects/${encodeURIComponent(id)}/deliveries`,{method:'PATCH',body:JSON.stringify(deliveryStatus)})).data,
   changeStatus:async(id:string,input:{status:BackendProjectStatus;reason?:string})=>(await apiRequest<Project>(`/projects/${encodeURIComponent(id)}/status`,{method:'PATCH',body:JSON.stringify(input)})).data,
   remove:async(id:string)=>apiRequest<void>(`/projects/${encodeURIComponent(id)}`,{method:'DELETE'}),
-  listPaymentMilestones:async(projectId:string)=>(await apiRequest<PaymentMilestone[]>(`/projects/${encodeURIComponent(projectId)}/payment-milestones`)).data,
-  createPaymentMilestone:async(projectId:string,input:PaymentMilestoneInput)=>(await apiRequest<PaymentMilestone>(`/projects/${encodeURIComponent(projectId)}/payment-milestones`,{method:'POST',body:JSON.stringify(input)})).data,
-  updatePaymentMilestone:async(projectId:string,milestoneId:string,input:PaymentMilestoneInput)=>(await apiRequest<PaymentMilestone>(`/projects/${encodeURIComponent(projectId)}/payment-milestones/${encodeURIComponent(milestoneId)}`,{method:'PATCH',body:JSON.stringify(input)})).data,
-  removePaymentMilestone:async(projectId:string,milestoneId:string,milestones?:unknown[])=>apiRequest<void>(`/projects/${encodeURIComponent(projectId)}/payment-milestones/${encodeURIComponent(milestoneId)}`,{method:'DELETE',body:JSON.stringify({milestones})})
+  listPaymentMilestones:async(projectId:string)=>(await apiRequest<PaymentMilestone[]>(`/projects/${encodeURIComponent(projectId)}/payment-milestones`,{timeoutMs:30000,fresh:true})).data,
+  createPaymentMilestone:async(projectId:string,input:PaymentMilestoneInput)=>(await apiRequest<PaymentMilestone>(`/projects/${encodeURIComponent(projectId)}/payment-milestones`,{method:'POST',body:JSON.stringify(input),timeoutMs:60000})).data,
+  updatePaymentMilestone:async(projectId:string,milestoneId:string,input:PaymentMilestoneInput)=>(await apiRequest<PaymentMilestone>(`/projects/${encodeURIComponent(projectId)}/payment-milestones/${encodeURIComponent(milestoneId)}`,{method:'PATCH',body:JSON.stringify(input),timeoutMs:60000})).data,
+  removePaymentMilestone:async(projectId:string,milestoneId:string,milestones?:unknown[])=>apiRequest<void>(`/projects/${encodeURIComponent(projectId)}/payment-milestones/${encodeURIComponent(milestoneId)}`,{method:'DELETE',body:JSON.stringify({milestones}),timeoutMs:60000})
 };
 export type ProjectListResult={data:Project[];meta:ApiMeta};
