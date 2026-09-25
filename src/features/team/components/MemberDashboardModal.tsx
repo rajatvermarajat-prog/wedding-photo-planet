@@ -300,20 +300,7 @@ export const MemberDashboardModal: React.FC<MemberDashboardModalProps> = ({
     if (onDeleteTask) {
       onDeleteTask(taskId);
     } else {
-      try {
-        const savedKeys = ['wpp_crm_tasks', 'wpp_owner_crm_tasks', 'wpp_owner_tasks'];
-        savedKeys.forEach((key) => {
-          const savedStr = localStorage.getItem(key);
-          if (savedStr) {
-            const parsed = JSON.parse(savedStr);
-            const filtered = parsed.filter((t: any) => t.id !== taskId);
-            localStorage.setItem(key, JSON.stringify(filtered));
-          }
-        });
-        window.dispatchEvent(new Event('storage'));
-      } catch (e) {
-        console.error(e);
-      }
+      alert('Task delete is not available here. Please delete it from the database-backed task screen.');
     }
     setTaskToDelete(null);
   };
@@ -1186,15 +1173,7 @@ export const MemberDashboardModal: React.FC<MemberDashboardModalProps> = ({
                 const hasTargets = totalDealsGoal > 0 || totalRevenueGoal > 0 || totalLeadsGoal > 0;
                 if (!hasTargets) return null;
 
-                const savedLeadsStr = typeof window !== 'undefined' ? localStorage.getItem('wpp_owner_crm_leads') : null;
                 let crmLeads: any[] = [];
-                if (savedLeadsStr) {
-                  try {
-                    crmLeads = JSON.parse(savedLeadsStr);
-                  } catch (e) {
-                    crmLeads = [];
-                  }
-                }
 
                 const memberCrmLeads = crmLeads.filter(
                   (l) => !l.assignedTo || l.assignedTo.toLowerCase().includes(member.name.toLowerCase()) || member.role.toLowerCase().includes('sales')

@@ -319,6 +319,7 @@ export const TeamAttendance: React.FC<TeamAttendanceProps> = ({
       status: statusMap[record.status],
       source: 'ADMIN',
       workLocation: record.status === 'present_wfh' ? 'WFH' : record.status === 'present_shoot' ? 'ON_SHOOT' : 'OFFICE',
+      notes: record.notes,
     });
     const exists = attendance.some((a) => a.id === record.id);
     if (exists) {

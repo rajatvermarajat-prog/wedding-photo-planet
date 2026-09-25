@@ -3,6 +3,7 @@ import type { TeamMember } from '@/types';
 
 const statusMap = { ACTIVE: 'active', INACTIVE: 'inactive', SUSPENDED: 'suspended', DISABLED: 'inactive' } as const;
 const employmentMap = { FULL_TIME: 'Full Time', PART_TIME: 'Part Time', CONTRACT: 'Contract', INTERN: 'Intern' } as const;
+const workLocationMap = { OFFICE: 'Office', WFH: 'WFH', HYBRID: 'Hybrid', ON_SHOOT: 'Field' } as const;
 
 export function normalizeTeamMember(user: BackendUser): TeamMember {
   const profile = user.employeeProfile;
@@ -20,5 +21,8 @@ export function normalizeTeamMember(user: BackendUser): TeamMember {
     monthlySalary: profile?.monthlySalary == null ? undefined : Number(profile.monthlySalary),
     dailyRate: profile?.dailyRate == null ? undefined : Number(profile.dailyRate),
     skills: profile?.skills ?? [],
+    attendanceMode: profile?.workLocation ? workLocationMap[profile.workLocation] : undefined,
+    inTime: profile?.shiftStart ?? undefined,
+    outTime: profile?.shiftEnd ?? undefined,
   };
 }

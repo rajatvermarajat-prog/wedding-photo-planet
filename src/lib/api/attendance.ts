@@ -11,6 +11,7 @@ export interface BackendAttendance {
   workingMinutes: number;
   status: BackendAttendanceStatus;
   workLocation: 'OFFICE' | 'WFH' | 'HYBRID' | 'ON_SHOOT';
+  notes: string | null;
   user?: { id: string; fullName: string; employeeCode: string | null };
 }
 
@@ -58,7 +59,7 @@ export const attendanceApi = {
     const response = await apiRequest<BackendAttendance[]>(`/attendance${queryString(query)}`);
     return { items: response.data, meta: response.meta };
   },
-  async mark(input: { userId?: string; date: string; checkIn?: string; checkOut?: string; status?: BackendAttendanceStatus; source?: 'PASSWORD' | 'ADMIN'; workLocation?: 'OFFICE' | 'WFH' | 'HYBRID' | 'ON_SHOOT' }): Promise<BackendAttendance> {
+  async mark(input: { userId?: string; date: string; checkIn?: string; checkOut?: string; status?: BackendAttendanceStatus; source?: 'PASSWORD' | 'ADMIN'; workLocation?: 'OFFICE' | 'WFH' | 'HYBRID' | 'ON_SHOOT'; notes?: string }): Promise<BackendAttendance> {
     const { data } = await apiRequest<BackendAttendance>('/attendance', { method: 'POST', body: JSON.stringify(input) });
     return data;
   },

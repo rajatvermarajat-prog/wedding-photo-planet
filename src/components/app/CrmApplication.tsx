@@ -688,12 +688,61 @@ export default function App() {
     void teamMutations.remove(memberId).catch((error: unknown) => window.alert(apiErrorMessage(error, 'Unable to remove employee.')));
   };
 
+  const persistAttendanceRecord = useCallback(async (record: AttendanceRecord) => {
+    const statusMap: Record<AttendanceRecord['status'], 'PRESENT' | 'HALF_DAY' | 'ABSENT' | 'ON_LEAVE' | 'WEEKLY_OFF' | 'HOLIDAY'> = {
+      present: 'PRESENT',
+      present_office: 'PRESENT',
+      present_wfh: 'PRESENT',
+      present_shoot: 'PRESENT',
+      half_day: 'HALF_DAY',
+      absent: 'ABSENT',
+      leave: 'ON_LEAVE',
+      weekly_off: 'WEEKLY_OFF',
+      holiday: 'HOLIDAY',
+    };
+    const toIso = (time?: string) => {
+      if (!time) return undefined;
+      const match = time.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+      if (!match) return undefined;
+      let hour = Number(match[1]) % 12;
+      if (match[3].toUpperCase() === 'PM') hour += 12;
+      return `${record.date}T${String(hour).padStart(2, '0')}:${match[2]}:00.000Z`;
+    };
+    const saved = await attendanceApi.mark({
+      userId: record.teamMemberId,
+      date: record.date,
+      checkIn: toIso(record.inTime),
+      checkOut: toIso(record.outTime),
+      status: statusMap[record.status],
+      source: 'ADMIN',
+      workLocation: record.status === 'present_wfh' ? 'WFH' : record.status === 'present_shoot' ? 'ON_SHOOT' : 'OFFICE',
+      notes: record.notes,
+    });
+    return normalizeAttendance(saved);
+  }, []);
+
   const handleRecordAttendance = (record: AttendanceRecord) => {
-    setAttendance([record, ...attendance]);
+    void persistAttendanceRecord(record)
+      .then((saved) => {
+        setAttendance((current) => [saved, ...current.filter((item) => item.id !== saved.id)]);
+      })
+      .catch((error: unknown) => window.alert(apiErrorMessage(error, 'Unable to save attendance.')));
   };
 
   const handleUpdateAttendance = (records: AttendanceRecord[]) => {
-    setAttendance(records);
+    const changed = records.find((record) => {
+      const existing = attendance.find((item) => item.id === record.id);
+      return !existing || JSON.stringify(existing) !== JSON.stringify(record);
+    });
+    if (!changed) {
+      setAttendance(records);
+      return;
+    }
+    void persistAttendanceRecord(changed)
+      .then((saved) => {
+        setAttendance((current) => [saved, ...current.filter((record) => record.id !== changed.id && record.id !== saved.id)]);
+      })
+      .catch((error: unknown) => window.alert(apiErrorMessage(error, 'Unable to update attendance.')));
   };
 
   const handleAddTask = (task: TeamTask) => {
@@ -882,23 +931,8 @@ export default function App() {
     reader.onload = (e) => {
       try {
         const content = e.target?.result as string;
-        const parsed = JSON.parse(content);
-        if (parsed.projects && Array.isArray(parsed.projects)) {
-          setProjects(parsed.projects);
-        }
-        if (parsed.team && Array.isArray(parsed.team)) {
-          setTeam(parsed.team);
-        }
-        if (parsed.attendance && Array.isArray(parsed.attendance)) {
-          setAttendance(parsed.attendance);
-        }
-        if (parsed.tasks && Array.isArray(parsed.tasks)) {
-          setTasks(parsed.tasks);
-        }
-        if (parsed.leaves && Array.isArray(parsed.leaves)) {
-          setLeaves(parsed.leaves);
-        }
-        alert('✓ CRM Data restored successfully!');
+        JSON.parse(content);
+        alert('Import is paused for safety. Business data must be restored through database-backed APIs, not temporary browser state.');
       } catch (err) {
         alert('Invalid JSON file format. Please select a valid backup JSON file.');
       }
@@ -907,7 +941,7 @@ export default function App() {
   };
 
   // Wait for the persisted browser session before deciding whether login is needed.
-  if (!isHydrated && !restoreTimedOut) {
+  if (!isHydrated) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[#2b1b21] text-[#f8e9df]">
         <div className="flex items-center gap-3 text-sm font-semibold">
