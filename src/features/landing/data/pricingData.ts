@@ -8,8 +8,8 @@ export const pricingPlans = [
     priceNote: 'by studio volume',
     description:
       'The full CRM for a studio and its internal team: leads, projects, shoots, crew, freelancers, payments and reporting.',
-    cta: 'Open the CRM',
-    href: '/dashboard',
+    cta: 'View Studio',
+    href: '/studios',
     features: ['Nine live modules', 'Role-based access', 'Freelancer + payout tracking', 'Dashboards and reporting'],
     highlighted: true,
   },
@@ -20,8 +20,8 @@ export const pricingPlans = [
     priceNote: 'portal in build',
     description:
       'For photographers, cinematographers and editors who want one profile, visible assignments and their own payout history.',
-    cta: 'Join as a freelancer',
-    href: '/freelancer/join',
+    cta: 'View Freelancer',
+    href: '/freelancers',
     features: ['Professional profile', 'Portfolio and availability', 'Assignment visibility', 'Payout history'],
     highlighted: false,
   },
@@ -32,8 +32,8 @@ export const pricingPlans = [
     priceNote: 'with the studio',
     description:
       'For the couple and their family. Never billed to the client — it arrives as part of what the studio delivers.',
-    cta: 'See the client experience',
-    href: '/client/projects',
+    cta: 'View Client',
+    href: '/clients',
     features: ['Project access', 'Albums and galleries', 'Favourites and downloads', 'Sharing when permitted'],
     highlighted: false,
   },

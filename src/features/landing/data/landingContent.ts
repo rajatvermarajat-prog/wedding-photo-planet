@@ -16,18 +16,17 @@
  * Header navigation. `section` is the element id the scroll-spy watches to mark
  * the current item; Home has none because it is the page itself.
  *
- * Every href resolves from any public route back to a section that exists on
- * the landing page: "Features" points at /#capabilities, which is the id the
- * capability index renders with.
+ * Every href resolves to a standalone public route, so the primary navigation
+ * reads in one predictable sequence instead of jumping between page anchors.
  */
 export const navItems = [
   { href: '/', label: 'Home' },
-  { href: '/#capabilities', label: 'Features', section: 'capabilities' },
-  { href: '/#studios', label: 'For Studios', section: 'studios' },
-  { href: '/#freelancers', label: 'For Freelancers', section: 'freelancers' },
-  { href: '/#clients', label: 'For Clients', section: 'clients' },
-  { href: '/#pricing', label: 'Pricing', section: 'pricing' },
-  { href: '/#contact', label: 'Contact', section: 'contact' },
+  { href: '/features', label: 'Features', section: 'capabilities' },
+  { href: '/studios', label: 'For Studios', section: 'studios' },
+  { href: '/freelancers/', label: 'For Freelancers', section: 'freelancers' },
+  { href: '/clients', label: 'For Clients', section: 'clients' },
+  { href: '/pricing', label: 'Pricing', section: 'pricing' },
+  { href: '/contact', label: 'Contact', section: 'contact' },
 ];
 
 export const hero = {
@@ -87,7 +86,7 @@ export const studios = {
     'Bring freelancers onto a project and record the payout',
     'See attendance, tasks and collections in one dashboard',
   ],
-  cta: { href: '/dashboard', label: 'Open the CRM' },
+  cta: { href: '/studios', label: 'View Studio' },
 };
 
 export const freelancers = {
@@ -103,7 +102,7 @@ export const freelancers = {
   ],
   status:
     'Freelancer records, assignments and payouts run in the CRM today. Dedicated freelancer sign-in, portfolio and availability are in build.',
-  cta: { href: '/freelancer/join', label: 'Join as a freelancer' },
+  cta: { href: '/freelancers', label: 'View Freelancer' },
 };
 
 export const clients = {
@@ -118,7 +117,7 @@ export const clients = {
   ],
   status:
     'Client routes and the delivery foundation exist in the CRM. Client sign-in, access rules and the gallery itself are in build.',
-  cta: { href: '/client/projects', label: 'See the client experience' },
+  cta: { href: '/clients', label: 'View Client' },
 };
 
 export const process = {
@@ -146,5 +145,5 @@ export const finalCta = {
   heading: ['Your work deserves', 'a better workspace.'],
   lead: 'Bring the studio, the team, the freelancers and the couple onto one record.',
   primary: { href: '/contact', label: 'Request access' },
-  secondary: { href: '#capabilities', label: 'See what ships today' },
+  secondary: { href: '/features', label: 'See what ships today' },
 };

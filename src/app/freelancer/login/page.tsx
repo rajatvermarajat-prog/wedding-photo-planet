@@ -47,7 +47,7 @@ function FreelancerLoginForm() {
           </label>
           <label className="block">
             <span className="text-xs font-extrabold text-[#686164]">Password</span>
-            <input type="password" className="mt-1 w-full rounded-xl border border-[#DFD9D2] bg-[#F7F6F3] px-3 py-3 text-sm font-semibold outline-none focus:border-[#8D5265]" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={10} />
+            <input type="password" className="mt-1 w-full rounded-xl border border-[#DFD9D2] bg-[#F7F6F3] px-3 py-3 text-sm font-semibold outline-none focus:border-[#8D5265]" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={4} />
           </label>
           {error ? <p className="rounded-xl bg-[#B95052]/10 px-3 py-2 text-sm font-bold text-[#B95052]">{error}</p> : null}
           <button disabled={loading} className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#8D5265] px-4 py-3 text-sm font-black text-white transition hover:bg-[#774255] disabled:opacity-60">

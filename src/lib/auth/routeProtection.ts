@@ -8,12 +8,17 @@ export const FREELANCER_SESSION_COOKIE = 'wpp_freelancer_session';
 const PUBLIC_PREFIXES = [
   '/login',
   '/pricing',
+  '/features',
+  '/studios',
+  '/clients',
   '/contact',
   '/services',
   '/privacy',
   '/terms',
   '/client',
+  '/freelancers',
   '/freelancers/join',
+  '/panel',
 ];
 
 const PUBLIC_FREELANCER_ROUTES = ['/freelancer/login', '/freelancer/join', '/freelancer/onboarding'];

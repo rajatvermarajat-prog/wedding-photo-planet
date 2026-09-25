@@ -12,24 +12,24 @@ const groups = [
   {
     title: 'Product',
     links: [
-      { href: '#capabilities', label: 'Capabilities' },
-      { href: '#pricing', label: 'Pricing' },
-      { href: '#faq', label: 'FAQ' },
+      { href: '/features', label: 'Features' },
+      { href: '/pricing', label: 'Pricing' },
+      { href: '/pricing#faq', label: 'FAQ' },
     ],
   },
   {
     title: 'Audiences',
     links: [
-      { href: '#studios', label: 'Studios' },
-      { href: '#freelancers', label: 'Freelancers' },
-      { href: '#clients', label: 'Clients' },
+      { href: '/studios', label: 'Studios' },
+      { href: '/freelancers', label: 'Freelancers' },
+      { href: '/clients', label: 'Clients' },
     ],
   },
   {
     title: 'Access',
     links: [
       { href: '/login', label: 'Sign in' },
-      { href: '/freelancer/join', label: 'Freelancer join' },
+      { href: '/freelancers', label: 'Freelancers' },
       { href: '/contact', label: 'Contact' },
     ],
   },

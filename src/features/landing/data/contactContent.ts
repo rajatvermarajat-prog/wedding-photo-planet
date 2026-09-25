@@ -27,8 +27,8 @@ export const contactDoors = [
     title: 'You freelance',
     description:
       'Register your interest as a photographer, cinematographer or editor. Studios already track freelancer assignments and payouts in the CRM.',
-    href: '/freelancer/join',
-    cta: 'Join as a freelancer',
+    href: '/freelancers',
+    cta: 'View freelancer page',
   },
   {
     index: '03',

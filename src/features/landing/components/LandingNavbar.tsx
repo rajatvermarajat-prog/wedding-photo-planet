@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 import { ArrowRight } from 'lucide-react';
 import { navItems } from '../data/landingContent';
@@ -51,6 +52,7 @@ function ApertureMark() {
 }
 
 export function LandingNavbar() {
+  const pathname = usePathname();
   const [scrolled, setScrolled] = useState(false);
   const [progress, setProgress] = useState(0);
   const [active, setActive] = useState<string | null>(null);
@@ -142,7 +144,9 @@ export function LandingNavbar() {
         <nav className="ed-nav-links" aria-label="Primary">
           {navItems.map((item) => {
             const section = 'section' in item ? item.section : 'home';
-            const isActive = Boolean(section && section === active);
+            const itemPath = item.href.split('#')[0].replace(/\/$/, '') || '/';
+            const currentPath = pathname.replace(/\/$/, '') || '/';
+            const isActive = currentPath === itemPath || Boolean(currentPath === '/' && section && section === active);
             return (
               <Link
                 key={item.href}

@@ -67,7 +67,7 @@ export default function ContactPage() {
         <Container className="py-12">
           <p className="text-[0.8125rem] leading-[1.7] text-[var(--ed-on-paper-dim)]">
             Looking for what the product does today?{' '}
-            <Link href="/#capabilities" className="text-[var(--ed-plum)] underline decoration-1 underline-offset-4">
+            <Link href="/features" className="text-[var(--ed-plum)] underline decoration-1 underline-offset-4">
               The capability index
             </Link>{' '}
             lists every module that is live.
