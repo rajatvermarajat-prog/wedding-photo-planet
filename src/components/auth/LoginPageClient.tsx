@@ -6,6 +6,7 @@ import { LoginScreen } from '@/components/auth/LoginScreen';
 import { LoginInput } from '@/lib/api/auth';
 import { useAuthSession } from '@/components/auth/AuthSessionProvider';
 import { safeReturnPath } from '@/lib/auth/routeProtection';
+import { loginMockFreelancer } from '@/features/freelancer-growth/mockFreelancerStore';
 
 export function LoginPageClient() {
   const router = useRouter();
@@ -27,6 +28,10 @@ export function LoginPageClient() {
   const handleLogin = async (input: LoginInput) => {
     loginRedirectingRef.current = true;
     try {
+      if (loginMockFreelancer(input.email, input.password)) {
+        router.replace('/panel');
+        return;
+      }
       await login(input);
       router.replace(returnTo);
     } catch (error) {

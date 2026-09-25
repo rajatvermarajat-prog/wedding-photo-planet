@@ -298,19 +298,19 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
   const [paymentSubmitting, setPaymentSubmitting] = useState(false);
 
   const receiptReceivedAmount = payments.reduce((sum, payment) => sum + (payment.amount || 0), 0);
-  // A received milestone is a confirmed collection in the schedule. Actual
-  // payment receipts remain separate ledger rows, so both sources contribute.
+  // A received milestone and an actual receipt can describe the same client
+  // collection. Use the larger source so one installment is not counted twice.
   const milestoneReceivedAmount = paymentSchedules
     .filter((item) => item.status === 'received')
     .reduce((sum, item) => sum + item.amount, 0);
-  const receivedAmount = receiptReceivedAmount + milestoneReceivedAmount;
+  const receivedAmount = Math.max(receiptReceivedAmount, milestoneReceivedAmount);
   const balanceDue = Math.max(0, project.totalBudget - receivedAmount);
   const remainingMilestoneBase = Math.max(0, project.totalBudget - receiptReceivedAmount);
   const paymentSummaryForSchedule = (schedule: ScheduledPayment[]) => {
     const scheduleReceived = schedule
       .filter((item) => item.status === 'received')
       .reduce((sum, item) => sum + item.amount, 0);
-    const received = receiptReceivedAmount + scheduleReceived;
+    const received = Math.max(receiptReceivedAmount, scheduleReceived);
     return { advanceReceived: received, balanceDue: Math.max(0, project.totalBudget - received) };
   };
 
@@ -340,7 +340,8 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
   };
 
   const syncPaymentSummary = (nextPayments: PaymentRecord[]) => {
-    const received = nextPayments.reduce((sum, payment) => sum + payment.amount, 0) + milestoneReceivedAmount;
+    const receiptReceived = nextPayments.reduce((sum, payment) => sum + payment.amount, 0);
+    const received = Math.max(receiptReceived, milestoneReceivedAmount);
     onUpdateProject({
       ...project,
       payments: nextPayments,

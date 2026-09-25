@@ -50,7 +50,7 @@ export default async function ServicePage({ params }: { params: Promise<{ slug: 
             </Display>
             <p className="mt-5 text-[0.875rem] leading-[1.78] text-[var(--ed-on-paper-dim)]">{service.note.body}</p>
             <div className="mt-8">
-              <TextLink href="/#capabilities">How this is tracked in the CRM</TextLink>
+              <TextLink href="/features">How this is tracked in the CRM</TextLink>
             </div>
           </Reveal>
         </div>

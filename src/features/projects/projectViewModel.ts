@@ -215,7 +215,10 @@ export function normalizeProject(dto: ProjectDto): Project {
   const milestoneReceived = (dto.paymentMilestones || [])
     .filter((milestone) => milestone.status === 'RECEIVED')
     .reduce((sum, milestone) => sum + Number(milestone.amount || 0), 0);
-  const received = receiptReceived + milestoneReceived;
+  // A received milestone and its payment receipt can represent the same client
+  // collection. Use the larger source as the project total to avoid counting
+  // the same installment twice after the finance ledger is hydrated.
+  const received = Math.max(receiptReceived, milestoneReceived);
 
   return {
     id: dto.id,

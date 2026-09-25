@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from 'next';
+import Script from 'next/script';
 import { AuthSessionProvider } from '@/components/auth/AuthSessionProvider';
 import './globals.css';
 
@@ -47,7 +48,9 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
   return (
     <html lang="en" data-scroll-behavior="smooth">
       <body>
-        <script dangerouslySetInnerHTML={{ __html: chunkRecoveryScript }} />
+        <Script id="wpp-chunk-recovery" strategy="beforeInteractive">
+          {chunkRecoveryScript}
+        </Script>
         <AuthSessionProvider>{children}</AuthSessionProvider>
       </body>
     </html>
