@@ -38,12 +38,12 @@ const query = (values: Record<string, string | number | undefined>) => {
 /** Project-scoped helpers over the established finance `/payments` resource. */
 export const paymentsApi = {
   async getProjectPayments(projectId: string): Promise<ApiProjectPayment[]> {
-    const result = await apiRequest<ApiProjectPayment[]>(`/payments?${query({ projectId, status: 'COMPLETED', page: 1, limit: 100 })}`, { fresh: true });
+    const result = await apiRequest<ApiProjectPayment[]>(`/payments?${query({ projectId, status: 'COMPLETED', page: 1, limit: 100 })}`, { fresh: true, timeoutMs: 30000 });
     return result.data;
   },
 
   async listCompletedProjectPayments(): Promise<ApiProjectPayment[]> {
-    const result = await apiRequest<ApiProjectPayment[]>(`/payments?${query({ status: 'COMPLETED', page: 1, limit: 100 })}`, { fresh: true });
+    const result = await apiRequest<ApiProjectPayment[]>(`/payments?${query({ status: 'COMPLETED', page: 1, limit: 100 })}`, { fresh: true, timeoutMs: 30000 });
     return result.data;
   },
 

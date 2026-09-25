@@ -215,7 +215,7 @@ export function normalizeProject(dto: ProjectDto): Project {
   const milestoneReceived = (dto.paymentMilestones || [])
     .filter((milestone) => milestone.status === 'RECEIVED')
     .reduce((sum, milestone) => sum + Number(milestone.amount || 0), 0);
-  const received = Math.max(receiptReceived, milestoneReceived);
+  const received = receiptReceived + milestoneReceived;
 
   return {
     id: dto.id,
