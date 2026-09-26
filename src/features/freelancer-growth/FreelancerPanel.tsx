@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 import { Bell, CalendarDays, Check, ChevronRight, LogOut, Menu, Plus, Search, Settings, X } from 'lucide-react';
 import { activity, finance, freelancerId, panelNav, projects, shoots, statusTone, vendors, type Vendor } from './data';
-import { getCurrentMockFreelancer, getMockPlan, logoutMockFreelancer, type MockFreelancerAccount } from './mockFreelancerStore';
+import { getCurrentMockFreelancer, getMockPlan, logoutMockFreelancer, updateMockFreelancerAccount, type MockFreelancerAccount } from './mockFreelancerStore';
 
 const money = (amount: number) => `₹${amount.toLocaleString('en-IN')}`;
 const totalReceived = finance.filter((item) => item.status === 'Received').reduce((sum, item) => sum + item.amount, 0);
@@ -125,12 +125,112 @@ function Badge({ value }: { value: keyof typeof statusTone }) {
 
 export function ProfilePage() {
   const [account, setAccount] = useState<MockFreelancerAccount | null>(null);
-  useEffect(() => setAccount(getCurrentMockFreelancer()), []);
-  return <PanelPage title="My Profile" subtitle="Create and refine your freelancer identity."><form className="grid gap-4 rounded-2xl border border-[#EDE8E2] bg-white p-5 shadow-sm lg:grid-cols-2"><Input label="Name" value={account?.fullName ?? 'Rajat Verma'} /><Input label="Studio / brand" value={account?.studioName ?? 'Rajat Studio'} /><Input label="Phone" value={account?.phone ?? '+91 98765 43210'} /><Input label="Email" value={account?.email ?? 'rajat@example.com'} readOnly /><Input label="Base city" value={account?.city ?? 'Delhi'} /><Input label="Specialties" value="Candid, cinematic, pre-wedding" /><label className="lg:col-span-2"><span className="mb-2 block text-xs font-black uppercase tracking-[.1em] text-[#5C4A52]">Portfolio links</span><textarea className="min-h-28 w-full rounded-xl border border-[#EDE8E2] bg-[#fbfaf8] p-3 outline-none focus:border-[#8D5265] focus:ring-4 focus:ring-[#F4EDEF]" defaultValue="https://instagram.com/rajatstudio" /></label><button type="button" className="min-h-11 rounded-xl bg-[#6d2f45] px-4 text-sm font-black text-white">Save Profile</button></form></PanelPage>;
+  const [form, setForm] = useState({
+    fullName: '',
+    studioName: '',
+    phone: '',
+    email: '',
+    city: '',
+    headline: '',
+    role: '',
+    experienceYears: '0',
+    skills: '',
+    bio: '',
+    portfolioLinks: '',
+    dailyRate: '',
+    eventRate: '',
+    profilePhoto: '',
+  });
+  const [message, setMessage] = useState('');
+
+  useEffect(() => {
+    const current = getCurrentMockFreelancer();
+    setAccount(current);
+    if (!current) return;
+    setForm({
+      fullName: current.fullName || '',
+      studioName: current.studioName || '',
+      phone: current.phone || '',
+      email: current.email || '',
+      city: current.city || '',
+      headline: current.headline || '',
+      role: current.role || '',
+      experienceYears: String(current.experienceYears ?? 0),
+      skills: current.skills?.join(', ') || '',
+      bio: current.bio || '',
+      portfolioLinks: current.portfolioLinks || '',
+      dailyRate: current.dailyRate || '',
+      eventRate: current.eventRate || '',
+      profilePhoto: current.profilePhoto || '',
+    });
+  }, []);
+
+  const update = (key: keyof typeof form, value: string) => {
+    setForm((current) => ({ ...current, [key]: value }));
+    setMessage('');
+  };
+  const handlePhotoUpload = (file: File | undefined) => {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => update('profilePhoto', String(reader.result || ''));
+    reader.readAsDataURL(file);
+  };
+  const save = () => {
+    const updated = updateMockFreelancerAccount({
+      fullName: form.fullName.trim(),
+      studioName: form.studioName.trim(),
+      phone: form.phone.trim(),
+      email: form.email.trim(),
+      city: form.city.trim(),
+      headline: form.headline.trim(),
+      role: form.role.trim(),
+      experienceYears: Number(form.experienceYears) || 0,
+      skills: form.skills.split(',').map((skill) => skill.trim()).filter(Boolean),
+      bio: form.bio.trim(),
+      portfolioLinks: form.portfolioLinks.trim(),
+      dailyRate: form.dailyRate,
+      eventRate: form.eventRate,
+      profilePhoto: form.profilePhoto,
+    });
+    setAccount(updated);
+    setMessage('Profile saved.');
+  };
+
+  return <PanelPage title="My Profile" subtitle="Review and refine the details you submitted after purchase.">
+    <div className="grid gap-5 rounded-2xl border border-[#EDE8E2] bg-white p-5 shadow-sm lg:grid-cols-[240px_1fr]">
+      <aside className="rounded-2xl border border-[#EDE8E2] bg-[#fbfaf8] p-4 text-center">
+        {form.profilePhoto ? <img src={form.profilePhoto} alt="Profile photo" className="mx-auto size-32 rounded-full object-cover ring-4 ring-white" /> : <div className="mx-auto grid size-32 place-items-center rounded-full bg-[#F4EDEF] text-4xl font-black text-[#8D5265]">{(form.fullName || account?.fullName || 'F').slice(0, 1).toUpperCase()}</div>}
+        <label className="mt-4 inline-flex min-h-10 cursor-pointer items-center justify-center rounded-xl border border-[#D8BE93] bg-white px-4 text-sm font-black text-[#6d2f45] transition hover:bg-[#F4EDEF]">
+          Upload Photo
+          <input type="file" accept="image/*" className="hidden" onChange={(event) => handlePhotoUpload(event.target.files?.[0])} />
+        </label>
+        <p className="mt-3 text-xs font-bold text-[#5C4A52]">{account ? `${getMockPlan(account.planId).name} · ${account.billingCycle}` : 'Freelancer profile'}</p>
+      </aside>
+      <form className="grid gap-4 lg:grid-cols-2" onSubmit={(event) => { event.preventDefault(); save(); }}>
+        <Input label="Name" value={form.fullName} onChange={(value) => update('fullName', value)} />
+        <Input label="Studio / brand" value={form.studioName} onChange={(value) => update('studioName', value)} />
+        <Input label="Phone" value={form.phone} onChange={(value) => update('phone', value)} />
+        <Input label="Email" value={form.email} readOnly onChange={(value) => update('email', value)} />
+        <Input label="Base city" value={form.city} onChange={(value) => update('city', value)} />
+        <Input label="Primary role" value={form.role} onChange={(value) => update('role', value)} />
+        <Input label="Professional headline" value={form.headline} onChange={(value) => update('headline', value)} className="lg:col-span-2" />
+        <Input label="Experience years" type="number" value={form.experienceYears} onChange={(value) => update('experienceYears', value)} />
+        <Input label="Daily rate" value={form.dailyRate} onChange={(value) => update('dailyRate', value)} />
+        <Input label="Skills, comma separated" value={form.skills} onChange={(value) => update('skills', value)} className="lg:col-span-2" />
+        <TextArea label="Portfolio links" value={form.portfolioLinks} onChange={(value) => update('portfolioLinks', value)} placeholder="Instagram, YouTube, website or Behance link" />
+        <TextArea label="Bio / notes" value={form.bio} onChange={(value) => update('bio', value)} placeholder="Tell studios about your work style, gear and best assignments." />
+        <div className="flex flex-wrap items-center gap-3 lg:col-span-2"><button type="submit" className="min-h-11 rounded-xl bg-[#6d2f45] px-4 text-sm font-black text-white">Save Profile</button>{message ? <p className="text-sm font-bold text-[#2E8B57]">{message}</p> : null}</div>
+      </form>
+    </div>
+  </PanelPage>;
 }
 
-function Input({ label, value, readOnly }: { label: string; value: string; readOnly?: boolean }) {
-  return <label><span className="mb-2 block text-xs font-black uppercase tracking-[.1em] text-[#5C4A52]">{label}</span><input readOnly={readOnly} defaultValue={value} className="min-h-11 w-full rounded-xl border border-[#EDE8E2] bg-[#fbfaf8] px-3 outline-none focus:border-[#8D5265] focus:ring-4 focus:ring-[#F4EDEF] read-only:text-[#5C4A52]" /></label>;
+function Input({ label, value, readOnly, onChange, type = 'text', className = '' }: { label: string; value: string; readOnly?: boolean; onChange: (value: string) => void; type?: string; className?: string }) {
+  return <label className={className}><span className="mb-2 block text-xs font-black uppercase tracking-[.1em] text-[#5C4A52]">{label}</span><input type={type} readOnly={readOnly} value={value} onChange={(event) => onChange(event.target.value)} className="min-h-11 w-full rounded-xl border border-[#EDE8E2] bg-[#fbfaf8] px-3 outline-none focus:border-[#8D5265] focus:ring-4 focus:ring-[#F4EDEF] read-only:text-[#5C4A52]" /></label>;
+}
+
+function TextArea({ label, value, onChange, placeholder }: { label: string; value: string; onChange: (value: string) => void; placeholder?: string }) {
+  return <label className="lg:col-span-2"><span className="mb-2 block text-xs font-black uppercase tracking-[.1em] text-[#5C4A52]">{label}</span><textarea value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} className="min-h-28 w-full rounded-xl border border-[#EDE8E2] bg-[#fbfaf8] p-3 outline-none focus:border-[#8D5265] focus:ring-4 focus:ring-[#F4EDEF]" /></label>;
 }
 
 export function VendorsPage() {
