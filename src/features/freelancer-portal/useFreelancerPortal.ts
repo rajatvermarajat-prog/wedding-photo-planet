@@ -18,7 +18,7 @@ export function useFreelancerPortal() {
       setData(await freelancerPortalApi.me());
     } catch (err) {
       if (err instanceof ApiError && err.status === 401) {
-        router.replace(`/freelancer/login?returnTo=${encodeURIComponent(window.location.pathname)}`);
+        router.replace(`/login?returnTo=${encodeURIComponent(window.location.pathname)}`);
         return;
       }
       setError(err instanceof Error ? err.message : 'Unable to load freelancer portal.');

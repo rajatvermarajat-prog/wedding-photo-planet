@@ -1,10 +1,12 @@
-import { Suspense } from 'react';
-import { FreelancerLoginPageClient } from '@/features/freelancer-portal/components/FreelancerLoginPageClient';
+import { redirect } from 'next/navigation';
+import { safeReturnPath } from '@/lib/auth/routeProtection';
 
-export default function FreelancerLoginPage() {
-  return (
-    <Suspense fallback={null}>
-      <FreelancerLoginPageClient />
-    </Suspense>
-  );
+export default async function FreelancerLoginPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ returnTo?: string }>;
+}) {
+  const params = await searchParams;
+  const returnTo = safeReturnPath(params.returnTo ?? '/freelancer/dashboard');
+  redirect(`/login?returnTo=${encodeURIComponent(returnTo.startsWith('/freelancer/') ? returnTo : '/freelancer/dashboard')}`);
 }

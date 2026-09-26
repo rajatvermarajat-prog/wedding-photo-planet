@@ -11,6 +11,7 @@ export interface SessionUser {
   roles: string[];
   permissions: string[];
   organization: { id: string; name: string; slug: string; currency: string; timezone: string };
+  freelancerProfile: { id: string; status: string } | null;
 }
 
 export interface LoginInput {

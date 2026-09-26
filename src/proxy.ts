@@ -11,7 +11,7 @@ export function proxy(request: NextRequest) {
   if (isFreelancerRoute(pathname)) {
     if (!freelancerAuthenticated) {
       const loginUrl = request.nextUrl.clone();
-      loginUrl.pathname = '/freelancer/login';
+      loginUrl.pathname = '/login';
       loginUrl.search = '';
       const returnTo = `${pathname}${search}`;
       if (safeReturnPath(returnTo) === returnTo) loginUrl.searchParams.set('returnTo', returnTo);
@@ -23,7 +23,7 @@ export function proxy(request: NextRequest) {
   if (isPublicRoute(pathname)) {
     if (pathname === '/login' && authenticated) {
       const target = safeReturnPath(request.nextUrl.searchParams.get('returnTo'));
-      if (target.startsWith('/freelancer/') && !freelancerAuthenticated) return NextResponse.next();
+      if (freelancerAuthenticated || target.startsWith('/freelancer/')) return NextResponse.next();
       const redirectTo = request.nextUrl.clone();
       redirectTo.pathname = target;
       redirectTo.search = '';
