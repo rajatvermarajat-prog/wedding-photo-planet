@@ -70,7 +70,7 @@ export function CheckoutPage({ planId }: { planId: string }) {
 
   useEffect(() => {
     if (!complete) return;
-    const timeout = window.setTimeout(() => router.push('/login?justPurchased=true&returnTo=/panel'), 1400);
+    const timeout = window.setTimeout(() => router.push('/freelancers/join?fromCheckout=true'), 1400);
     return () => window.clearTimeout(timeout);
   }, [complete, router]);
 
@@ -99,7 +99,7 @@ export function CheckoutPage({ planId }: { planId: string }) {
       <main className={`${container} grid gap-8 pb-20 pt-32 lg:grid-cols-[1.1fr_.9fr]`}>
         <section className="rounded-2xl border border-[#EDE8E2] bg-white p-6 shadow-sm">
           <p className="text-xs font-black uppercase tracking-[.12em] text-[#8D5265]">Checkout</p><h1 className="mt-2 text-3xl font-black">Create your freelancer account</h1>
-          {complete ? <div className="mt-8 rounded-2xl border border-emerald-200 bg-emerald-50 p-6 text-emerald-800"><Check className="size-8" /><h2 className="mt-3 text-xl font-black">Payment successful</h2><p className="mt-2 text-sm leading-6">Your mock freelancer account is ready. Redirecting to login now; use the email and password you just entered.</p><Link href="/login?justPurchased=true&returnTo=/panel" className={`${cta} mt-5`}>Continue to Login</Link></div> : (
+          {complete ? <div className="mt-8 rounded-2xl border border-emerald-200 bg-emerald-50 p-6 text-emerald-800"><Check className="size-8" /><h2 className="mt-3 text-xl font-black">Payment successful</h2><p className="mt-2 text-sm leading-6">Your plan is active. Complete your freelancer profile next, then sign in with the email and password you just created.</p><Link href="/freelancers/join?fromCheckout=true" className={`${cta} mt-5`}>Complete Profile <ArrowRight className="size-4" /></Link></div> : (
             <form className="mt-7 grid gap-4" onSubmit={submit} noValidate>
               <Field icon={UserRound} label="Full name" value={values.fullName} error={errors.fullName} placeholder="Your name" onChange={(value) => update('fullName', value)} />
               <Field icon={Mail} label="Email" value={values.email} error={errors.email} placeholder="you@example.com" onChange={(value) => update('email', value)} />

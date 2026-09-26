@@ -29,7 +29,7 @@ export function LoginPageClient() {
     loginRedirectingRef.current = true;
     try {
       if (loginMockFreelancer(input.email, input.password)) {
-        router.replace('/panel');
+        router.replace('/panel/profile');
         return;
       }
       await login(input);

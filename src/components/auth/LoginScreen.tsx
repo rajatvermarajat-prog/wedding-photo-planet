@@ -1,7 +1,8 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { Heart, X } from 'lucide-react';
+import Link from 'next/link';
+import { ArrowLeft, Heart, X } from 'lucide-react';
 import { ApiError } from '@/lib/api/client';
 import { LoginInput } from '@/lib/api/auth';
 import { LoginHero } from './LoginHero';
@@ -62,6 +63,14 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, onClose }) =>
 
   return (
     <main className="fixed inset-0 z-60 min-h-dvh overflow-x-hidden overflow-y-auto bg-[#2d101e] bg-[radial-gradient(circle_at_12%_10%,#6f2841_0,transparent_29%),radial-gradient(circle_at_85%_90%,#5d2038_0,transparent_26%)] text-[#38242c] lg:h-dvh lg:overflow-hidden lg:px-[3vw] lg:pb-2 lg:pt-4">
+      <Link
+        href="/"
+        aria-label="Go to home page"
+        title="Go to home page"
+        className="fixed left-5 top-5 z-70 grid size-11 place-items-center rounded-full border border-white/25 bg-white/12 text-white shadow-[0_12px_28px_rgba(12,2,8,.28)] backdrop-blur-md transition hover:-translate-y-0.5 hover:bg-white/22 lg:left-[calc(3vw+14px)] lg:top-7"
+      >
+        <ArrowLeft className="size-5.5" />
+      </Link>
       <div className="mx-auto grid min-h-dvh w-full overflow-hidden bg-[#f4e8e2] shadow-[0_35px_100px_rgba(12,2,8,.48)] lg:h-[calc(100dvh-54px)] lg:min-h-0 lg:max-w-360 lg:grid-cols-[46%_54%] lg:rounded-[30px] lg:border lg:border-[rgba(255,226,210,.6)] xl:grid-cols-[48%_52%]">
         <LoginHero />
         <LoginFormCard

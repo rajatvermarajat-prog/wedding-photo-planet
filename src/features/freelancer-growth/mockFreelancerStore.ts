@@ -12,6 +12,21 @@ export type MockFreelancerAccount = {
   planId: string;
   billingCycle: BillingCycle;
   purchasedAt: string;
+  headline?: string;
+  bio?: string;
+  role?: string;
+  experienceYears?: number;
+  skills?: string[];
+  availability?: string;
+  availableFrom?: string;
+  availableUntil?: string;
+  travelAvailable?: boolean;
+  dailyRate?: string;
+  eventRate?: string;
+  negotiable?: boolean;
+  portfolioLinks?: string;
+  profilePhoto?: string;
+  applicationSubmittedAt?: string;
 };
 
 const ACCOUNT_KEY = 'wpp_mock_freelancer_account';
@@ -32,6 +47,13 @@ const DEMO_FREELANCER_ACCOUNT: MockFreelancerAccount = {
 
 export function saveMockFreelancerAccount(account: MockFreelancerAccount) {
   window.localStorage.setItem(ACCOUNT_KEY, JSON.stringify(account));
+}
+
+export function updateMockFreelancerAccount(update: Partial<MockFreelancerAccount>) {
+  const current = getMockFreelancerAccount() ?? DEMO_FREELANCER_ACCOUNT;
+  const next = { ...current, ...update };
+  saveMockFreelancerAccount(next);
+  return next;
 }
 
 export function getMockFreelancerAccount(): MockFreelancerAccount | null {
