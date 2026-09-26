@@ -24,7 +24,7 @@ function usePortalData<T>(load: () => Promise<T>) {
       setData(await load());
     } catch (err) {
       if (err instanceof ApiError && err.status === 401) {
-        router.replace(`/freelancer/login?returnTo=${encodeURIComponent(window.location.pathname)}`);
+        router.replace(`/login?returnTo=${encodeURIComponent(window.location.pathname)}`);
         return;
       }
       setError(err instanceof Error ? err.message : 'Unable to load portal data.');

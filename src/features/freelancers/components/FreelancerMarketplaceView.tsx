@@ -105,7 +105,7 @@ export function FreelancerMarketplaceView({ mode, projects }: Props) {
             <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
               <div>
                 <h2 className="text-base font-black uppercase tracking-wide text-slate-900">Find Freelancer</h2>
-                <p className="text-xs font-medium text-slate-500">Search approved, active and searchable freelancers from the production network.</p>
+                <p className="text-xs font-medium text-slate-500">Search active freelancer profiles from the production network.</p>
               </div>
               <button type="button" className={BTN_GHOST} onClick={clear}><SlidersHorizontal className="size-3.5" /> Clear</button>
             </div>

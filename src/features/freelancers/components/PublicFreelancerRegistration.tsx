@@ -167,7 +167,7 @@ export const PublicFreelancerRegistration: React.FC = () => {
         <h1 className="mt-5 text-3xl font-black tracking-tight text-slate-900">Application submitted</h1>
         <p className="mx-auto mt-3 max-w-lg text-sm font-medium leading-relaxed text-slate-600">Thanks, {submittedName}. Your Wedding Photo Planet freelancer profile is ready. Sign in with {form.email} and the password you created to open your panel.</p>
         <div className="mt-6 flex flex-wrap justify-center gap-2">
-          <button type="button" onClick={() => router.push('/freelancer/login?justPurchased=true&returnTo=/freelancer/profile')} className={BTN_PRIMARY}>Continue to Login</button>
+          <button type="button" onClick={() => router.push('/login?returnTo=/freelancer/profile')} className={BTN_PRIMARY}>Continue to Login</button>
           <button type="button" onClick={() => { setSubmitted(false); setStep(0); }} className={BTN_GHOST}>Start another application</button>
         </div>
       </section>

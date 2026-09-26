@@ -29,7 +29,7 @@ export function FreelancerPortalShell({ children }: { children: React.ReactNode 
   }
   const logout = async () => {
     await freelancerPortalApi.logout();
-    router.replace('/freelancer/login?returnTo=/freelancer/dashboard');
+    router.replace('/login?returnTo=/freelancer/dashboard');
   };
 
   return (

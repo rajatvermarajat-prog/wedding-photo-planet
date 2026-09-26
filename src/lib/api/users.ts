@@ -64,13 +64,14 @@ function queryString(query: UserListQuery): string {
 
 export const usersApi = {
   async list(query: UserListQuery = {}): Promise<{ items: BackendUser[]; meta: ApiMeta }> {
+    const onlyEmployees = (items: BackendUser[]) => items.filter((user) => user.employeeProfile !== null);
     try {
       const response = await apiRequest<BackendUser[]>(`/team${queryString(query)}`);
-      return { items: Array.isArray(response.data) ? response.data : [], meta: response.meta };
+      return { items: Array.isArray(response.data) ? onlyEmployees(response.data) : [], meta: response.meta };
     } catch (error) {
       if (!(error instanceof ApiError) || error.status !== 403) throw error;
       const response = await apiRequest<BackendUser[]>(`/users${queryString(query)}`);
-      return { items: Array.isArray(response.data) ? response.data : [], meta: response.meta };
+      return { items: Array.isArray(response.data) ? onlyEmployees(response.data) : [], meta: response.meta };
     }
   },
   async create(input: CreateUserInput): Promise<BackendUser> {
