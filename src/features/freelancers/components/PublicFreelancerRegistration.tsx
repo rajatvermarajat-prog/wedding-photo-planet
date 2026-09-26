@@ -2,56 +2,117 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, ArrowRight, BriefcaseBusiness, CalendarDays, CheckCircle2, CircleDollarSign, MapPin, Sparkles, UserPlus } from 'lucide-react';
+import { ArrowLeft, ArrowRight, BriefcaseBusiness, CalendarDays, CheckCircle2, CircleDollarSign, Eye, EyeOff, MapPin, Sparkles, UserPlus } from 'lucide-react';
 import { BTN_GHOST, BTN_PRIMARY, CARD, FIELD, LABEL } from '@/features/team/components/TeamUiKit';
 import { indianMobileError, nextIndianMobileValue } from '@/lib/validation/indianMobile';
 import { ApiError } from '@/lib/api/client';
 import { freelancerPortalApi } from '@/lib/api/freelancerPortal';
-import { getMockFreelancerAccount, updateMockFreelancerAccount } from '@/features/freelancer-growth/mockFreelancerStore';
+import { getMockFreelancerAccount } from '@/features/freelancer-growth/mockFreelancerStore';
 
 const STEPS = ['Account', 'Profile', 'Skills', 'Availability', 'Rates', 'Review'];
 const roles = ['Wedding Photographer', 'Wedding Videographer', 'Cinematographer', 'Second Shooter', 'Drone Operator', 'Photo Editor', 'Video Editor', 'Album Designer'];
+const passwordError = (password: string, confirmPassword: string) => {
+  if (!password) return 'Password is required.';
+  if (password.length < 6) return 'Password must be at least 6 characters.';
+  if (confirmPassword && password !== confirmPassword) return 'Passwords do not match.';
+  return '';
+};
+const visiblePasswordError = (password: string, confirmPassword: string) => {
+  if (!password && !confirmPassword) return '';
+  return passwordError(password, confirmPassword);
+};
+const apiErrorMessage = (error: unknown) => {
+  if (!(error instanceof ApiError)) return 'Unable to submit application.';
+  const fieldMessages = error.details
+    ?.map((detail) => {
+      if (!detail || typeof detail !== 'object') return '';
+      const item = detail as { field?: unknown; message?: unknown };
+      return typeof item.message === 'string' ? `${typeof item.field === 'string' ? `${item.field}: ` : ''}${item.message}` : '';
+    })
+    .filter(Boolean);
+  return fieldMessages?.length ? fieldMessages.join(' ') : error.message;
+};
+const roleToPrimarySkill: Record<string, 'LEAD_PHOTOGRAPHER' | 'CINEMATOGRAPHER' | 'DRONE_OPERATOR' | 'LIVE_EDITOR' | 'OTHER'> = {
+  'Wedding Photographer': 'LEAD_PHOTOGRAPHER',
+  'Wedding Videographer': 'CINEMATOGRAPHER',
+  Cinematographer: 'CINEMATOGRAPHER',
+  'Second Shooter': 'LEAD_PHOTOGRAPHER',
+  'Drone Operator': 'DRONE_OPERATOR',
+  'Photo Editor': 'LIVE_EDITOR',
+  'Video Editor': 'LIVE_EDITOR',
+  'Album Designer': 'OTHER',
+};
 
 export const PublicFreelancerRegistration: React.FC = () => {
   const router = useRouter();
   const [fromCheckout, setFromCheckout] = useState(false);
-  const purchasedAccount = typeof window === 'undefined' ? null : getMockFreelancerAccount();
   const [step, setStep] = useState(0);
   const [submitted, setSubmitted] = useState(false);
   const [submittedName, setSubmittedName] = useState('');
   const [submitError, setSubmitError] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [form, setForm] = useState(() => ({
-    name: purchasedAccount?.fullName || '',
-    email: purchasedAccount?.email || '',
-    phone: purchasedAccount?.phone || '',
-    headline: purchasedAccount?.headline || '',
-    bio: purchasedAccount?.bio || '',
-    role: purchasedAccount?.role || roles[0],
-    experience: String(purchasedAccount?.experienceYears ?? '0'),
-    skills: purchasedAccount?.skills?.join(', ') || '',
-    city: purchasedAccount?.city || '',
-    travel: purchasedAccount?.travelAvailable ?? true,
-    availability: purchasedAccount?.availability || 'Open to Work',
-    from: purchasedAccount?.availableFrom || '',
-    until: purchasedAccount?.availableUntil || '',
-    dailyRate: purchasedAccount?.dailyRate || '',
-    eventRate: purchasedAccount?.eventRate || '',
-    negotiable: purchasedAccount?.negotiable ?? true,
-    portfolioLinks: purchasedAccount?.portfolioLinks || '',
-    profilePhoto: purchasedAccount?.profilePhoto || '',
+    name: '',
+    email: '',
+    phone: '',
+    password: '',
+    confirmPassword: '',
+    headline: '',
+    bio: '',
+    role: roles[0],
+    experience: '0',
+    skills: '',
+    city: '',
+    travel: true,
+    availability: 'Open to Work',
+    from: '',
+    until: '',
+    dailyRate: '',
+    eventRate: '',
+    negotiable: true,
+    portfolioLinks: '',
+    profilePhoto: '',
   }));
   const set = (key: keyof typeof form, value: string | boolean) => setForm((current) => ({ ...current, [key]: value }));
+  const accountPasswordError = passwordError(form.password, form.confirmPassword);
   const errors = useMemo(() => ({
-    account: !form.name.trim() || !form.email.includes('@') || !!indianMobileError(form.phone, true),
+    account: !form.name.trim() || !form.email.includes('@') || !!indianMobileError(form.phone, true) || Boolean(accountPasswordError),
     profile: !form.headline.trim() || !form.role,
     availability: !form.city.trim(),
     rates: !form.dailyRate || Number(form.dailyRate) < 0,
-  }), [form]);
+  }), [form, accountPasswordError]);
   const invalid = (index: number) => index === 0 ? errors.account : index === 1 ? errors.profile : index === 3 ? errors.availability : index === 4 ? errors.rates : false;
   const next = () => { if (!invalid(step)) setStep((current) => Math.min(STEPS.length - 1, current + 1)); };
 
   useEffect(() => {
+    const purchasedAccount = getMockFreelancerAccount();
+    if (purchasedAccount) {
+      setForm((current) => ({
+        ...current,
+        name: purchasedAccount.fullName || '',
+        email: purchasedAccount.email || '',
+        phone: purchasedAccount.phone || '',
+        password: purchasedAccount.password || '',
+        confirmPassword: purchasedAccount.password || '',
+        headline: purchasedAccount.headline || '',
+        bio: purchasedAccount.bio || '',
+        role: purchasedAccount.role || roles[0],
+        experience: String(purchasedAccount.experienceYears ?? '0'),
+        skills: purchasedAccount.skills?.join(', ') || '',
+        city: purchasedAccount.city || '',
+        travel: purchasedAccount.travelAvailable ?? true,
+        availability: purchasedAccount.availability || 'Open to Work',
+        from: purchasedAccount.availableFrom || '',
+        until: purchasedAccount.availableUntil || '',
+        dailyRate: purchasedAccount.dailyRate || '',
+        eventRate: purchasedAccount.eventRate || '',
+        negotiable: purchasedAccount.negotiable ?? true,
+        portfolioLinks: purchasedAccount.portfolioLinks || '',
+        profilePhoto: purchasedAccount.profilePhoto || '',
+      }));
+    }
     setFromCheckout(new URLSearchParams(window.location.search).get('fromCheckout') === 'true');
   }, []);
 
@@ -72,38 +133,21 @@ export const PublicFreelancerRegistration: React.FC = () => {
         fullName: form.name.trim(),
         email: form.email.trim(),
         phone: form.phone,
+        password: form.password,
+        confirmPassword: form.confirmPassword,
         city: form.city.trim(),
+        primarySkill: roleToPrimarySkill[form.role] ?? 'OTHER',
         skills: form.skills.split(',').map((skill) => skill.trim()).filter(Boolean),
         experienceYears: Number(form.experience) || 0,
+        portfolioUrl: form.portfolioLinks.trim().startsWith('http') ? form.portfolioLinks.trim() : undefined,
         expectedRate: form.dailyRate || undefined,
         notes,
-      });
-      updateMockFreelancerAccount({
-        fullName: form.name.trim(),
-        email: form.email.trim(),
-        phone: form.phone,
-        city: form.city.trim(),
-        headline: form.headline.trim(),
-        bio: form.bio.trim(),
-        role: form.role,
-        experienceYears: Number(form.experience) || 0,
-        skills: form.skills.split(',').map((skill) => skill.trim()).filter(Boolean),
-        availability: form.availability,
-        availableFrom: form.from,
-        availableUntil: form.until,
-        travelAvailable: form.travel,
-        dailyRate: form.dailyRate,
-        eventRate: form.eventRate,
-        negotiable: form.negotiable,
-        portfolioLinks: form.portfolioLinks.trim(),
-        profilePhoto: form.profilePhoto,
-        applicationSubmittedAt: new Date().toISOString(),
       });
       window.localStorage.setItem('wpp-remembered-account', form.email.trim());
       setSubmittedName(form.name.trim());
       setSubmitted(true);
     } catch (error) {
-      setSubmitError(error instanceof ApiError ? error.message : 'Unable to submit application.');
+      setSubmitError(apiErrorMessage(error));
     } finally {
       setSubmitting(false);
     }
@@ -121,9 +165,9 @@ export const PublicFreelancerRegistration: React.FC = () => {
       <section className="mx-auto max-w-2xl text-center">
         <div className="mx-auto grid size-16 place-items-center rounded-2xl bg-emerald-50 text-emerald-700"><CheckCircle2 className="size-8" /></div>
         <h1 className="mt-5 text-3xl font-black tracking-tight text-slate-900">Application submitted</h1>
-        <p className="mx-auto mt-3 max-w-lg text-sm font-medium leading-relaxed text-slate-600">Thanks, {submittedName}. Your Wedding Photo Planet freelancer profile is ready. Sign in with {form.email} to open your panel and review your profile.</p>
+        <p className="mx-auto mt-3 max-w-lg text-sm font-medium leading-relaxed text-slate-600">Thanks, {submittedName}. Your Wedding Photo Planet freelancer profile is ready. Sign in with {form.email} and the password you created to open your panel.</p>
         <div className="mt-6 flex flex-wrap justify-center gap-2">
-          <button type="button" onClick={() => router.push('/login?justPurchased=true&returnTo=/panel/profile')} className={BTN_PRIMARY}>Continue to Login</button>
+          <button type="button" onClick={() => router.push('/freelancer/login?justPurchased=true&returnTo=/freelancer/profile')} className={BTN_PRIMARY}>Continue to Login</button>
           <button type="button" onClick={() => { setSubmitted(false); setStep(0); }} className={BTN_GHOST}>Start another application</button>
         </div>
       </section>
@@ -150,7 +194,7 @@ export const PublicFreelancerRegistration: React.FC = () => {
         </div>
         <form className={`${CARD} mt-5 p-5 sm:p-7`} onSubmit={(event) => { event.preventDefault(); if (!invalid(step)) step === STEPS.length - 1 ? void submitApplication() : next(); }}>
           <div className="mb-6 flex items-start gap-3"><span className="grid size-10 place-items-center rounded-xl bg-rose-50 text-[#8f3655]">{step === 0 ? <UserPlus className="size-5" /> : step === 3 ? <CalendarDays className="size-5" /> : step === 4 ? <CircleDollarSign className="size-5" /> : <BriefcaseBusiness className="size-5" />}</span><div><h2 className="text-lg font-black text-slate-900">{STEPS[step]}</h2><p className="text-xs font-medium text-slate-500">{step === 5 ? 'Review your details before submitting the application.' : 'You can save and complete the remaining details later after review.'}</p></div></div>
-          {step === 0 && <div className="grid gap-3 sm:grid-cols-2"><label><span className={LABEL}>Full name *</span><input required className={FIELD} value={form.name} onChange={(e) => set('name', e.target.value)} /></label><label><span className={LABEL}>Email *</span><input required type="email" className={FIELD} value={form.email} onChange={(e) => set('email', e.target.value)} /></label><label><span className={LABEL}>Mobile *</span><input required inputMode="numeric" maxLength={10} className={FIELD} value={form.phone} onChange={(e) => set('phone', nextIndianMobileValue(e.target.value, form.phone))} placeholder="9876543210" /></label></div>}
+          {step === 0 && <div className="grid gap-3 sm:grid-cols-2"><label><span className={LABEL}>Full name *</span><input required className={FIELD} value={form.name} onChange={(e) => set('name', e.target.value)} /></label><label><span className={LABEL}>Email *</span><input required type="email" className={FIELD} value={form.email} onChange={(e) => set('email', e.target.value)} /></label><label><span className={LABEL}>Mobile *</span><input required inputMode="numeric" maxLength={10} className={FIELD} value={form.phone} onChange={(e) => set('phone', nextIndianMobileValue(e.target.value, form.phone))} placeholder="9876543210" /></label><PasswordInput label="Password *" value={form.password} visible={showPassword} onVisibilityChange={() => setShowPassword((current) => !current)} onChange={(value) => set('password', value)} placeholder="Minimum 6 characters" /><PasswordInput label="Confirm password *" value={form.confirmPassword} visible={showConfirmPassword} onVisibilityChange={() => setShowConfirmPassword((current) => !current)} onChange={(value) => set('confirmPassword', value)} placeholder="Repeat password" />{visiblePasswordError(form.password, form.confirmPassword) ? <p className="text-xs font-bold text-red-600 sm:col-span-2">{visiblePasswordError(form.password, form.confirmPassword)}</p> : null}</div>}
           {step === 1 && <div className="grid gap-3 sm:grid-cols-2"><label className="sm:col-span-2"><span className={LABEL}>Professional headline *</span><input required className={FIELD} value={form.headline} onChange={(e) => set('headline', e.target.value)} placeholder="e.g. Wedding cinematographer & storyteller" /></label><label><span className={LABEL}>Primary role *</span><select className={FIELD} value={form.role} onChange={(e) => set('role', e.target.value)}>{roles.map((role) => <option key={role}>{role}</option>)}</select></label><label><span className={LABEL}>Experience (years)</span><input type="number" min="0" className={FIELD} value={form.experience} onChange={(e) => set('experience', e.target.value)} /></label><label className="sm:col-span-2"><span className={LABEL}>About you</span><textarea className={`${FIELD} min-h-28`} maxLength={700} value={form.bio} onChange={(e) => set('bio', e.target.value)} placeholder="Tell us about the weddings and work you enjoy." /></label></div>}
           {step === 2 && <div className="grid gap-3"><div className="grid gap-3 sm:grid-cols-[160px_1fr]"><div className="rounded-2xl border border-[#eee7e2] bg-[#fbfaf8] p-3 text-center">{form.profilePhoto ? <img src={form.profilePhoto} alt="Profile preview" className="mx-auto size-24 rounded-full object-cover" /> : <div className="mx-auto grid size-24 place-items-center rounded-full bg-rose-50 text-2xl font-black text-[#8f3655]">{form.name.trim().slice(0, 1).toUpperCase() || 'F'}</div>}<label className="mt-3 inline-flex min-h-10 cursor-pointer items-center justify-center rounded-xl border border-[#dccfc9] px-3 text-xs font-black text-[#6d2f45]"><span>Upload Photo</span><input type="file" accept="image/*" className="hidden" onChange={(e) => handlePhotoUpload(e.target.files?.[0])} /></label></div><div className="grid gap-3"><label><span className={LABEL}>Skills & services</span><input className={FIELD} value={form.skills} onChange={(e) => set('skills', e.target.value)} placeholder="Candid photography, Lightroom, drone…" /></label><label><span className={LABEL}>Portfolio link</span><input className={FIELD} value={form.portfolioLinks} onChange={(e) => set('portfolioLinks', e.target.value)} placeholder="Instagram, YouTube, website or Behance link" /></label><p className="text-xs font-medium text-slate-500">Separate skills with commas. Add one or more portfolio links so studios can review your work quickly.</p></div></div></div>}
           {step === 3 && <div className="grid gap-3 sm:grid-cols-2"><label><span className={LABEL}>City *</span><input required className={FIELD} value={form.city} onChange={(e) => set('city', e.target.value)} placeholder="Jaipur" /></label><label><span className={LABEL}>Work status</span><select className={FIELD} value={form.availability} onChange={(e) => set('availability', e.target.value)}><option>Open to Work</option><option>Limited Availability</option><option>Unavailable</option><option>Not Looking</option></select></label><label><span className={LABEL}>Available from</span><input type="date" className={FIELD} value={form.from} onChange={(e) => set('from', e.target.value)} /></label><label><span className={LABEL}>Available until</span><input type="date" min={form.from || undefined} className={FIELD} value={form.until} onChange={(e) => set('until', e.target.value)} /></label><label className="flex items-center gap-2 text-xs font-bold text-slate-700"><input type="checkbox" checked={form.travel} onChange={(e) => set('travel', e.target.checked)} /> Willing to travel / outstation work</label></div>}
@@ -164,3 +208,18 @@ export const PublicFreelancerRegistration: React.FC = () => {
     </main>
   );
 };
+
+function PasswordInput({ label, value, visible, placeholder, onChange, onVisibilityChange }: { label: string; value: string; visible: boolean; placeholder: string; onChange: (value: string) => void; onVisibilityChange: () => void }) {
+  const Icon = visible ? EyeOff : Eye;
+  return (
+    <label>
+      <span className={LABEL}>{label}</span>
+      <span className="relative block">
+        <input required type={visible ? 'text' : 'password'} minLength={6} className={`${FIELD} pr-12`} value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} />
+        <button type="button" onClick={onVisibilityChange} aria-label={visible ? `Hide ${label.toLowerCase()}` : `Show ${label.toLowerCase()}`} className="absolute right-2 top-1/2 grid size-9 -translate-y-1/2 place-items-center rounded-xl text-[#8f3655] transition hover:bg-[#f7edf1] focus:outline-none focus:ring-2 focus:ring-[#8f3655]/25">
+          <Icon className="size-4" />
+        </button>
+      </span>
+    </label>
+  );
+}

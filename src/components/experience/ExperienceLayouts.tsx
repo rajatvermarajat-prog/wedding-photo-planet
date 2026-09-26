@@ -79,7 +79,7 @@ export function PublicLayout({ children }: { children: ReactNode }) {
 
 export function FreelancerLayout({ children }: { children: ReactNode }) {
   return (
-    <Shell nav={FREELANCER_NAV} action={<Link href="/freelancer/login" className="rounded-xl border border-[#DFD9D2] bg-white px-4 py-2 text-xs font-extrabold text-[#5A2F3E]">Freelancer Login</Link>}>
+    <Shell nav={FREELANCER_NAV} action={<Link href="/freelancer/login?returnTo=/freelancer/dashboard" className="rounded-xl border border-[#DFD9D2] bg-white px-4 py-2 text-xs font-extrabold text-[#5A2F3E]">Freelancer Login</Link>}>
       {children}
     </Shell>
   );

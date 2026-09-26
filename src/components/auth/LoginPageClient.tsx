@@ -6,7 +6,7 @@ import { LoginScreen } from '@/components/auth/LoginScreen';
 import { LoginInput } from '@/lib/api/auth';
 import { useAuthSession } from '@/components/auth/AuthSessionProvider';
 import { safeReturnPath } from '@/lib/auth/routeProtection';
-import { loginMockFreelancer } from '@/features/freelancer-growth/mockFreelancerStore';
+import { freelancerPortalApi } from '@/lib/api/freelancerPortal';
 
 export function LoginPageClient() {
   const router = useRouter();
@@ -22,24 +22,20 @@ export function LoginPageClient() {
   }, [returnTo, router]);
 
   useEffect(() => {
+    if (returnTo.startsWith('/freelancer/')) return;
     if (isHydrated && currentUser && !loginRedirectingRef.current) router.replace(returnTo);
   }, [currentUser, isHydrated, returnTo, router]);
 
   const handleLogin = async (input: LoginInput) => {
     loginRedirectingRef.current = true;
-    const go = (path: string) => {
-      router.replace(path);
-      window.setTimeout(() => {
-        if (window.location.pathname + window.location.search !== path) window.location.assign(path);
-      }, 100);
-    };
     try {
-      if (loginMockFreelancer(input.email, input.password)) {
-        go('/panel/profile');
+      if (returnTo.startsWith('/freelancer/')) {
+        await freelancerPortalApi.login({ identifier: input.email, password: input.password });
+        router.replace(returnTo);
         return;
       }
       await login(input);
-      go(returnTo);
+      router.replace(returnTo);
     } catch (error) {
       loginRedirectingRef.current = false;
       throw error;

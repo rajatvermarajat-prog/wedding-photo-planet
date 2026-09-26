@@ -343,7 +343,7 @@ export const RoleColumnCrewManager: React.FC<RoleColumnCrewManagerProps> = ({
                       {/* Individual Member Slots inside this Role Column */}
                       <div className="space-y-2 min-w-0">
                         {roleMembers.map((crew, idx) => {
-                          const hasExistingMatch = activeTeamMembers.some((m) => m.name === crew.name);
+                          const hasExistingMatch = activeTeamMembers.some((m) => m.id === crew.userId || m.name === crew.name);
                           const entryMode = crewEntryModes[crew.id] || (!hasExistingMatch && crew.name ? 'manual' : 'existing');
                           const setEntryMode = (mode: 'existing' | 'manual') => {
                             setCrewEntryModes((current) => ({ ...current, [crew.id]: mode }));
@@ -389,7 +389,7 @@ export const RoleColumnCrewManager: React.FC<RoleColumnCrewManagerProps> = ({
                               {entryMode === 'existing' ? (
                                 <div className="space-y-1.5">
                                   {(() => {
-                                    const matchedName = activeTeamMembers.some((m) => m.name === crew.name) ? crew.name : '';
+                                    const matchedName = activeTeamMembers.some((m) => m.id === crew.userId || m.name === crew.name) ? crew.name : '';
                                     return (
                                       <select
                                         value={matchedName}

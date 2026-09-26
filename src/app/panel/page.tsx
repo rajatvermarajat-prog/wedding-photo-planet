@@ -1,5 +1,5 @@
-import { PanelDashboard } from '@/features/freelancer-growth/FreelancerPanel';
+import { redirect } from 'next/navigation';
 
 export default function Page() {
-  return <PanelDashboard />;
+  redirect('/freelancer/dashboard');
 }

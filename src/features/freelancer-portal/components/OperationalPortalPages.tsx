@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Bell, CalendarDays, CheckCircle2, Loader2 } from 'lucide-react';
+import { Bell, CalendarDays, CheckCircle2, Loader2, MapPin, Search, SlidersHorizontal } from 'lucide-react';
 import { ApiError } from '@/lib/api/client';
 import { freelancerPortalApi, PortalDashboard, PortalList, PortalNotification, PortalPayout, PortalProjectSummary, PortalShootSummary, PortalTaskSummary } from '@/lib/api/freelancerPortal';
 import { getFreelancerProfileCompletion } from '../profileCompletion';
@@ -205,4 +205,90 @@ export function NotificationsPage() {
   if (loading) return <LoadingState />;
   if (error || !data) return <ErrorState text={error || 'No notifications available.'} retry={reload} />;
   return <PageChrome title="Notifications">{data.items.length ? data.items.map((item) => <PortalCard key={item.id}><div className="flex items-start gap-3"><span className="grid size-10 shrink-0 place-items-center rounded-xl bg-[#8D5265]/10 text-[#8D5265]">{item.isRead ? <CheckCircle2 className="size-4" /> : <Bell className="size-4" />}</span><div><p className="font-black">{item.title}</p><p className={muted}>{item.message}</p><p className="mt-1 text-xs font-bold text-[#686164]">{fmtDate(item.createdAt)}</p></div></div></PortalCard>) : <EmptyState title="No notifications" text="Freelancer-relevant notifications will appear here when the CRM creates them for your linked identity." />}</PageChrome>;
+}
+
+export function VendorSearchPage() {
+  const [query, setQuery] = useState('');
+  const [location, setLocation] = useState('');
+  const [category, setCategory] = useState('all');
+  const [searched, setSearched] = useState(false);
+
+  const submit = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setSearched(true);
+  };
+
+  const reset = () => {
+    setQuery('');
+    setLocation('');
+    setCategory('all');
+    setSearched(false);
+  };
+
+  return (
+    <div className="space-y-6">
+      <section className="overflow-hidden rounded-2xl bg-linear-to-r from-[#3B1D29] to-[#4A2635] p-6 text-white shadow-sm">
+        <p className="text-xs font-black uppercase tracking-[.14em] text-[#C9A876]">Wedding Photo Planet</p>
+        <h1 className="mt-3 text-4xl font-black tracking-tight">Find Vendor</h1>
+        <p className="mt-2 max-w-2xl text-base font-medium leading-6 text-white/65">Search vendors from your freelancer network.</p>
+      </section>
+
+      <PortalCard>
+        <form onSubmit={submit} className="grid gap-3 lg:grid-cols-[1fr_220px_220px_auto]">
+          <label>
+            <span className="text-xs font-black uppercase tracking-[.14em] text-[#6d2f45]">Search</span>
+            <span className="mt-2 flex min-h-12 items-center gap-2 rounded-xl border border-[#DFD9D2] bg-white px-3 focus-within:border-[#8D5265]">
+              <Search className="size-4 shrink-0 text-[#8D5265]" />
+              <input
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                className="w-full bg-transparent text-sm font-semibold outline-none"
+                placeholder="Name, email, phone or service"
+              />
+            </span>
+          </label>
+          <label>
+            <span className="text-xs font-black uppercase tracking-[.14em] text-[#6d2f45]">Location</span>
+            <span className="mt-2 flex min-h-12 items-center gap-2 rounded-xl border border-[#DFD9D2] bg-white px-3 focus-within:border-[#8D5265]">
+              <MapPin className="size-4 shrink-0 text-[#8D5265]" />
+              <input
+                value={location}
+                onChange={(event) => setLocation(event.target.value)}
+                className="w-full bg-transparent text-sm font-semibold outline-none"
+                placeholder="City"
+              />
+            </span>
+          </label>
+          <label>
+            <span className="text-xs font-black uppercase tracking-[.14em] text-[#6d2f45]">Category</span>
+            <span className="mt-2 flex min-h-12 items-center gap-2 rounded-xl border border-[#DFD9D2] bg-white px-3 focus-within:border-[#8D5265]">
+              <SlidersHorizontal className="size-4 shrink-0 text-[#8D5265]" />
+              <select
+                value={category}
+                onChange={(event) => setCategory(event.target.value)}
+                className="w-full bg-transparent text-sm font-semibold outline-none"
+              >
+                <option value="all">All categories</option>
+                <option value="decorator">Decorator</option>
+                <option value="makeup">Makeup Artist</option>
+                <option value="venue">Venue</option>
+                <option value="transport">Transport</option>
+                <option value="catering">Catering</option>
+                <option value="other">Other</option>
+              </select>
+            </span>
+          </label>
+          <div className="flex items-end gap-2">
+            <button type="submit" className={`${btn} w-full lg:w-auto`}><Search className="mr-2 size-4" />Search</button>
+            {(query || location || category !== 'all' || searched) ? <button type="button" onClick={reset} className="min-h-11 rounded-xl border border-[#DFD9D2] bg-white px-4 text-sm font-black text-[#5A2F3E]">Clear</button> : null}
+          </div>
+        </form>
+      </PortalCard>
+
+      <PortalState
+        title={searched ? 'No vendors match these filters' : 'Search vendors'}
+        text={searched ? 'No vendor directory records are available for this search yet.' : 'Enter a name, service, email, phone or city to find vendors when studio vendor records are available.'}
+      />
+    </div>
+  );
 }

@@ -16,7 +16,7 @@ import { firstIsoDate, isPersistedProjectId, toUpdateProjectInput } from '@/feat
 import { persistStudioProject } from '@/features/projects/persistProject';
 import { loadProjectTasks, persistProjectTasks } from '@/features/projects/persistProjectTasks';
 import { shootsApi } from '@/lib/api/shoots';
-import { toCrewRole, toPlannedRoleSlots, toShootEvent } from '@/features/shoots/persistShoots';
+import { toCrewRole, toShootEvent } from '@/features/shoots/persistShoots';
 import { nextIndianMobileValue } from '@/lib/validation/indianMobile';
 import { CLIENT_ASSET_ACCEPT, CLIENT_ASSET_MAX_BYTES, clientAssetsApi, uploadProjectClientAsset } from '@/lib/api/clientAssets';
 import { ApiProjectPayment, getProjectPaymentReceiptUrl, paymentMethodLabel, paymentsApi, toPaymentMethod, uploadProjectPaymentReceipt } from '@/lib/api/payments';
@@ -1200,7 +1200,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
       if (crewBackupHDs) updatedHD2 = crewBackupHDs;
     }
 
-    onUpdateProject({
+    const nextProject = {
       ...project,
       shoots: updatedShoots,
       dataBackup: {
@@ -1208,7 +1208,14 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
         hardDrive1: updatedHD1,
         hardDrive2: updatedHD2,
       },
-    }, persistShoots ? { dataHandover: { shootId, crewId } } : { persistShoots: false });
+    };
+
+    onUpdateProject(
+      nextProject,
+      persistShoots
+        ? { dataHandover: { shootId, crewId } }
+        : { persistShoots: false }
+    );
   };
 
   const handleDeleteShootEvent = (shootId: string) => {
@@ -1240,25 +1247,14 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
         title: editingEventData.title.trim() || s.title,
         date: editingEventData.date.trim() || s.date,
         time: editingEventData.time.trim() || s.time,
+        startTime: editingEventData.time.trim() || s.startTime,
         venue: editingEventData.venue.trim() || s.venue,
         status: editingEventData.status || s.status || 'scheduled',
       };
     });
-    const edited = updatedShoots.find((shoot) => shoot.id === editingEventData.shootId);
-    if (!edited || !isPersistedProjectId(edited.id)) return;
-    void shootsApi.update(edited.id, {
-      title: edited.title,
-      ...(firstIsoDate(edited.date) ? { shootDate: firstIsoDate(edited.date) as string } : {}),
-      location: edited.venue || undefined,
-      status: edited.status === 'completed' ? 'COMPLETED' : edited.status === 'cancelled' ? 'CANCELLED' : 'SCHEDULED',
-      plannedRoleSlots: toPlannedRoleSlots(edited, activeTeamMembers),
-    }).then(() => {
-      onUpdateProject({ ...project, shoots: updatedShoots }, { persistShoots: false });
-      setEditingEventData(null);
-      showToast('Shoot details and crew allocation saved successfully.');
-    }).catch((error) => {
-      showToast(error instanceof Error ? error.message : 'Failed to save the shoot.', { variant: 'error' });
-    });
+    onUpdateProject({ ...project, shoots: updatedShoots }, { forcePersistShoots: true });
+    setEditingEventData(null);
+    showToast('Shoot details and crew allocation saved successfully.');
   };
 
   const handleAddCrewSlotToShoot = (shootId: string) => {

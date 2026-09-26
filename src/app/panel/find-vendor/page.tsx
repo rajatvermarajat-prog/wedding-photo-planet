@@ -1,5 +1,5 @@
-import { FindVendorPage } from '@/features/freelancer-growth/FreelancerPanel';
+import { redirect } from 'next/navigation';
 
 export default function Page() {
-  return <FindVendorPage />;
+  redirect('/freelancer/find-vendor');
 }

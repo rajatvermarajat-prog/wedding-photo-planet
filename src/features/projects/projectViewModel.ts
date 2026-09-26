@@ -247,6 +247,33 @@ export function normalizeProject(dto: ProjectDto): Project {
     shoots: (dto.shoots || []).map((s) => {
       const startTime = formatStoredShootTime(s.startTime);
       const endTime = formatStoredShootTime(s.endTime);
+      const assignmentRows = (s.assignments || []).map((a) => ({
+        id: a.id,
+        userId: a.user?.id || undefined,
+        role: a.role,
+        name: a.user?.fullName || a.freelancer?.fullName || '',
+        mobile: a.user?.phone || a.freelancer?.phone || '',
+        dataReceived: Boolean(a.dataReceived),
+        dataSizeGB: Number(a.dataSizeGb || 0),
+        copyInHD: a.storageReference || '',
+        hardDriveName: a.storageReference || '',
+        backupInHD: a.notes || '',
+      }));
+      const plannedRows = Array.isArray(s.plannedRoleSlots)
+        ? s.plannedRoleSlots.flatMap((slot, index) =>
+            Array.from({ length: slot.requiredCount || 0 }, (_, count) => ({
+              id: `slot-${slot.role}-${index}-${count}`,
+              role: slot.role,
+              name: slot.name || '',
+              mobile: slot.mobile || '',
+              dataReceived: Boolean(slot.dataReceived),
+              dataSizeGB: Number(slot.dataSizeGb || 0),
+              copyInHD: slot.copyInHD || '',
+              hardDriveName: slot.copyInHD || '',
+              backupInHD: slot.backupInHD || '',
+            })),
+          )
+        : [];
       return {
         id: s.id,
         title: s.title || s.name || 'Shoot',
@@ -259,17 +286,7 @@ export function normalizeProject(dto: ProjectDto): Project {
         notes: s.notes || '',
         plannedRoleSlots: s.plannedRoleSlots || undefined,
         status: s.status === 'COMPLETED' ? 'completed' : s.status === 'CANCELLED' ? 'cancelled' : 'scheduled',
-        crewAssignments: (s.assignments || []).map((a) => ({
-          id: a.id,
-          userId: a.user?.id || undefined,
-          role: a.role,
-          name: a.user?.fullName || a.freelancer?.fullName || '',
-          mobile: a.user?.phone || a.freelancer?.phone || '',
-          dataReceived: Boolean(a.dataReceived),
-          dataSizeGB: Number(a.dataSizeGb || 0),
-          copyInHD: a.storageReference || '',
-          backupInHD: a.notes || '',
-        })),
+        crewAssignments: [...assignmentRows, ...plannedRows],
       };
     }),
     tasks: (dto.tasks || []).map((t) => ({
@@ -340,7 +357,16 @@ export function toCreateProjectInput(project: Project, team: TeamMember[] = []):
       plannedRoleSlots: (shoot.crewAssignments || []).flatMap((crew) => {
         const role = crew.role?.trim();
         if (!role || crewUserId(crew, team)) return [];
-        return [{ role, requiredCount: 1, ...(crew.name?.trim() ? { name: crew.name.trim() } : {}), ...(crew.mobile?.trim() ? { mobile: crew.mobile.trim() } : {}) }];
+        return [{
+          role,
+          requiredCount: 1,
+          ...(crew.name?.trim() ? { name: crew.name.trim() } : {}),
+          ...(crew.mobile?.trim() ? { mobile: crew.mobile.trim() } : {}),
+          ...(crew.dataReceived ? { dataReceived: true } : {}),
+          ...(crew.dataSizeGB ? { dataSizeGb: String(crew.dataSizeGB) } : {}),
+          ...((crew.copyInHD || crew.hardDriveName)?.trim() ? { copyInHD: (crew.copyInHD || crew.hardDriveName || '').trim() } : {}),
+          ...(crew.backupInHD?.trim() ? { backupInHD: crew.backupInHD.trim() } : {}),
+        }];
       }),
         status: toBackendShootStatus(shoot.status),
         shootType: 'PHOTO_AND_VIDEO' as const,

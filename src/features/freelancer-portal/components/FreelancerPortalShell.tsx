@@ -2,20 +2,21 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { Bell, BriefcaseBusiness, CalendarDays, ClipboardList, CreditCard, Image, LayoutDashboard, LogOut, Menu, UserRound, Video, WalletCards } from 'lucide-react';
+import { Bell, BriefcaseBusiness, CalendarDays, ClipboardList, CreditCard, Image, LayoutDashboard, LogOut, Menu, Search, UserRound, Video, WalletCards } from 'lucide-react';
 import { freelancerPortalApi } from '@/lib/api/freelancerPortal';
 
 const nav = [
-  { href: '/freelancer/dashboard', label: 'Home', icon: LayoutDashboard },
-  { href: '/freelancer/shoots', label: 'Shoots', icon: Video },
-  { href: '/freelancer/tasks', label: 'Tasks', icon: ClipboardList },
-  { href: '/freelancer/payments', label: 'Payments', icon: WalletCards },
-  { href: '/freelancer/profile', label: 'Profile', icon: UserRound },
+  { href: '/freelancer/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { href: '/freelancer/profile', label: 'My Profile', icon: UserRound },
+  { href: '/freelancer/connections', label: 'My Vendors', icon: BriefcaseBusiness },
+  { href: '/freelancer/find-vendor', label: 'Find Vendor', icon: Search },
   { href: '/freelancer/projects', label: 'Projects', icon: BriefcaseBusiness },
+  { href: '/freelancer/shoots', label: 'Shoots', icon: Video },
+  { href: '/freelancer/payments', label: 'Finance', icon: WalletCards },
+  { href: '/freelancer/tasks', label: 'Tasks', icon: ClipboardList },
   { href: '/freelancer/portfolio', label: 'Portfolio', icon: Image },
   { href: '/freelancer/availability', label: 'Availability', icon: CalendarDays },
   { href: '/freelancer/subscription', label: 'Plan', icon: CreditCard },
-  { href: '/freelancer/connections', label: 'Connections', icon: BriefcaseBusiness },
   { href: '/freelancer/assignments', label: 'Assignments', icon: BriefcaseBusiness },
   { href: '/freelancer/notifications', label: 'Notifications', icon: Bell },
 ];
@@ -28,42 +29,56 @@ export function FreelancerPortalShell({ children }: { children: React.ReactNode 
   }
   const logout = async () => {
     await freelancerPortalApi.logout();
-    router.replace('/freelancer/login');
+    router.replace('/freelancer/login?returnTo=/freelancer/dashboard');
   };
 
   return (
-    <div className="min-h-screen bg-[#F7F6F3] text-[#302C2E]">
-      <header className="sticky top-0 z-40 border-b border-[#DFD9D2] bg-[#F7F6F3]/95 backdrop-blur">
-        <div className="mx-auto flex min-h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
-          <Link href="/freelancer/dashboard" className="font-black tracking-tight text-[#5A2F3E]">Wedding Photo Planet</Link>
-          <button className="grid size-10 place-items-center rounded-xl border border-[#DFD9D2] bg-white text-[#5A2F3E] md:hidden" aria-label="Open navigation">
-            <Menu className="size-4" />
-          </button>
-          <button onClick={logout} className="hidden items-center gap-2 rounded-xl border border-[#DFD9D2] bg-white px-3 py-2 text-xs font-extrabold text-[#5A2F3E] md:flex">
-            <LogOut className="size-3.5" /> Logout
-          </button>
-        </div>
-      </header>
-      <div className="mx-auto grid max-w-7xl gap-6 px-4 py-5 sm:px-6 md:grid-cols-[240px_1fr] lg:px-8">
-        <aside className="hidden md:block">
-          <nav className="sticky top-24 space-y-1 rounded-2xl border border-[#DFD9D2] bg-white p-2 shadow-sm">
-            {nav.map(({ href, label, icon: Icon }) => {
-              const active = pathname === href;
+    <div className="min-h-screen bg-[#F7F6F3] text-[#221219] md:grid md:grid-cols-[320px_1fr]">
+      <aside className="fixed inset-y-0 left-0 z-40 hidden w-80 flex-col bg-[#2A1620] text-white md:flex">
+        <div className="flex h-full flex-col p-5">
+          <Link href="/freelancer/dashboard" className="font-[var(--font-display)] text-3xl font-black leading-tight text-[#D8BE93]">Wedding<br />Photo Planet</Link>
+          <p className="mt-4 border-b border-[#C9A876]/35 pb-6 text-[11px] font-black uppercase tracking-[.18em] text-white/45">Freelancer Panel</p>
+          <div className="mt-6 rounded-2xl bg-white/8 p-4">
+            <div className="flex items-center gap-3">
+              <span className="grid size-14 place-items-center rounded-full bg-[#C9A876] text-lg font-black text-[#2A1620]">F</span>
+              <div><p className="text-base font-black">Freelancer</p><p className="text-sm text-white/50">Active Panel</p></div>
+            </div>
+          </div>
+          <nav className="mt-7 space-y-1" aria-label="Freelancer panel">
+            {nav.slice(0, 7).map(({ href, label, icon: Icon }) => {
+              const active = pathname === href || (href !== '/freelancer/dashboard' && pathname.startsWith(href));
               return (
-                <Link key={href} href={href} className={`flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-bold ${active ? 'bg-[#8D5265] text-white' : 'text-[#686164] hover:bg-[#F0EDE9] hover:text-[#5A2F3E]'}`}>
-                  <Icon className="size-4" /> {label}
+                <Link key={`${href}-${label}`} href={href} className={`flex min-h-12 items-center gap-3 rounded-xl border-l-3 px-4 text-base font-bold transition ${active ? 'border-[#C9A876] bg-white/10 text-white' : 'border-transparent text-white/62 hover:bg-white/8 hover:text-white'}`}>
+                  <Icon className="size-5" />{label}
                 </Link>
               );
             })}
           </nav>
-        </aside>
-        <main className="pb-24 md:pb-8">{children}</main>
+          <div className="mt-auto space-y-4 border-t border-white/10 pt-6">
+            <div className="flex items-center justify-between text-sm text-white/55"><span>Access</span><span className="flex items-center gap-1 text-[#D8BE93]"><span className="size-2 rounded-full bg-emerald-400" />Active</span></div>
+            <button onClick={logout} className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-white/8 text-base font-bold text-white/75 transition hover:bg-white/12"><LogOut className="size-5" />Logout</button>
+          </div>
+        </div>
+      </aside>
+      <div className="md:col-start-2">
+        <header className="sticky top-0 z-30 flex min-h-16 items-center justify-between border-b border-[#EDE8E2] bg-[#F7F6F3]/95 px-4 backdrop-blur-xl md:px-7">
+          <button className="grid size-11 place-items-center rounded-xl border border-[#EDE8E2] bg-white text-[#5A2F3E] md:hidden" aria-label="Open navigation"><Menu className="size-5" /></button>
+          <div>
+            <p className="text-[10px] font-black uppercase tracking-[.16em] text-[#C9A876]">Freelancer Panel</p>
+            <h1 className="text-lg font-black">Wedding Photo Planet</h1>
+          </div>
+          <div className="flex items-center gap-2">
+            <Link href="/freelancer/find-vendor" className="hidden min-h-10 items-center gap-2 rounded-full border border-[#EDE8E2] bg-white px-4 text-sm font-bold sm:inline-flex"><Search className="size-4 text-[#8D5265]" />Find Vendor</Link>
+            <Link href="/freelancer/notifications" className="grid size-11 place-items-center rounded-full border border-[#EDE8E2] bg-white" aria-label="Notifications"><Bell className="size-4" /></Link>
+          </div>
+        </header>
+        <main className="px-4 py-6 md:px-8">{children}</main>
       </div>
       <nav className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-5 border-t border-[#DFD9D2] bg-white md:hidden">
         {nav.slice(0, 5).map(({ href, label, icon: Icon }) => {
           const active = pathname === href;
           return (
-            <Link key={href} href={href} className={`grid min-h-16 place-items-center text-[10px] font-extrabold ${active ? 'text-[#8D5265]' : 'text-[#686164]'}`}>
+            <Link key={`${href}-${label}`} href={href} className={`grid min-h-16 place-items-center text-[10px] font-extrabold ${active ? 'text-[#8D5265]' : 'text-[#686164]'}`}>
               <Icon className="size-4" />
               <span>{label}</span>
             </Link>
