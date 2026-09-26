@@ -38,14 +38,16 @@ export function findDateConflicts(
   freelancerId: string,
   dateKey: string,
   assignments: FreelancerAssignment[],
-  ignoreAssignmentId?: string
+  ignoreAssignmentId?: string,
+  ignoreProjectId?: string,
 ): FreelancerAssignment[] {
   return assignments.filter(
     (a) =>
       a.freelancerId === freelancerId &&
       a.shootDate === dateKey &&
       a.assignmentStatus !== 'cancelled' &&
-      a.id !== ignoreAssignmentId
+      a.id !== ignoreAssignmentId &&
+      (!ignoreProjectId || a.projectId !== ignoreProjectId)
   );
 }
 

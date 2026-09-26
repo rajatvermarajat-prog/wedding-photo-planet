@@ -353,7 +353,7 @@ export const RoleColumnCrewManager: React.FC<RoleColumnCrewManagerProps> = ({
                           };
 
                           return (
-                            <div key={crew.id} className="p-2.5 bg-slate-50 rounded-lg border border-slate-200 space-y-2 min-w-0 overflow-hidden">
+                            <div key={`${role}-${idx}-${crew.id}`} className="p-2.5 bg-slate-50 rounded-lg border border-slate-200 space-y-2 min-w-0 overflow-hidden">
                               <div className="flex items-center justify-between gap-1.5 min-w-0">
                                 <span className="text-[10px] font-black text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-100 shrink-0">
                                   #{idx + 1}
@@ -389,24 +389,31 @@ export const RoleColumnCrewManager: React.FC<RoleColumnCrewManagerProps> = ({
                               {entryMode === 'existing' ? (
                                 <div className="space-y-1.5">
                                   {(() => {
-                                    const matchedName = activeTeamMembers.some((m) => m.id === crew.userId || m.name === crew.name) ? crew.name : '';
+                                    const selectedUserId =
+                                      (crew.userId && activeTeamMembers.some((m) => m.id === crew.userId) && crew.userId) ||
+                                      activeTeamMembers.find((m) => m.name === crew.name)?.id ||
+                                      '';
                                     return (
                                       <select
-                                        value={matchedName}
+                                        value={selectedUserId}
                                         onChange={(e) => {
-                                          const val = e.target.value;
-                                          const matched = activeTeamMembers.find((m) => m.name === val);
+                                          const matched = activeTeamMembers.find((m) => m.id === e.target.value);
+                                          if (!matched) {
+                                            onUpdateMember(crew.id, { name: '', userId: '', mobile: '', assignmentId: undefined });
+                                            return;
+                                          }
                                           onUpdateMember(crew.id, {
-                                            name: val,
-                                            userId: matched?.id || '',
-                                            mobile: matched?.phone || '',
+                                            name: matched.name,
+                                            userId: matched.id,
+                                            mobile: matched.phone || '',
+                                            ...(matched.id !== crew.userId ? { assignmentId: undefined } : {}),
                                           });
                                         }}
                                         className="w-full min-w-0 bg-white border border-slate-200 rounded px-2 py-1 text-xs font-bold text-slate-900 focus:ring-2 focus:ring-indigo-500 outline-none"
                                       >
                                         <option value="">Select {role}...</option>
                                         {activeTeamMembers.map((m) => (
-                                          <option key={m.id || m.name} value={m.name}>
+                                          <option key={m.id || m.name} value={m.id}>
                                             {m.name}{m.role ? ` (${m.role})` : ''}
                                           </option>
                                         ))}
@@ -417,7 +424,7 @@ export const RoleColumnCrewManager: React.FC<RoleColumnCrewManagerProps> = ({
                                     type="tel"
                                     inputMode="numeric"
                                     maxLength={20}
-                                    pattern="\\+?[0-9 ()-]{7,20}"
+                                    pattern="[+0-9() -]{7,20}"
                                     placeholder="Mobile / Contact No."
                                     value={crew.mobile || ''}
                                     onChange={(e) => onUpdateMember(crew.id, { mobile: nextIndianMobileValue(e.target.value, crew.mobile || '') })}
@@ -430,14 +437,14 @@ export const RoleColumnCrewManager: React.FC<RoleColumnCrewManagerProps> = ({
                                     type="text"
                                     placeholder={`Full Name (${role})`}
                                     value={crew.name || ''}
-                                    onChange={(e) => onUpdateMember(crew.id, { name: e.target.value, userId: '' })}
+                                    onChange={(e) => onUpdateMember(crew.id, { name: e.target.value, userId: '', assignmentId: undefined })}
                                     className="w-full min-w-0 bg-white border border-slate-200 rounded px-2 py-1 text-xs font-bold text-slate-900 focus:ring-2 focus:ring-indigo-500 outline-none"
                                   />
                                   <input
                                     type="tel"
                                     inputMode="numeric"
                                     maxLength={20}
-                                    pattern="\\+?[0-9 ()-]{7,20}"
+                                    pattern="[+0-9() -]{7,20}"
                                     placeholder="Mobile / Contact No."
                                     value={crew.mobile || ''}
                                     onChange={(e) => onUpdateMember(crew.id, { mobile: nextIndianMobileValue(e.target.value, crew.mobile || '') })}

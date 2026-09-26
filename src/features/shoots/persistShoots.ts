@@ -97,42 +97,173 @@ function num(value: string | number | null | undefined) {
   return Number.isFinite(n) ? n : 0;
 }
 
+/** API decimals allow at most two fractional digits. */
+function toDataSizeGb(value: string | number | null | undefined): string {
+  const rounded = Math.round(num(value) * 100) / 100;
+  if (Number.isInteger(rounded)) return String(rounded);
+  return rounded.toFixed(2).replace(/0+$/, '').replace(/\.$/, '');
+}
+
 function mainCrew(rows: CrewMemberAssignment[]) {
   return rows.filter((row) => !row.role?.toLowerCase().includes('assistant'));
 }
 
+/** Local UI slot ids are not persisted shoot-assignment records. */
+export function isLocalCrewRow(id?: string): boolean {
+  if (!id) return true;
+  return id.startsWith('c-') || id.startsWith('slot-') || id.startsWith('named-');
+}
+
+function assignmentRecordId(row: CrewMemberAssignment): string | undefined {
+  if (row.assignmentId) return row.assignmentId;
+  if (row.id && !isLocalCrewRow(row.id)) return row.id;
+  return undefined;
+}
+
+/** Legacy rows stored the API assignment uuid in `id`; migrate to stable slot ids. */
+function normalizeCrewSlot(row: CrewMemberAssignment): CrewMemberAssignment {
+  if (row.assignmentId) {
+    return isLocalCrewRow(row.id) ? row : { ...row, id: `slot-${row.assignmentId}` };
+  }
+  if (!isLocalCrewRow(row.id)) {
+    return { ...row, assignmentId: row.id, id: `slot-${row.id}` };
+  }
+  return row;
+}
+
+function dedupeCrewSlots(rows: CrewMemberAssignment[]): CrewMemberAssignment[] {
+  const seenAssignmentIds = new Set<string>();
+  const seenSlotIds = new Set<string>();
+  return rows.map((row, index) => {
+    let next = normalizeCrewSlot(row);
+    const assignmentId = next.assignmentId;
+    if (assignmentId && seenAssignmentIds.has(assignmentId)) {
+      next = { ...next, assignmentId: undefined, id: `c-${Date.now()}-dup-${index}` };
+    }
+    if (seenSlotIds.has(next.id)) {
+      next = { ...next, id: `c-${Date.now()}-dup-${index}` };
+    }
+    if (next.assignmentId) seenAssignmentIds.add(next.assignmentId);
+    seenSlotIds.add(next.id);
+    return next;
+  });
+}
+
 function crewRows(shoot: ShootEvent): CrewMemberAssignment[] {
-  let customRows = [...(shoot.crewAssignments || [])];
-  const coreRows: CrewMemberAssignment[] = [];
-  // The original modal stores its four core choices in dedicated fields and
-  // additional members in crewAssignments. Adapt that unchanged shape here
-  // before calling the API, so replacing a core member removes the old DB row.
-  ([
+  const fromAssignments = (shoot.crewAssignments || []).filter((row) => row.name?.trim());
+  // Role-column UI stores every slot in crewAssignments.  Do not collapse
+  // multiple photographers (or any role) into the legacy leadPhotographer field.
+  if (fromAssignments.length > 0) return fromAssignments;
+
+  // Legacy single-slot fields when crewAssignments is empty.
+  return ([
     ['Photographer', shoot.leadPhotographer],
     ['Cinematographer', shoot.cinematographer],
     ['Drone Operator', shoot.droneOperator],
     ['Assistant', shoot.assistant],
-  ] as const).forEach(([role, name]) => {
-    const matching = customRows.filter((row) => row.role.trim().toLowerCase() === role.toLowerCase());
-    customRows = customRows.filter((row) => row.role.trim().toLowerCase() !== role.toLowerCase());
-    if (!name?.trim()) return;
-    const existing = matching.find((row) => row.name.trim().toLowerCase() === name.trim().toLowerCase());
-    coreRows.push(existing || { id: `named-${role}`, name: name.trim(), role });
+  ] as const).flatMap(([role, name]) => {
+    if (!name?.trim()) return [];
+    return [{ id: `named-${role}`, name: name.trim(), role }];
   });
-  return [...coreRows, ...customRows].filter((row) => row.name?.trim());
+}
+
+function crewAssignmentKey(userId: string, role: string) {
+  return `${userId}:${toCrewRole(role)}`;
+}
+
+/** Keep the user's slot order after reload; refresh assignment data without reusing assignment uuids as slot ids. */
+function mergeShootCrew(local: ShootEvent, fresh: ShootEvent, team: TeamMember[]): ShootEvent {
+  const localRows = dedupeCrewSlots(local.crewAssignments || []);
+  const freshRows = dedupeCrewSlots(crewRows(fresh));
+  const freshByAssignmentId = new Map<string, CrewMemberAssignment>();
+  const freshByKey = new Map<string, CrewMemberAssignment[]>();
+  const freshManual: CrewMemberAssignment[] = [];
+
+  for (const row of freshRows) {
+    const assignmentId = assignmentRecordId(row);
+    if (assignmentId) freshByAssignmentId.set(assignmentId, row);
+    const userId = memberId(row, team);
+    if (userId) {
+      const key = crewAssignmentKey(userId, row.role);
+      const list = freshByKey.get(key) || [];
+      list.push(row);
+      freshByKey.set(key, list);
+    } else if (row.name?.trim()) {
+      freshManual.push(row);
+    }
+  }
+
+  const usedAssignmentIds = new Set<string>();
+  const takeFreshMatch = (match?: CrewMemberAssignment) => {
+    if (!match) return undefined;
+    const assignmentId = assignmentRecordId(match);
+    if (!assignmentId || usedAssignmentIds.has(assignmentId)) return undefined;
+    usedAssignmentIds.add(assignmentId);
+    return match;
+  };
+
+  const merged = localRows.map((localRow) => {
+    const localAssignmentId = assignmentRecordId(localRow);
+    const localUserId = memberId(localRow, team);
+    let match = takeFreshMatch(
+      localAssignmentId ? freshByAssignmentId.get(localAssignmentId) : undefined,
+    );
+    if (match && localUserId && memberId(match, team) !== localUserId) {
+      const staleId = assignmentRecordId(match);
+      if (staleId) usedAssignmentIds.delete(staleId);
+      match = undefined;
+    }
+
+    if (!match) {
+      const userId = memberId(localRow, team);
+      if (userId) {
+        const candidates = freshByKey.get(crewAssignmentKey(userId, localRow.role)) || [];
+        match = takeFreshMatch(candidates.find((candidate) => {
+          const assignmentId = assignmentRecordId(candidate);
+          return assignmentId && !usedAssignmentIds.has(assignmentId);
+        }));
+      }
+    }
+
+    if (!match && !memberId(localRow, team)) {
+      match = takeFreshMatch(freshManual.find(
+        (row) =>
+          row.role === localRow.role &&
+          row.name?.trim().toLowerCase() === localRow.name?.trim().toLowerCase(),
+      ));
+    }
+
+    if (!match) return localRow;
+
+    const assignmentId = assignmentRecordId(match);
+    return {
+      ...localRow,
+      assignmentId,
+      userId: match.userId ?? localRow.userId ?? memberId(match, team),
+      name: match.name || localRow.name,
+      mobile: match.mobile || localRow.mobile,
+      dataReceived: match.dataReceived,
+      dataSizeGB: match.dataSizeGB,
+      copyInHD: match.copyInHD,
+      hardDriveName: match.hardDriveName,
+      backupInHD: match.backupInHD,
+    };
+  });
+
+  return { ...fresh, crewAssignments: dedupeCrewSlots(merged.length ? merged : fresh.crewAssignments || []) };
 }
 
 export function toPlannedRoleSlots(shoot: ShootEvent, team: TeamMember[]) {
   return (shoot.crewAssignments || []).flatMap((row) => {
     const role = row.role?.trim();
-    if (!role || memberId(row, team)) return [];
+    if (!role || memberId(row, team) || !row.name?.trim()) return [];
     return [{
       role,
       requiredCount: 1,
       ...(row.name?.trim() ? { name: row.name.trim() } : {}),
       ...(row.mobile?.trim() ? { mobile: row.mobile.trim() } : {}),
       ...(row.dataReceived ? { dataReceived: true } : {}),
-      ...(row.dataSizeGB ? { dataSizeGb: String(row.dataSizeGB) } : {}),
+      ...(row.dataSizeGB ? { dataSizeGb: toDataSizeGb(row.dataSizeGB) } : {}),
       ...((row.copyInHD || row.hardDriveName)?.trim() ? { copyInHD: (row.copyInHD || row.hardDriveName || '').trim() } : {}),
       ...(row.backupInHD?.trim() ? { backupInHD: row.backupInHD.trim() } : {}),
     }];
@@ -141,8 +272,8 @@ export function toPlannedRoleSlots(shoot: ShootEvent, team: TeamMember[]) {
 
 function memberId(crew: CrewMemberAssignment, team: TeamMember[]) {
   if (crew.userId && isPersistedProjectId(crew.userId)) return crew.userId;
-  if (isPersistedProjectId(crew.id) && team.some((row) => row.id === crew.id)) return crew.id;
   const name = crew.name.trim().toLowerCase();
+  if (!name) return undefined;
   return team.find((row) => row.name.trim().toLowerCase() === name)?.id;
 }
 
@@ -170,7 +301,8 @@ export function backupFromShoots(shoots: ShootEvent[], existing?: DataBackup): D
 export function toShootEvent(dto: BackendShoot): ShootEvent {
   const assignments = dto.assignments || [];
   const crew = assignments.map((row) => ({
-    id: row.id,
+    id: `slot-${row.id}`,
+    assignmentId: row.id,
     userId: row.user?.id || undefined,
     name: row.user?.fullName || row.freelancer?.fullName || '',
     role: fromCrewRole(row.role),
@@ -194,10 +326,11 @@ export function toShootEvent(dto: BackendShoot): ShootEvent {
       backupInHD: slot.backupInHD || '',
     })),
   ) : [];
-  const photographer = crew.find((row) => /photo/i.test(row.role))?.name;
-  const cinematographer = crew.find((row) => /cinema|video/i.test(row.role))?.name;
-  const drone = crew.find((row) => /drone/i.test(row.role))?.name;
-  const assistant = crew.find((row) => /assist/i.test(row.role))?.name;
+  const pickNamed = (match: (role: string) => boolean) => crew.find((row) => match(row.role))?.name;
+  const photographer = pickNamed((role) => /photo/i.test(role));
+  const cinematographer = pickNamed((role) => /cinema|video/i.test(role));
+  const drone = pickNamed((role) => /drone/i.test(role));
+  const assistant = pickNamed((role) => /assist/i.test(role));
   const date = String(dto.shootDate || '').slice(0, 10);
   return {
     id: dto.id,
@@ -237,60 +370,73 @@ export function attachShoots(projects: Project[], shoots: BackendShoot[]): Proje
       ...shoot,
       crewAssignments: (shoot.crewAssignments || []).map((crew) => ({
         ...crew,
-        ...(savedCrewData[shoot.id]?.[crew.id] || {}),
+        ...(savedCrewData[shoot.id]?.[crew.assignmentId || crew.id] || {}),
       })),
     }));
     return { ...project, shoots: nextShoots, dataBackup: backupFromShoots(nextShoots, project.dataBackup) };
   });
 }
 
-async function syncAssignments(shootId: string, shoot: ShootEvent, previous: ShootEvent | undefined, team: TeamMember[]) {
-  const next = crewRows(shoot);
-  const prev = previous ? crewRows(previous) : [];
-  const nextById = new Map(next.map((row) => [row.id, row]));
-  const replacementIds = new Set<string>();
+async function fetchShootAssignments(shootId: string, projectId: string) {
+  const listed = await shootsApi.list({ projectId, page: 1, limit: 100, sortBy: 'createdAt', sortOrder: 'asc' });
+  return listed.items.find((row) => row.id === shootId)?.assignments || [];
+}
 
-  for (const row of prev) {
-    if (!isPersistedProjectId(row.id)) continue;
-    const replacement = nextById.get(row.id);
-    const previousMemberId = memberId(row, team);
-    const nextMemberId = replacement ? memberId(replacement, team) : undefined;
-    // The assignment API intentionally never changes its userId.  When an
-    // existing slot is given to a different employee, remove its owned row
-    // and create the new employee assignment below; do not touch User records.
-    const changedMember = Boolean(replacement && previousMemberId && nextMemberId && previousMemberId !== nextMemberId);
-    if (replacement && !changedMember) continue;
+/** Reconcile API assignments to match the UI crew rows (authoritative desired state). */
+async function syncAssignments(shootId: string, shoot: ShootEvent, projectId: string, team: TeamMember[]) {
+  const next = crewRows(shoot);
+  const desiredKeys = new Set<string>();
+  for (const row of next) {
+    const userId = memberId(row, team);
+    if (userId) desiredKeys.add(crewAssignmentKey(userId, row.role));
+  }
+
+  const current = await fetchShootAssignments(shootId, projectId);
+  const remaining = new Map<string, string>();
+  for (const assignment of current) {
+    const userId = assignment.user?.id;
+    if (!userId) continue;
+    remaining.set(crewAssignmentKey(userId, fromCrewRole(assignment.role)), assignment.id);
+  }
+
+  for (const [key, assignId] of remaining) {
+    if (desiredKeys.has(key)) continue;
     try {
-      await shootsApi.removeAssignment(shootId, row.id);
-      if (replacement && changedMember) replacementIds.add(row.id);
+      await shootsApi.removeAssignment(shootId, assignId);
+      remaining.delete(key);
     } catch (error) {
       if (!(error instanceof ApiError) || error.status !== 403) throw error;
     }
   }
 
   for (const row of next) {
-    if (isPersistedProjectId(row.id) && !replacementIds.has(row.id)) continue;
     const userId = memberId(row, team);
     if (!userId) continue;
+    const key = crewAssignmentKey(userId, row.role);
+    if (remaining.has(key)) continue;
     try {
-      await shootsApi.assign(shootId, { userId, role: toCrewRole(row.role) });
+      const assigned = await shootsApi.assign(shootId, { userId, role: toCrewRole(row.role) });
+      remaining.set(key, assigned.id);
     } catch (error) {
-      // A duplicate assignee is a form error the user must resolve.  Do not
-      // swallow the API's 409 here: ProjectFormModal surfaces its exact
-      // message in an error toast.
+      if (error instanceof ApiError && error.status === 409 && error.message.includes('already assigned to this shoot in that role')) {
+        remaining.set(key, 'existing');
+        continue;
+      }
       if (!(error instanceof ApiError) || error.status !== 403) throw error;
     }
   }
 }
 
 async function syncAssignmentData(shootId: string, shoot: ShootEvent, backup?: DataBackup) {
-  const rows = crewRows(shoot).filter((row) => isPersistedProjectId(row.id));
+  const rows = crewRows(shoot);
   for (const row of rows) {
+    const assignId = assignmentRecordId(row);
+    if (!assignId) continue;
     try {
-      await shootsApi.updateAssignment(shootId, row.id, {
+      await shootsApi.updateAssignment(shootId, assignId, {
         role: toCrewRole(row.role || ''),
         dataReceived: !!row.dataReceived,
-        dataSizeGb: String(row.dataSizeGB || 0),
+        dataSizeGb: toDataSizeGb(row.dataSizeGB || 0),
         storageReference: (row.copyInHD || row.hardDriveName || '').slice(0, 160),
         notes: (row.backupInHD || '').slice(0, 2000),
       });
@@ -302,7 +448,7 @@ async function syncAssignmentData(shootId: string, shoot: ShootEvent, backup?: D
   const totalGb = mainCrew(rows).reduce((sum, row) => sum + (row.dataSizeGB || 0), 0);
   try {
     await shootsApi.update(shootId, {
-      dataSizeGb: String(totalGb),
+      dataSizeGb: toDataSizeGb(totalGb),
       ...(received ? { dataReceivedAt: shoot.dataReceivedAt || new Date().toISOString() } : {}),
       ...(backup?.hardDrive2Done ? { backupDoneAt: shoot.backupDoneAt || new Date().toISOString() } : {}),
     });
@@ -311,10 +457,15 @@ async function syncAssignmentData(shootId: string, shoot: ShootEvent, backup?: D
   }
 }
 
-async function reloadProjectShoots(project: Project, fallback: ShootEvent[]): Promise<Project> {
+async function reloadProjectShoots(project: Project, fallback: ShootEvent[], team: TeamMember[] = []): Promise<Project> {
   try {
     const listed = await shootsApi.list({ projectId: project.id, page: 1, limit: 100, sortBy: 'createdAt', sortOrder: 'asc' });
-    const shoots = listed.items.map(toShootEvent);
+    const fallbackById = new Map(fallback.map((shoot) => [shoot.id, shoot]));
+    const shoots = listed.items.map((dto) => {
+      const fresh = toShootEvent(dto);
+      const local = fallbackById.get(fresh.id);
+      return local ? mergeShootCrew(local, fresh, team) : fresh;
+    });
     return { ...project, shoots, dataBackup: backupFromShoots(shoots, project.dataBackup) };
   } catch {
     return { ...project, shoots: fallback, dataBackup: backupFromShoots(fallback, project.dataBackup) };
@@ -332,7 +483,7 @@ export async function persistShootDataHandover(project: Project): Promise<Projec
     await syncAssignmentData(shoot.id, shoot, project.dataBackup);
     nextShoots.push(shoot);
   }
-  return reloadProjectShoots(project, nextShoots);
+  return reloadProjectShoots(project, nextShoots, []);
 }
 
 /** Persist one crew handover row. Used by the RAW Data editor so one row edit
@@ -345,27 +496,37 @@ export async function persistSingleCrewDataHandover(project: Project, shootId: s
   // Planned/local slots have no assignment record yet.  They still need a
   // single request (rather than being silently skipped), so save their shoot
   // total until an assignment ID exists.
-  if (!isPersistedProjectId(crewId)) {
+  let assignmentId = crew.assignmentId || (isLocalCrewRow(crewId) ? undefined : crewId);
+  if (!assignmentId) {
+    const userId = crew.userId && isPersistedProjectId(crew.userId) ? crew.userId : undefined;
+    if (userId) {
+      try {
+        const assigned = await shootsApi.assign(shootId, { userId, role: toCrewRole(crew.role || '') });
+        assignmentId = assigned.id;
+      } catch (error) {
+        if (!(error instanceof ApiError) || error.status !== 409 || !error.message.includes('already assigned to this shoot in that role')) {
+          throw error;
+        }
+      }
+    }
     const totalGb = mainCrew(shoot.crewAssignments || []).reduce((sum, row) => sum + (row.dataSizeGB || 0), 0);
-    const plannedRoleSlots = (shoot.crewAssignments || [])
-      .filter((row) => !isPersistedProjectId(row.id))
-      .map((row) => ({
-        role: row.role || 'Team Member',
-        requiredCount: 1,
-        name: row.name || undefined,
-        mobile: row.mobile || undefined,
-        dataReceived: !!row.dataReceived,
-        dataSizeGb: String(row.dataSizeGB || 0),
-        copyInHD: (row.copyInHD || row.hardDriveName || '').slice(0, 160) || undefined,
-        backupInHD: (row.backupInHD || '').slice(0, 2000) || undefined,
-      }));
-    await shootsApi.update(shootId, { dataSizeGb: String(totalGb), plannedRoleSlots });
+    const plannedRoleSlots = toPlannedRoleSlots(shoot, []);
+    await shootsApi.update(shootId, { dataSizeGb: toDataSizeGb(totalGb), plannedRoleSlots });
+    if (userId && assignmentId) {
+      await shootsApi.updateAssignment(shootId, assignmentId, {
+        role: toCrewRole(crew.role || ''),
+        dataReceived: !!crew.dataReceived,
+        dataSizeGb: toDataSizeGb(crew.dataSizeGB || 0),
+        storageReference: (crew.copyInHD || crew.hardDriveName || '').slice(0, 160),
+        notes: (crew.backupInHD || '').slice(0, 2000),
+      });
+    }
     return project;
   }
-  await shootsApi.updateAssignment(shootId, crewId, {
+  await shootsApi.updateAssignment(shootId, assignmentId, {
     role: toCrewRole(crew.role || ''),
     dataReceived: !!crew.dataReceived,
-    dataSizeGb: String(crew.dataSizeGB || 0),
+    dataSizeGb: toDataSizeGb(crew.dataSizeGB || 0),
     storageReference: (crew.copyInHD || crew.hardDriveName || '').slice(0, 160),
     notes: (crew.backupInHD || '').slice(0, 2000),
   });
@@ -416,10 +577,20 @@ export async function persistProjectShoots(
         if (!(error instanceof ApiError) || error.status !== 403) throw error;
       }
     }
-    await syncAssignments(shootId, shoot, previousById.get(shoot.id), team);
-    await syncAssignmentData(shootId, shoot, project.dataBackup);
-    nextShoots.push({ ...shoot, id: shootId });
+    await syncAssignments(shootId, shoot, project.id, team);
+
+    let shootForData: ShootEvent = { ...shoot, id: shootId };
+    try {
+      const listed = await shootsApi.list({ projectId: project.id, page: 1, limit: 100, sortBy: 'createdAt', sortOrder: 'asc' });
+      const freshDto = listed.items.find((row) => row.id === shootId);
+      if (freshDto) shootForData = mergeShootCrew({ ...shoot, id: shootId }, toShootEvent(freshDto), team);
+    } catch {
+      // Fall back to local rows when the refresh fails.
+    }
+
+    await syncAssignmentData(shootId, shootForData, project.dataBackup);
+    nextShoots.push(shootForData);
   }
 
-  return reloadProjectShoots(project, nextShoots);
+  return reloadProjectShoots(project, nextShoots, team);
 }

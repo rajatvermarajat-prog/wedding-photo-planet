@@ -312,18 +312,32 @@ const NAMED_CREW_FIELDS: Array<{ key: keyof ShootEvent; role: string }> = [
   { key: 'assistant', role: 'Assistant' },
 ];
 
-/** The role a member is booked in for a shoot, or null when not on the crew. */
-export function getShootRoleForMember(shoot: ShootEvent, member: TeamMember): string | null {
-  const crewMatch = (shoot.crewAssignments || []).find(
-    (crew) => crew.id === member.id || sameName(crew.name, member.name)
-  );
-  if (crewMatch) return crewMatch.role || member.role || 'Crew';
+function crewMatchesMember(crew: { id?: string; userId?: string; name?: string }, member: TeamMember): boolean {
+  return crew.id === member.id || crew.userId === member.id || sameName(crew.name, member.name);
+}
+
+/** Roles a member already holds on a shoot. */
+export function getMemberRolesOnShoot(shoot: ShootEvent, member: TeamMember): string[] {
+  const roles = (shoot.crewAssignments || [])
+    .filter((crew) => crewMatchesMember(crew, member))
+    .map((crew) => crew.role || member.role || 'Crew');
 
   for (const field of NAMED_CREW_FIELDS) {
     const value = shoot[field.key];
-    if (typeof value === 'string' && sameName(value, member.name)) return field.role;
+    if (typeof value === 'string' && sameName(value, member.name) && !roles.some((role) => role.toLowerCase() === field.role.toLowerCase())) {
+      roles.push(field.role);
+    }
   }
-  return null;
+  return roles;
+}
+
+/** The role a member is booked in for a shoot, or null when not on the crew. */
+export function getShootRoleForMember(shoot: ShootEvent, member: TeamMember): string | null {
+  return getMemberRolesOnShoot(shoot, member)[0] ?? null;
+}
+
+export function memberHasRoleOnShoot(shoot: ShootEvent, member: TeamMember, role: string): boolean {
+  return getMemberRolesOnShoot(shoot, member).some((held) => held.toLowerCase() === role.toLowerCase());
 }
 
 /** Every shoot (across every project) this member is booked on. */
@@ -334,20 +348,20 @@ export function getMemberShootAssignments(
   const out: MemberShootAssignment[] = [];
   (projects || []).forEach((project) => {
     (project.shoots || []).forEach((shoot) => {
-      const role = getShootRoleForMember(shoot, member);
-      if (!role) return;
-      out.push({
-        projectId: project.id,
-        projectName: project.clientWeddingTitle || project.projectName || project.name || 'Untitled project',
-        clientMobile: project.clientContactMobile,
-        shootId: shoot.id,
-        shootTitle: shoot.title || 'Shoot',
-        date: toDateKey(shoot.date),
-        time: shoot.time,
-        venue: shoot.venue,
-        location: shoot.location || shoot.venue,
-        role,
-        shootStatus: shoot.status,
+      getMemberRolesOnShoot(shoot, member).forEach((role) => {
+        out.push({
+          projectId: project.id,
+          projectName: project.clientWeddingTitle || project.projectName || project.name || 'Untitled project',
+          clientMobile: project.clientContactMobile,
+          shootId: shoot.id,
+          shootTitle: shoot.title || 'Shoot',
+          date: toDateKey(shoot.date),
+          time: shoot.time,
+          venue: shoot.venue,
+          location: shoot.location || shoot.venue,
+          role,
+          shootStatus: shoot.status,
+        });
       });
     });
   });
@@ -745,9 +759,13 @@ export function findBookingConflicts(
   member: TeamMember,
   dateKey: string,
   projects: Project[],
-  excludeShootId?: string
+  excludeShootId?: string,
+  excludeProjectId?: string,
 ): MemberShootAssignment[] {
-  return getShootsOnDate(member, projects, dateKey).filter((a) => a.shootId !== excludeShootId);
+  return getShootsOnDate(member, projects, dateKey).filter((a) => {
+    if (excludeProjectId && a.projectId === excludeProjectId) return false;
+    return a.shootId !== excludeShootId;
+  });
 }
 
 export function hasBookingConflict(

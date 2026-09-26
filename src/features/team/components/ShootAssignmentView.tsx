@@ -54,7 +54,7 @@ import {
   getAllShoots,
   getAvailability,
   getMemberPhone,
-  getShootRoleForMember,
+  memberHasRoleOnShoot,
   getTodayDateString,
   isActiveMember,
   toDateKey,
@@ -129,14 +129,15 @@ export const ShootAssignmentView: React.FC<Props> = ({
   const addCrew = (project: Project, shoot: ShootEvent, member: TeamMember, role: string) => {
     if (!canAssign) return;
     const crew: CrewMemberAssignment = {
-      // Using the member id as the crew id links the booking back to the roster
-      // for availability, attendance and double-booking checks.
-      id: member.id,
+      id: `crew-${member.id}-${role}`,
+      userId: member.id,
       name: member.name,
       role,
       mobile: getMemberPhone(member) || undefined,
     };
-    const existing = (shoot.crewAssignments || []).filter((c) => !(c.id === member.id && c.role === role));
+    const existing = (shoot.crewAssignments || []).filter((c) => !(
+      (c.id === member.id || c.userId === member.id) && c.role.toLowerCase() === role.toLowerCase()
+    ));
     saveShoot(project, { ...shoot, crewAssignments: [...existing, crew] });
   };
 
@@ -243,8 +244,8 @@ export const ShootAssignmentView: React.FC<Props> = ({
                       ) : (
                         <ul className="flex flex-wrap gap-2">
                           {crew.map((c, idx) => {
-                            const member = team.find((m) => m.id === c.id || m.name.trim().toLowerCase() === (c.name || '').trim().toLowerCase());
-                            const conflicts = member ? findBookingConflicts(member, dateKey, projects, shoot.id) : [];
+                            const member = team.find((m) => m.id === c.id || m.id === c.userId || m.name.trim().toLowerCase() === (c.name || '').trim().toLowerCase());
+                            const conflicts = member ? findBookingConflicts(member, dateKey, projects, shoot.id, project.id) : [];
                             return (
                               <li
                                 key={`${c.id}-${c.role}-${idx}`}
@@ -382,8 +383,8 @@ const CrewPickerModal: React.FC<{
       .map((member) => ({
         member,
         availability: getAvailability(member, dateKey, attendance, projects, leaves),
-        conflicts: findBookingConflicts(member, dateKey, projects, shoot.id),
-        alreadyOnThisShoot: !!getShootRoleForMember(shoot, member),
+        conflicts: findBookingConflicts(member, dateKey, projects, shoot.id, project.id),
+        alreadyOnThisShoot: memberHasRoleOnShoot(shoot, member, role),
         roleMatch: String(member.role).toLowerCase().includes(roleWord),
       }))
       .sort((a, b) => {

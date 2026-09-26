@@ -182,8 +182,8 @@ function taskAssigneeId(task: ProjectTask, team: TeamMember[]) {
 
 function crewUserId(crew: CrewMemberAssignment, team: TeamMember[]) {
   if (crew.userId && isPersistedProjectId(crew.userId)) return crew.userId;
-  if (isPersistedProjectId(crew.id) && team.some((member) => member.id === crew.id)) return crew.id;
   const name = crew.name.trim().toLowerCase();
+  if (!name) return undefined;
   return team.find((member) => member.name.trim().toLowerCase() === name)?.id;
 }
 
@@ -248,7 +248,8 @@ export function normalizeProject(dto: ProjectDto): Project {
       const startTime = formatStoredShootTime(s.startTime);
       const endTime = formatStoredShootTime(s.endTime);
       const assignmentRows = (s.assignments || []).map((a) => ({
-        id: a.id,
+        id: `slot-${a.id}`,
+        assignmentId: a.id,
         userId: a.user?.id || undefined,
         role: a.role,
         name: a.user?.fullName || a.freelancer?.fullName || '',
@@ -356,11 +357,11 @@ export function toCreateProjectInput(project: Project, team: TeamMember[] = []):
       notes: shoot.notes || undefined,
       plannedRoleSlots: (shoot.crewAssignments || []).flatMap((crew) => {
         const role = crew.role?.trim();
-        if (!role || crewUserId(crew, team)) return [];
+        if (!role || crewUserId(crew, team) || !crew.name?.trim()) return [];
         return [{
           role,
           requiredCount: 1,
-          ...(crew.name?.trim() ? { name: crew.name.trim() } : {}),
+          name: crew.name.trim(),
           ...(crew.mobile?.trim() ? { mobile: crew.mobile.trim() } : {}),
           ...(crew.dataReceived ? { dataReceived: true } : {}),
           ...(crew.dataSizeGB ? { dataSizeGb: String(crew.dataSizeGB) } : {}),
