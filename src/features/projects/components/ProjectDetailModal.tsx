@@ -537,23 +537,6 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
     }
   };
 
-  const handleToggleScheduleStatus = (itemId: string) => {
-    const updated = paymentSchedules.map((item) => {
-      if (item.id === itemId) {
-        const nextStatus: 'pending' | 'received' | 'overdue' = item.status === 'received' ? 'pending' : 'received';
-        return { ...item, status: nextStatus };
-      }
-      return item;
-    });
-
-    setPaymentSchedules(updated);
-    onUpdateProject({
-      ...project,
-      paymentSchedule: updated,
-      ...paymentSummaryForSchedule(updated),
-    });
-  };
-
   const handleDeleteScheduleItem = (item: ScheduledPayment) => {
     if (!canManagePaymentMilestones) return;
     setGenericDeleteModal({
@@ -1843,20 +1826,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
                               <p className="text-[10px] text-slate-500 truncate italic">{item.notes}</p>
                             )}
 
-                            {canManagePaymentMilestones && <div className="flex items-center justify-between border-t border-slate-200/60 pt-2 gap-1 mt-auto">
-                              <button
-                                type="button"
-                                onClick={() => handleToggleScheduleStatus(item.id)}
-                                className={`px-2 py-1 rounded-md text-[10px] font-extrabold flex items-center gap-1 transition cursor-pointer ${
-                                  isReceived
-                                    ? 'bg-white text-emerald-700 border border-emerald-300 hover:bg-emerald-100'
-                                    : 'bg-emerald-600 text-white hover:bg-emerald-700 shadow-2xs'
-                                }`}
-                              >
-                                <CheckCircle2 className="w-3 h-3" />
-                                <span>{isReceived ? 'Mark Pending' : 'Mark Paid'}</span>
-                              </button>
-
+                            {canManagePaymentMilestones && <div className="flex items-center justify-end border-t border-slate-200/60 pt-2 gap-1 mt-auto">
                               <div className="flex items-center gap-1">
                                 <button
                                   type="button"
@@ -3753,52 +3723,6 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
                   <span>Download PDF Statement</span>
                 </button>}
               </div>
-
-              {/* Persisted schedule context belongs alongside the collection log,
-                  so the person recording a payment can see every due item. */}
-              {canViewPaymentMilestones && <div className="order-2 rounded-xl border border-slate-200 bg-slate-50 p-3.5">
-                <div className="mb-2.5 flex items-center justify-between gap-3">
-                  <div>
-                    <h5 className="text-[10px] font-extrabold uppercase tracking-wider text-slate-600">Payment Due Schedule</h5>
-                    <p className="mt-0.5 text-[11px] text-slate-500">Milestone, due date, amount, status and payment terms</p>
-                  </div>
-                  {canViewFinancials && <span className="shrink-0 rounded-md border border-red-200 bg-red-50 px-2 py-1 text-[10px] font-extrabold text-red-700">
-                    Due: ₹{balanceDue.toLocaleString('en-IN')}
-                  </span>}
-                </div>
-                {paymentSchedules.length === 0 ? (
-                  <p className="py-1 text-xs italic text-slate-400">No payment schedule defined yet.</p>
-                ) : (
-                  <div className="space-y-2">
-                    {paymentSchedules.map((item) => {
-                      const pct = project.totalBudget > 0 ? Math.round((item.amount / project.totalBudget) * 100) : 0;
-                      const statusClass = item.status === 'received'
-                        ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
-                        : item.status === 'overdue'
-                        ? 'border-red-200 bg-red-50 text-red-700'
-                        : 'border-amber-200 bg-amber-50 text-amber-700';
-                      return (
-                        <div key={item.id} className="rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-xs">
-                          <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                            <div className="min-w-0">
-                              <p className="font-extrabold text-slate-800">{item.stageName}</p>
-                              <p className="mt-1 flex items-center gap-1 text-[11px] font-medium text-slate-500">
-                                <Calendar className="size-3" /> Due: {formatDateDDMMYYYY(item.dueDate) || item.dueDate || 'TBD'}
-                              </p>
-                              {item.notes && <p className="mt-1 text-[11px] italic text-slate-500">{item.notes}</p>}
-                            </div>
-                            <div className="flex shrink-0 items-center gap-2 sm:text-right">
-                              <span className="font-mono text-sm font-black text-slate-900">₹{item.amount.toLocaleString('en-IN')}</span>
-                              <span className="rounded border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-[10px] font-bold text-slate-600">{pct}%</span>
-                              <span className={`rounded-full border px-2 py-0.5 text-[10px] font-extrabold uppercase ${statusClass}`}>{item.status}</span>
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>}
 
               {/* Add Payment Form */}
               {canRecordPayment && (
