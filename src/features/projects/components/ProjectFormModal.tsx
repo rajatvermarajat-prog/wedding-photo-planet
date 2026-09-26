@@ -19,6 +19,7 @@ import { ArrowLeft, ArrowRight, X, Save, IndianRupee, Phone, MapPin, Music, Link
 import { isPersistedProjectId } from '@/features/projects/projectViewModel';
 import { loadProjectTasks } from '@/features/projects/persistProjectTasks';
 import { shootsApi } from '@/lib/api/shoots';
+import { projectsApi } from '@/lib/api/projects';
 import { toShootEvent } from '@/features/shoots/persistShoots';
 
 function projectSaveErrorMessage(error: unknown) {
@@ -609,16 +610,20 @@ export const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
       },
     };
 
-    const autoWork = computeAutoProjectStatus(newProject);
-    newProject.status = autoWork.autoStatus;
+    if (existingProject) {
+      const autoWork = computeAutoProjectStatus(newProject);
+      newProject.status = autoWork.autoStatus;
+    }
 
     submitInFlight.current = true;
     setSaving(true);
+    let rollbackProjectId: string | undefined;
     try {
       const persistedProject = createdProjectId ? undefined : await onSave(newProject);
       const projectId = createdProjectId || (persistedProject && typeof persistedProject === 'object' && 'id' in persistedProject
         ? persistedProject.id
         : (existingProject?.id && !existingProject.id.startsWith('proj-') ? existingProject.id : undefined));
+      if (!existingProject && !createdProjectId) rollbackProjectId = projectId;
 
       // "Advance Received" is not a column on Project — every screen derives it
       // from the project's COMPLETED payments (see `normalizeProject` and the
@@ -668,6 +673,14 @@ export const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
       showToast((existingProject ? 'Project saved to the studio records.' : 'Project created and saved.') + extra);
       onClose();
     } catch (error) {
+      if (!existingProject && rollbackProjectId) {
+        try {
+          await projectsApi.remove(rollbackProjectId);
+          setCreatedProjectId(null);
+        } catch {
+          showToast('Project save failed, but the partially-created project could not be rolled back automatically. Please delete it manually.', { variant: 'error' });
+        }
+      }
       // Surface what actually failed. A generic message here is how a lost
       // advance looked like "the budget did not save".
       showToast(projectSaveErrorMessage(error), { variant: 'error' });
