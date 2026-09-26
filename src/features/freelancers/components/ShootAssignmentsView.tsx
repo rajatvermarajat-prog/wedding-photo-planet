@@ -398,8 +398,8 @@ export const ShootAssignmentsView: React.FC<ShootAssignmentsViewProps> = ({
     setSelectedFreelancerRows(updated);
   };
 
-  const checkDoubleBooking = (freelancerId: string, date: string, ignoreId?: string) => {
-    return findDateConflicts(freelancerId, date, assignments, ignoreId)[0];
+  const checkDoubleBooking = (freelancerId: string, date: string, ignoreId?: string, ignoreProjectId?: string) => {
+    return findDateConflicts(freelancerId, date, assignments, ignoreId, ignoreProjectId)[0];
   };
 
   // Quick Assign a specific Role / Member from Shoot Management
@@ -437,7 +437,7 @@ export const ShootAssignmentsView: React.FC<ShootAssignmentsViewProps> = ({
       return;
     }
 
-    const conflict = checkDoubleBooking(fl.id, shootDate);
+    const conflict = checkDoubleBooking(fl.id, shootDate, undefined, projId);
     if (conflict) {
       alert(`Freelancer is already assigned to another shoot on this date.\n\n${fl.name} — ${conflict.projectName} (${conflict.eventName || conflict.role})`);
       return;
@@ -618,7 +618,7 @@ export const ShootAssignmentsView: React.FC<ShootAssignmentsViewProps> = ({
     e.preventDefault();
 
     const conflicts = selectedFreelancerRows
-      .map((row) => ({ row, conflict: checkDoubleBooking(row.freelancerId, shootDate) }))
+      .map((row) => ({ row, conflict: checkDoubleBooking(row.freelancerId, shootDate, undefined, selectedProjectId !== 'CUSTOM' ? selectedProjectId : undefined) }))
       .filter((item) => item.conflict);
     if (conflicts.length > 0) {
       const detail = conflicts
@@ -1528,7 +1528,7 @@ export const ShootAssignmentsView: React.FC<ShootAssignmentsViewProps> = ({
                           ) : (
                             <div className="space-y-2">
                               {combinedAssignments.map((assignment) => {
-                                const isDoubleBooked = checkDoubleBooking(assignment.freelancerId, assignment.shootDate);
+                                const isDoubleBooked = checkDoubleBooking(assignment.freelancerId, assignment.shootDate, assignment.id, assignment.projectId);
                                 const matchingReq = shootMgmtCrew.find((r) => r.assignedTo?.id === assignment.id);
                                 const displayName = assignment.freelancerName;
 
@@ -1822,7 +1822,7 @@ export const ShootAssignmentsView: React.FC<ShootAssignmentsViewProps> = ({
 
                 <div className="space-y-3">
                   {selectedFreelancerRows.map((row, index) => {
-                    const isBooked = checkDoubleBooking(row.freelancerId, shootDate);
+                    const isBooked = checkDoubleBooking(row.freelancerId, shootDate, undefined, selectedProjectId !== 'CUSTOM' ? selectedProjectId : undefined);
 
                     return (
                       <div key={index} className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-xs space-y-3">

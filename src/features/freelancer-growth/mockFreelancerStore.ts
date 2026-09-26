@@ -39,7 +39,7 @@ const DEMO_FREELANCER_ACCOUNT: MockFreelancerAccount = {
   phone: '9876543210',
   city: 'Delhi',
   studioName: 'Freelancer Panel',
-  password: '1234',
+  password: 'password123',
   planId: 'pro',
   billingCycle: 'monthly',
   purchasedAt: '2026-09-25T00:00:00.000Z',

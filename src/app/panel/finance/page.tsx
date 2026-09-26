@@ -1,5 +1,5 @@
-import { FinancePage } from '@/features/freelancer-growth/FreelancerPanel';
+import { redirect } from 'next/navigation';
 
 export default function Page() {
-  return <FinancePage />;
+  redirect('/freelancer/payments');
 }

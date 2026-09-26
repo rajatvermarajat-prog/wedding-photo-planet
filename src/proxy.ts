@@ -22,8 +22,10 @@ export function proxy(request: NextRequest) {
 
   if (isPublicRoute(pathname)) {
     if (pathname === '/login' && authenticated) {
+      const target = safeReturnPath(request.nextUrl.searchParams.get('returnTo'));
+      if (target.startsWith('/freelancer/') && !freelancerAuthenticated) return NextResponse.next();
       const redirectTo = request.nextUrl.clone();
-      redirectTo.pathname = safeReturnPath(request.nextUrl.searchParams.get('returnTo'));
+      redirectTo.pathname = target;
       redirectTo.search = '';
       return NextResponse.redirect(redirectTo);
     }

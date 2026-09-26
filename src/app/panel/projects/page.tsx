@@ -1,5 +1,5 @@
-import { ProjectsPage } from '@/features/freelancer-growth/FreelancerPanel';
+import { redirect } from 'next/navigation';
 
 export default function Page() {
-  return <ProjectsPage />;
+  redirect('/freelancer/projects');
 }

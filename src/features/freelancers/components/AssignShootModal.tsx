@@ -79,7 +79,7 @@ export const AssignShootModal: React.FC<AssignShootModalProps> = ({
 
   const shoot = shoots.find((s) => s.key === shootKey);
   const freelancer = freelancers.find((f) => f.id === freelancerId);
-  const conflicts = shoot && freelancerId ? findDateConflicts(freelancerId, shoot.date, assignments) : [];
+  const conflicts = shoot && freelancerId ? findDateConflicts(freelancerId, shoot.date, assignments, undefined, shoot.projectId) : [];
   const blocked = conflicts.length > 0 && !override;
 
   const handleFreelancerChange = (id: string) => {

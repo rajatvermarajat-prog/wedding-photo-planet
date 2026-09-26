@@ -1,0 +1,114 @@
+'use client';
+
+import { FormEvent, useState } from 'react';
+import Link from 'next/link';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { Camera, Eye, EyeOff, LockKeyhole, Mail } from 'lucide-react';
+import { ApiError } from '@/lib/api/client';
+import { freelancerPortalApi } from '@/lib/api/freelancerPortal';
+import { safeReturnPath } from '@/lib/auth/routeProtection';
+
+export function FreelancerLoginPageClient() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const rawReturnTo = searchParams.get('returnTo');
+  const safeReturnTo = safeReturnPath(rawReturnTo);
+  const returnTo = safeReturnTo.startsWith('/freelancer/') ? safeReturnTo : '/freelancer/dashboard';
+  const [identifier, setIdentifier] = useState('');
+  const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [message, setMessage] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
+  const submit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setMessage('');
+    const cleanIdentifier = identifier.trim();
+    if (!cleanIdentifier || !password) {
+      setMessage('Please enter your email/mobile and password.');
+      return;
+    }
+    setSubmitting(true);
+    try {
+      await freelancerPortalApi.login({ identifier: cleanIdentifier, password });
+      router.replace(returnTo);
+    } catch (error) {
+      setMessage(error instanceof ApiError ? error.message : 'Unable to sign in. Please try again.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <main className="grid min-h-dvh place-items-center bg-[#F7F6F3] px-4 py-10 text-[#221219]">
+      <section className="w-full max-w-md rounded-2xl border border-[#DFD9D2] bg-white p-7 shadow-sm">
+        <div className="flex items-center gap-4">
+          <span className="grid size-14 place-items-center rounded-2xl bg-[#5A2F3E] text-[#D8BE93]">
+            <Camera className="size-6" />
+          </span>
+          <div>
+            <p className="text-xs font-black uppercase tracking-[.18em] text-[#8D5265]">Freelancer Portal</p>
+            <h1 className="text-3xl font-black">Sign in</h1>
+          </div>
+        </div>
+
+        <form className="mt-8 space-y-5" onSubmit={submit}>
+          <label className="block">
+            <span className="text-sm font-black text-[#5C4A52]">Email or mobile</span>
+            <span className="mt-2 flex min-h-14 items-center gap-3 rounded-xl border border-[#DFD9D2] bg-white px-4 focus-within:border-[#8D5265] focus-within:ring-4 focus-within:ring-[#F4EDEF]">
+              <Mail className="size-5 shrink-0 text-[#8D5265]" />
+              <input
+                value={identifier}
+                onChange={(event) => {
+                  setIdentifier(event.target.value);
+                  setMessage('');
+                }}
+                className="w-full bg-transparent text-base font-semibold outline-none"
+                autoComplete="username"
+              />
+            </span>
+          </label>
+
+          <label className="block">
+            <span className="text-sm font-black text-[#5C4A52]">Password</span>
+            <span className="mt-2 flex min-h-14 items-center gap-3 rounded-xl border border-[#DFD9D2] bg-white px-4 focus-within:border-[#8D5265] focus-within:ring-4 focus-within:ring-[#F4EDEF]">
+              <LockKeyhole className="size-5 shrink-0 text-[#8D5265]" />
+              <input
+                type={showPassword ? 'text' : 'password'}
+                value={password}
+                onChange={(event) => {
+                  setPassword(event.target.value);
+                  setMessage('');
+                }}
+                className="w-full bg-transparent text-base font-semibold outline-none"
+                autoComplete="current-password"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword((value) => !value)}
+                className="grid size-9 shrink-0 place-items-center rounded-full text-[#8D5265] transition hover:bg-[#F4EDEF]"
+                aria-label={showPassword ? 'Hide password' : 'Show password'}
+              >
+                {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+              </button>
+            </span>
+          </label>
+
+          {message ? <p className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-bold text-red-700">{message}</p> : null}
+
+          <button
+            type="submit"
+            disabled={submitting}
+            className="min-h-13 w-full rounded-xl bg-[#8D5265] px-5 text-base font-black text-white transition hover:bg-[#774255] disabled:opacity-60"
+          >
+            {submitting ? 'Signing in...' : 'Sign in'}
+          </button>
+        </form>
+
+        <p className="mt-6 text-center text-sm font-bold text-[#686164]">
+          New here? <Link href="/freelancers/join" className="text-[#8D5265] hover:underline">Submit an application</Link>
+        </p>
+      </section>
+    </main>
+  );
+}

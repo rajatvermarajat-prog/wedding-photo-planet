@@ -1,5 +1,5 @@
-import { ProfilePage } from '@/features/freelancer-growth/FreelancerPanel';
+import { redirect } from 'next/navigation';
 
 export default function Page() {
-  return <ProfilePage />;
+  redirect('/freelancer/profile');
 }

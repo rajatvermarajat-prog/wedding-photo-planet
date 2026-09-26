@@ -70,7 +70,7 @@ export function OnboardingPageClient() {
     setSubmitting(true);
     try {
       await freelancerPortalApi.setOnboardingPassword(token, { password, confirmPassword });
-      router.replace('/freelancer/login?onboarded=1');
+      router.replace('/freelancer/login?onboarded=1&returnTo=/freelancer/dashboard');
     } catch (failure) {
       setError(failure instanceof ApiError ? failure.message : 'Unable to create password.');
     } finally {
@@ -95,7 +95,7 @@ export function OnboardingPageClient() {
           <h1 className="mt-4 text-2xl font-black tracking-tight text-slate-900">{copy.title}</h1>
           <p className="mx-auto mt-2 max-w-md text-sm font-medium leading-6 text-slate-600">{copy.text}</p>
           <div className="mt-6 flex flex-wrap justify-center gap-2">
-            {state?.status === 'used' ? <Link className={primary} href="/freelancer/login">Go to Freelancer Login</Link> : <Link className={secondary} href="/contact"><Mail className="size-4" />{copy.action}</Link>}
+            {state?.status === 'used' ? <Link className={primary} href="/freelancer/login?returnTo=/freelancer/dashboard">Go to Freelancer Login</Link> : <Link className={secondary} href="/contact"><Mail className="size-4" />{copy.action}</Link>}
           </div>
         </section>
       </main>

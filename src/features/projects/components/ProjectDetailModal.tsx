@@ -16,7 +16,7 @@ import { firstIsoDate, isPersistedProjectId, toUpdateProjectInput } from '@/feat
 import { persistStudioProject } from '@/features/projects/persistProject';
 import { loadProjectTasks, persistProjectTasks } from '@/features/projects/persistProjectTasks';
 import { shootsApi } from '@/lib/api/shoots';
-import { toCrewRole, toPlannedRoleSlots, toShootEvent } from '@/features/shoots/persistShoots';
+import { isLocalCrewRow, toCrewRole, toShootEvent } from '@/features/shoots/persistShoots';
 import { nextIndianMobileValue } from '@/lib/validation/indianMobile';
 import { CLIENT_ASSET_ACCEPT, CLIENT_ASSET_MAX_BYTES, clientAssetsApi, uploadProjectClientAsset } from '@/lib/api/clientAssets';
 import { ApiProjectPayment, getProjectPaymentReceiptUrl, paymentMethodLabel, paymentsApi, toPaymentMethod, uploadProjectPaymentReceipt } from '@/lib/api/payments';
@@ -160,6 +160,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
 
   const [activeTab, setActiveTab] = useState<'overview' | 'vault' | 'tasks' | 'shoots' | 'data' | 'payments' | 'deliveries'>('overview');
   const latestProjectRef = useRef(project);
+  const editingShootIdRef = useRef<string | null>(null);
   const hydratedShootProjectIdsRef = useRef<Set<string>>(new Set());
   const [storageUnits, setStorageUnits] = useState<Record<string, StorageUnit>>({});
   const unitFor = (key: string): StorageUnit => storageUnits[key] || 'GB';
@@ -172,34 +173,6 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
   // this workspace from the authoritative, project-scoped endpoint so its
   // Shoots tab never depends on which global page happened to load first.
   latestProjectRef.current = project;
-
-  useEffect(() => {
-    if (!isPersistedProjectId(project.id) || !canViewShoots || (activeTab !== 'shoots' && activeTab !== 'data')) return;
-    if (hydratedShootProjectIdsRef.current.has(project.id)) return;
-    hydratedShootProjectIdsRef.current.add(project.id);
-    let active = true;
-    void shootsApi.list({
-      projectId: project.id,
-      page: 1,
-      limit: 100,
-      sortBy: 'createdAt',
-      sortOrder: 'asc',
-    }).then((result) => {
-      if (!active) return;
-      const latestProject = latestProjectRef.current;
-      if (!latestProject || latestProject.id !== project.id) return;
-      onUpdateProject({
-        ...latestProject,
-        shoots: result.items.map(toShootEvent),
-      }, { persistShoots: false });
-    }).catch(() => {
-      hydratedShootProjectIdsRef.current.delete(project.id);
-    });
-    return () => { active = false; };
-    // Project ID is the data boundary.  Depending on `project` or the update
-    // callback would turn this hydration into a render/update request loop.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [project.id, activeTab, canViewShoots]);
 
   useEffect(() => {
     if (activeTab === 'vault' && !canViewClientAssets) setActiveTab('overview');
@@ -783,6 +756,35 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
     status: 'scheduled' | 'completed' | 'cancelled';
   } | null>(null);
 
+  editingShootIdRef.current = editingEventData?.shootId ?? null;
+
+  useEffect(() => {
+    if (!isPersistedProjectId(project.id) || !canViewShoots || (activeTab !== 'shoots' && activeTab !== 'data')) return;
+    if (editingEventData?.shootId) return;
+    if (hydratedShootProjectIdsRef.current.has(project.id)) return;
+    hydratedShootProjectIdsRef.current.add(project.id);
+    let active = true;
+    void shootsApi.list({
+      projectId: project.id,
+      page: 1,
+      limit: 100,
+      sortBy: 'createdAt',
+      sortOrder: 'asc',
+    }).then((result) => {
+      if (!active || editingShootIdRef.current) return;
+      const latestProject = latestProjectRef.current;
+      if (!latestProject || latestProject.id !== project.id) return;
+      onUpdateProject({
+        ...latestProject,
+        shoots: result.items.map(toShootEvent),
+      }, { persistShoots: false });
+    }).catch(() => {
+      hydratedShootProjectIdsRef.current.delete(project.id);
+    });
+    return () => { active = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [project.id, activeTab, canViewShoots, editingEventData?.shootId]);
+
   // State for Adding Crew Slot directly in Data/Shoots tab
   const [addingCrewShootId, setAddingCrewShootId] = useState<string | null>(null);
   const [newCrewRoleInput, setNewCrewRoleInput] = useState<string>('Photographer');
@@ -1157,7 +1159,17 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
       if (s.id !== shootId) return s;
       const updatedCrew = (s.crewAssignments || []).map((c) => {
         if (c.id !== crewId) return c;
-        return { ...c, ...crewUpdates };
+        const next = { ...c, ...crewUpdates };
+        if ('userId' in crewUpdates && crewUpdates.userId !== c.userId) {
+          next.assignmentId = undefined;
+          if (!isLocalCrewRow(c.id)) {
+            next.id = `c-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+          }
+        }
+        if ('name' in crewUpdates && crewUpdates.name !== c.name && !next.userId) {
+          next.assignmentId = undefined;
+        }
+        return next;
       });
       return { ...s, crewAssignments: updatedCrew };
     });
@@ -1200,7 +1212,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
       if (crewBackupHDs) updatedHD2 = crewBackupHDs;
     }
 
-    onUpdateProject({
+    const nextProject = {
       ...project,
       shoots: updatedShoots,
       dataBackup: {
@@ -1208,7 +1220,14 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
         hardDrive1: updatedHD1,
         hardDrive2: updatedHD2,
       },
-    }, persistShoots ? { dataHandover: { shootId, crewId } } : { persistShoots: false });
+    };
+
+    onUpdateProject(
+      nextProject,
+      persistShoots
+        ? { dataHandover: { shootId, crewId } }
+        : { persistShoots: false }
+    );
   };
 
   const handleDeleteShootEvent = (shootId: string) => {
@@ -1240,25 +1259,16 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
         title: editingEventData.title.trim() || s.title,
         date: editingEventData.date.trim() || s.date,
         time: editingEventData.time.trim() || s.time,
+        startTime: editingEventData.time.trim() || s.startTime,
         venue: editingEventData.venue.trim() || s.venue,
         status: editingEventData.status || s.status || 'scheduled',
       };
     });
     const edited = updatedShoots.find((shoot) => shoot.id === editingEventData.shootId);
     if (!edited || !isPersistedProjectId(edited.id)) return;
-    void shootsApi.update(edited.id, {
-      title: edited.title,
-      ...(firstIsoDate(edited.date) ? { shootDate: firstIsoDate(edited.date) as string } : {}),
-      location: edited.venue || undefined,
-      status: edited.status === 'completed' ? 'COMPLETED' : edited.status === 'cancelled' ? 'CANCELLED' : 'SCHEDULED',
-      plannedRoleSlots: toPlannedRoleSlots(edited, activeTeamMembers),
-    }).then(() => {
-      onUpdateProject({ ...project, shoots: updatedShoots }, { persistShoots: false });
-      setEditingEventData(null);
-      showToast('Shoot details and crew allocation saved successfully.');
-    }).catch((error) => {
-      showToast(error instanceof Error ? error.message : 'Failed to save the shoot.', { variant: 'error' });
-    });
+    onUpdateProject({ ...project, shoots: updatedShoots }, { forcePersistShoots: true });
+    setEditingEventData(null);
+    showToast('Shoot details and crew allocation saved successfully.');
   };
 
   const handleAddCrewSlotToShoot = (shootId: string) => {
@@ -4080,7 +4090,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
                   type="tel"
                   inputMode="tel"
                   maxLength={20}
-                  pattern="\\+?[0-9 ()-]{7,20}"
+                  pattern="[+0-9() -]{7,20}"
                   value={editingCrewData.mobile}
                   onChange={(e) => setEditingCrewData({ ...editingCrewData, mobile: nextIndianMobileValue(e.target.value, editingCrewData.mobile) })}
                   placeholder="9876543210"

@@ -37,7 +37,10 @@ export interface PhotoPipeline {
 }
 
 export interface CrewMemberAssignment {
+  /** Stable UI slot id — never reuse a shoot-assignment uuid here. */
   id: string;
+  /** Persisted shoot_assignment record id from the API. */
+  assignmentId?: string;
   userId?: string;
   name: string;
   role: 'Photographer' | 'Videographer' | 'Cinematographer' | 'Drone Operator' | 'Assistant' | 'Candid Photographer' | 'Traditional Video' | 'Editor / Live' | string;

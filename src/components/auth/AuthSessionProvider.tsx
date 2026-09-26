@@ -4,7 +4,7 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useR
 import { usePathname } from 'next/navigation';
 import { ApiError, getAccessTokenExpiryMs, hasStoredSession, refreshSession } from '@/lib/api/client';
 import { authEvent, authTimer } from '@/lib/auth/authDebug';
-import { isPublicRoute } from '@/lib/auth/routeProtection';
+import { isFreelancerRoute, isPublicRoute } from '@/lib/auth/routeProtection';
 import { authApi, LoginInput, SessionUser } from '@/lib/api/auth';
 import { TeamMemberStatus } from '@/types';
 
@@ -112,6 +112,15 @@ export function AuthSessionProvider({ children }: { children: React.ReactNode })
       controller.abort();
     }, STARTUP_SESSION_TIMEOUT_MS);
     const restore = async () => {
+      if (isFreelancerRoute(pathname)) {
+        authEvent('STARTUP_ME_SKIPPED', {
+          source: 'AuthSessionProvider',
+          reason: 'freelancer_route',
+        });
+        transitionAuthState('unauthenticated', 'startup_freelancer_route', null);
+        setIsHydrated(true);
+        return;
+      }
       const hasSessionHint = hasStoredSession();
       if (!hasSessionHint && isPublicRoute(pathname)) {
         authEvent('STARTUP_ME_SKIPPED', {
