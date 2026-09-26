@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { Project, VideoPipeline, PhotoPipeline, ShootEvent, PaymentRecord, EditingStatus, ProjectTask, TeamMember, ClientVaultDocument, CrewMemberAssignment, DataBackup, ProjectStatus, ScheduledPayment } from '@/types';
@@ -142,6 +142,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
     can('shoots.assign_cinematographer') ||
     can('shoots.assign_freelancer');
   const canViewTasks = can('tasks.view');
+  const canViewTeamTasks = can('tasks.view_team');
   const canAddTask = can('weddings.edit') && can('tasks.create');
   const canEditTask = can('weddings.edit') && (can('tasks.edit') || can('tasks.change_status'));
   const canDeleteTask = can('weddings.edit') && can('tasks.delete');
@@ -152,6 +153,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
   const isOwner = effectiveRole === 'Owner';
   const isFullAdmin = canEditProject || canViewPayments || canViewFinancials;
   const isVideoEditor = !canEditProject && !canViewPayments && !canViewFinancials;
+  const canViewAllProjectTasks = isOwner || isFullAdmin || canViewTeamTasks || canEditTask || canAddTask || canDeleteTask;
 
   const teamQuery = useTeam({ page: 1, limit: 100 }, Boolean(project) && team.length === 0);
   const activeTeamMembers = mergeAssignees(team, teamQuery.data.map(normalizeTeamMember));
@@ -826,6 +828,27 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
   const [taskList, setTaskList] = useState<ProjectTask[]>(project.tasks || []);
   // What the API last confirmed, so a save can diff against it.
   const [savedTasks, setSavedTasks] = useState<ProjectTask[]>(project.tasks || []);
+  const currentTaskAssigneeKeys = useMemo(
+    () =>
+      [
+        currentUser?.id,
+        currentUser?.name,
+        currentUser?.email,
+      ]
+        .map((value) => String(value || '').trim().toLowerCase())
+        .filter(Boolean),
+    [currentUser?.email, currentUser?.id, currentUser?.name],
+  );
+  const isTaskAssignedToCurrentUser = (task: ProjectTask) => {
+    if (currentTaskAssigneeKeys.length === 0) return false;
+    const taskAssigneeKeys = [task.assignedToId, task.assignedTo]
+      .map((value) => String(value || '').trim().toLowerCase())
+      .filter(Boolean);
+    return taskAssigneeKeys.some((key) => currentTaskAssigneeKeys.includes(key));
+  };
+  const visibleTaskList = canViewAllProjectTasks ? taskList : taskList.filter(isTaskAssignedToCurrentUser);
+  const visibleCompletedTasks = visibleTaskList.filter((task) => task.status === 'completed');
+  const visibleTaskEmptyMessage = canViewAllProjectTasks ? 'No tasks assigned yet.' : 'No tasks assigned to you yet.';
 
   useEffect(() => {
     if (!isPersistedProjectId(project.id) || !canViewTasks || activeTab !== 'tasks') return;
@@ -1619,7 +1642,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
             }`}
           >
             <CheckSquare className="w-3.5 h-3.5" />
-            Tasks ({taskList.length})
+            Tasks ({visibleTaskList.length})
           </button>
           )}
           {(canViewPayments || canViewPaymentMilestones || canViewFinancials) && (
@@ -2213,11 +2236,11 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
                     Manage Tasks →
                   </button>
                 </div>
-                {taskList.length === 0 ? (
-                  <p className="text-[11px] text-slate-400 italic">No tasks assigned yet.</p>
+                {visibleTaskList.length === 0 ? (
+                  <p className="text-[11px] text-slate-400 italic">{visibleTaskEmptyMessage}</p>
                 ) : (
                   <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 pt-1">
-                    {taskList.map((task, i) => (
+                    {visibleTaskList.map((task, i) => (
                       <div key={i} className="p-2.5 bg-slate-50 border border-slate-200 rounded-lg flex flex-col justify-between">
                         <div className="flex items-center justify-between">
                           <span className="font-bold text-slate-800 text-xs truncate">{task.taskName || `Task #${i+1}`}</span>
@@ -2425,9 +2448,11 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
                 </div>
               </div>
 
-              {taskList.length === 0 ? (
+              {visibleTaskList.length === 0 ? (
                 <div className="p-8 text-center bg-slate-50 rounded-xl border border-dashed border-slate-300">
-                  <p className="text-xs text-slate-500 mb-2">No tasks added to this project yet.</p>
+                  <p className="text-xs text-slate-500 mb-2">
+                    {canViewAllProjectTasks ? 'No tasks added to this project yet.' : 'No tasks assigned to you yet.'}
+                  </p>
                   {canAddTask && (
                   <button
                     onClick={handleAddTask}
@@ -2439,7 +2464,10 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {taskList.map((task, index) => (
+                  {visibleTaskList.map((task) => {
+                    const index = taskList.findIndex((row) => row.id === task.id);
+                    if (index < 0) return null;
+                    return (
                     <div key={task.id || index} className="p-3.5 bg-white border border-slate-200 rounded-xl space-y-2 shadow-xs">
                       <div className="flex items-center justify-between gap-2 border-b border-slate-100 pb-2">
                         <span className="text-[11px] font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
@@ -2566,7 +2594,8 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
                         </div>
                       </div>
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -3923,13 +3952,13 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
               </div>
 
               <div className="p-3.5 rounded-xl bg-white border border-slate-200 space-y-2 text-xs shadow-xs">
-                {taskList.filter((task) => task.status === 'completed').length === 0 ? (
+                {visibleCompletedTasks.length === 0 ? (
                   <div className="p-8 text-center bg-slate-50 rounded-lg border border-dashed border-slate-200">
                     <FileCheck className="w-8 h-8 mx-auto text-slate-300 mb-2" />
                     <p className="font-medium text-slate-500">No completed task deliveries yet.</p>
                     <p className="mt-1 text-[11px] text-slate-400">Complete a project task to show it here.</p>
                   </div>
-                ) : taskList.filter((task) => task.status === 'completed').map((task) => (
+                ) : visibleCompletedTasks.map((task) => (
                   <div key={task.id} className="flex items-center justify-between gap-3 p-2.5 rounded bg-emerald-50 border border-emerald-100">
                     <div className="min-w-0 flex items-center gap-2">
                       <FileCheck className="w-4 h-4 shrink-0 text-emerald-600" />

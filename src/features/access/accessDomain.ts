@@ -169,6 +169,7 @@ export const UI_PERMISSION_ALIASES: Record<string, string> = {
   'media.view_photos': 'DELIVERY_VIEW',
   'media.view_videos': 'DELIVERY_VIEW',
   'tasks.view': 'TASK_VIEW',
+  'tasks.view_team': 'TASK_VIEW_TEAM',
   'tasks.create': 'TASK_CREATE',
   'tasks.edit': 'TASK_UPDATE',
   'tasks.change_status': 'TASK_UPDATE',
