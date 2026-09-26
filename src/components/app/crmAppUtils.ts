@@ -21,29 +21,54 @@ export function apiErrorMessage(error: unknown, fallback: string): string {
   return details?.length ? `${error.message}\n${details.join('\n')}` : error.message;
 }
 
-export function hasEmployeeAssignmentConflict(candidate: Project, projects: Project[], team: TeamMember[]) {
+const timeToMinutes = (value?: string) => {
+  const normalized = toShiftValue(value);
+  if (!normalized) return null;
+  const [hours, minutes] = normalized.split(':').map(Number);
+  return hours * 60 + minutes;
+};
+
+const hasKnownNonOverlappingTimes = (
+  a: { startTime?: string; endTime?: string },
+  b: { startTime?: string; endTime?: string },
+) => {
+  const aStart = timeToMinutes(a.startTime);
+  const aEnd = timeToMinutes(a.endTime);
+  const bStart = timeToMinutes(b.startTime);
+  const bEnd = timeToMinutes(b.endTime);
+  if (aStart === null || aEnd === null || bStart === null || bEnd === null) return false;
+  return aEnd <= bStart || bEnd <= aStart;
+};
+
+export function getEmployeeAssignmentConflict(candidate: Project, projects: Project[], team: TeamMember[]) {
   const assignments = (project: Project) => (project.shoots || []).flatMap((shoot) => {
     const date = shoot.date?.slice(0, 10);
+    const shootTitle = shoot.title || 'Shoot';
     return (shoot.crewAssignments || []).flatMap((crew) => {
       const name = crew.name?.trim();
       if (!date || !name) return [];
       const employeeId = crew.userId || team.find((member) => member.name.trim().toLowerCase() === name.toLowerCase())?.id;
-      return [{ projectId: project.id, assignmentId: crew.id, employee: employeeId || name.toLowerCase(), date }];
+      return [{ projectId: project.id, projectName: project.clientWeddingTitle || project.name || 'Project', assignmentId: crew.id, employee: employeeId || name.toLowerCase(), employeeName: name, date, shootTitle, startTime: shoot.startTime || shoot.time, endTime: shoot.endTime }];
     });
   });
 
   const nextAssignments = assignments(candidate);
   const savedAssignments = projects.flatMap(assignments);
-  return nextAssignments.some((next, index) =>
-    savedAssignments.some((saved) =>
+  for (const next of nextAssignments) {
+    const savedConflict = savedAssignments.find((saved) =>
       next.employee === saved.employee &&
       next.date === saved.date &&
+      next.projectId !== saved.projectId &&
+      !hasKnownNonOverlappingTimes(next, saved) &&
       !(next.projectId === saved.projectId && next.assignmentId === saved.assignmentId),
-    ) ||
-    nextAssignments.some((other, otherIndex) =>
-      index !== otherIndex && next.employee === other.employee && next.date === other.date,
-    ),
-  );
+    );
+    if (savedConflict) return { next, existing: savedConflict };
+  }
+  return null;
+}
+
+export function hasEmployeeAssignmentConflict(candidate: Project, projects: Project[], team: TeamMember[]) {
+  return Boolean(getEmployeeAssignmentConflict(candidate, projects, team));
 }
 
 export function isEmployeeAttendanceUser(user: { role?: string; roles?: string[] } | null): boolean {

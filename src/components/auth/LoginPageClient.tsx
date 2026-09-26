@@ -27,13 +27,19 @@ export function LoginPageClient() {
 
   const handleLogin = async (input: LoginInput) => {
     loginRedirectingRef.current = true;
+    const go = (path: string) => {
+      router.replace(path);
+      window.setTimeout(() => {
+        if (window.location.pathname + window.location.search !== path) window.location.assign(path);
+      }, 100);
+    };
     try {
       if (loginMockFreelancer(input.email, input.password)) {
-        router.replace('/panel/profile');
+        go('/panel/profile');
         return;
       }
       await login(input);
-      router.replace(returnTo);
+      go(returnTo);
     } catch (error) {
       loginRedirectingRef.current = false;
       throw error;

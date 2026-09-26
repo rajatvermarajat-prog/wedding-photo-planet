@@ -73,7 +73,7 @@ import { ToastProvider } from '@/components/common';
 import { SettingsManager } from '@/features/settings/SettingsManager';
 import { AccessDenied } from './CrmStatePanels';
 import { ROUTE_TABS, TAB_ROUTES } from './crmRoutes';
-import { apiErrorMessage, hasEmployeeAssignmentConflict, isEmployeeAttendanceUser, leaveTypeInput, normalizeLeaveRequest, toShiftValue } from './crmAppUtils';
+import { apiErrorMessage, getEmployeeAssignmentConflict, isEmployeeAttendanceUser, leaveTypeInput, normalizeLeaveRequest, toShiftValue } from './crmAppUtils';
 import { useDateInputBounds } from './useDateInputBounds';
 
 export default function App() {
@@ -508,8 +508,10 @@ export default function App() {
     } else if (!hasPermission(currentUser, accessRoles, 'weddings.create') && !hasPermission(currentUser, accessRoles, 'clients.create')) {
       return;
     }
-    if (hasEmployeeAssignmentConflict(savedProject, projects, team)) {
-      throw new Error('This employee is already assigned on this date.');
+    const assignmentConflict = getEmployeeAssignmentConflict(savedProject, projects, team);
+    if (assignmentConflict) {
+      const { next, existing } = assignmentConflict;
+      throw new Error(`${next.employeeName} is already assigned on ${existing.date} for "${existing.shootTitle}" in ${existing.projectName}.`);
     }
     const persisted = await persistStudioProject(savedProject, team);
     setProjects((prev) => {
