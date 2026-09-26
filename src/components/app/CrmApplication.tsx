@@ -1100,7 +1100,11 @@ export default function App() {
                     canUpdate={hasPermission(currentUser, accessRoles, 'tasks.change_status')}
                     onUpdate={handleUpdateTask}
                     showAttendance={hasPermission(currentUser, accessRoles, 'attendance.mark')}
-                    canViewAttendance={hasPermission(currentUser, accessRoles, 'attendance.view')}
+                    canViewAttendance={
+                      hasPermission(currentUser, accessRoles, 'attendance.view') ||
+                      hasPermission(currentUser, accessRoles, 'attendance.view_self') ||
+                      hasPermission(currentUser, accessRoles, 'attendance.mark')
+                    }
                   />
                 ) : undefined}
               />
