@@ -1,5 +1,12 @@
 import { apiRequest, hasStoredSession, setAuthTokens } from './client';
 
+const FREELANCER_SESSION_COOKIE = 'wpp_freelancer_session';
+
+function clearFreelancerSessionMarker(): void {
+  if (typeof document === 'undefined') return;
+  document.cookie = `${FREELANCER_SESSION_COOKIE}=; Path=/; Max-Age=0; SameSite=Lax`;
+}
+
 export interface SessionUser {
   id: string;
   organizationId: string;
@@ -44,6 +51,7 @@ export const authApi = {
       return;
     } finally {
       setAuthTokens(null);
+      clearFreelancerSessionMarker();
     }
   },
 };
