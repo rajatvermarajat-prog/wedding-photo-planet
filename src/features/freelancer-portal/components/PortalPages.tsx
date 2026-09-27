@@ -2,9 +2,9 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { AlertCircle, Camera, CheckCircle2, ChevronLeft, ChevronRight, Loader2, Trash2 } from 'lucide-react';
+import { AlertCircle, BriefcaseBusiness, CalendarDays, Camera, CheckCircle2, ChevronLeft, ChevronRight, Clock, Loader2, MapPin, Save, Trash2, Video } from 'lucide-react';
 import { ApiError } from '@/lib/api/client';
-import { freelancerPortalApi, AvailabilityStatus, PortalAvailability, PortalPortfolioItem } from '@/lib/api/freelancerPortal';
+import { freelancerPortalApi, AvailabilityStatus, PortalAvailability, PortalPortfolioItem, PortalShootSummary } from '@/lib/api/freelancerPortal';
 import { getFreelancerProfileCompletion } from '../profileCompletion';
 import { useFreelancerPortal } from '../useFreelancerPortal';
 import { PortalCard, PortalState } from './FreelancerPortalShell';
@@ -142,6 +142,7 @@ export function ProfilePage() {
           <div className="flex flex-wrap items-center gap-3 lg:col-span-2"><button className={btn} onClick={save} disabled={saving}>{saving ? 'Saving…' : 'Save profile'}</button>{message ? <p className="text-sm font-bold text-[#686164]">{message}</p> : null}</div>
         </div>
       </div>
+      <ProfileAvailabilityCalendar />
     </div>
   );
 }
@@ -170,6 +171,250 @@ const monthBounds = (month: Date) => {
   const last = new Date(month.getFullYear(), month.getMonth() + 1, 0);
   return { first, last, from: dateKey(first), to: dateKey(last) };
 };
+
+const dateFromIso = (value?: string | null) => {
+  if (!value) return '';
+  return value.slice(0, 10);
+};
+
+const displayDate = (value: string) => new Date(`${value}T00:00:00`).toLocaleDateString('en-IN', {
+  day: '2-digit',
+  month: 'short',
+  year: 'numeric',
+});
+
+const displayTime = (value?: string | null) => value
+  ? new Date(value).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })
+  : 'Time pending';
+
+function ProfileAvailabilityCalendar() {
+  const { data, setData } = useFreelancerPortal();
+  const today = dateKey(new Date());
+  const [month, setMonth] = useState(() => new Date());
+  const [monthAvailability, setMonthAvailability] = useState<PortalAvailability[]>([]);
+  const [monthShoots, setMonthShoots] = useState<PortalShootSummary[]>([]);
+  const [selectedDate, setSelectedDate] = useState(today);
+  const [selectedStatus, setSelectedStatus] = useState<AvailabilityStatus>('AVAILABLE');
+  const [notes, setNotes] = useState('');
+  const [loadingMonth, setLoadingMonth] = useState(false);
+  const [savingDate, setSavingDate] = useState('');
+  const [message, setMessage] = useState('');
+  const bounds = useMemo(() => monthBounds(month), [month]);
+  const availabilityByDate = useMemo(() => new Map(monthAvailability.map((item) => [dateFromIso(item.date), item])), [monthAvailability]);
+  const shootsByDate = useMemo(() => {
+    const grouped = new Map<string, PortalShootSummary[]>();
+    monthShoots.forEach((shoot) => {
+      const key = dateFromIso(shoot.shootDate);
+      if (!key) return;
+      grouped.set(key, [...(grouped.get(key) ?? []), shoot]);
+    });
+    return grouped;
+  }, [monthShoots]);
+  const selectedRecord = availabilityByDate.get(selectedDate);
+  const selectedShoots = shootsByDate.get(selectedDate) ?? [];
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoadingMonth(true);
+    setMessage('');
+    void Promise.all([
+      freelancerPortalApi.availability(`?from=${bounds.from}&to=${bounds.to}&limit=80`),
+      freelancerPortalApi.shoots(`?view=all&from=${bounds.from}&to=${bounds.to}&limit=100`),
+    ])
+      .then(([availability, shoots]) => {
+        if (cancelled) return;
+        setMonthAvailability(availability.items);
+        setMonthShoots(shoots.items);
+        if (data) {
+          setData({
+            ...data,
+            freelancer: {
+              ...data.freelancer,
+              availability: [
+                ...availability.items,
+                ...data.freelancer.availability.filter((item) => {
+                  const key = dateFromIso(item.date);
+                  return key < bounds.from || key > bounds.to;
+                }),
+              ],
+            },
+          });
+        }
+      })
+      .catch((err) => {
+        if (!cancelled) setMessage(err instanceof ApiError ? err.message : 'Unable to load calendar data.');
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingMonth(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [bounds.from, bounds.to]);
+
+  useEffect(() => {
+    const record = availabilityByDate.get(selectedDate);
+    setSelectedStatus(record?.status ?? 'AVAILABLE');
+    setNotes(record?.notes ?? '');
+  }, [selectedDate, availabilityByDate]);
+
+  const monthDays = Array.from({ length: bounds.last.getDate() }, (_, index) => new Date(bounds.first.getFullYear(), bounds.first.getMonth(), index + 1));
+  const leadingBlanks = Array.from({ length: (bounds.first.getDay() + 6) % 7 });
+  const syncRecord = (record: PortalAvailability | null, targetDate: string) => {
+    setMonthAvailability((current) => record
+      ? [record, ...current.filter((item) => dateFromIso(item.date) !== targetDate)].sort((a, b) => a.date.localeCompare(b.date))
+      : current.filter((item) => dateFromIso(item.date) !== targetDate));
+    if (data) {
+      setData({
+        ...data,
+        freelancer: {
+          ...data.freelancer,
+          availability: record
+            ? [record, ...data.freelancer.availability.filter((item) => dateFromIso(item.date) !== targetDate)]
+            : data.freelancer.availability.filter((item) => dateFromIso(item.date) !== targetDate),
+        },
+      });
+    }
+  };
+  const saveAvailability = async () => {
+    setSavingDate(selectedDate);
+    setMessage('');
+    try {
+      const saved = await freelancerPortalApi.saveAvailability({
+        date: selectedDate,
+        status: selectedStatus,
+        startTime: null,
+        endTime: null,
+        notes: notes || null,
+      });
+      syncRecord(saved, selectedDate);
+      setMessage(`Availability saved for ${displayDate(selectedDate)}.`);
+    } catch (err) {
+      setMessage(err instanceof ApiError ? err.message : 'Unable to save availability.');
+    } finally {
+      setSavingDate('');
+    }
+  };
+  const clearAvailability = async () => {
+    if (!selectedRecord) return;
+    setSavingDate(selectedDate);
+    setMessage('');
+    try {
+      await freelancerPortalApi.deleteAvailability(selectedDate);
+      syncRecord(null, selectedDate);
+      setSelectedStatus('AVAILABLE');
+      setNotes('');
+      setMessage(`Availability cleared for ${displayDate(selectedDate)}.`);
+    } catch (err) {
+      setMessage(err instanceof ApiError ? err.message : 'Unable to clear availability.');
+    } finally {
+      setSavingDate('');
+    }
+  };
+
+  return (
+    <section className="rounded-2xl border border-[#EDE8E2] bg-white p-5 shadow-sm">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <span className="grid size-11 place-items-center rounded-xl bg-[#8D5265]/10 text-[#8D5265]"><CalendarDays className="size-5" /></span>
+          <div>
+            <h2 className="text-xl font-black text-[#221219]">Availability & Shoot Calendar</h2>
+            <p className="text-sm font-semibold text-[#686164]">Manage your availability and view assigned shoots from the CRM.</p>
+          </div>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <button type="button" onClick={() => setMonth(new Date())} className="min-h-11 rounded-xl border border-[#DFD9D2] bg-white px-4 text-sm font-black text-[#5A2F3E] focus:ring-2 focus:ring-[#8D5265]/30">Today</button>
+          <button type="button" onClick={() => setMonth(new Date(month.getFullYear(), month.getMonth() - 1, 1))} className="grid size-11 place-items-center rounded-xl border border-[#DFD9D2] bg-white focus:ring-2 focus:ring-[#8D5265]/30" aria-label="Previous month"><ChevronLeft className="size-4" /></button>
+          <button type="button" onClick={() => setMonth(new Date(month.getFullYear(), month.getMonth() + 1, 1))} className="grid size-11 place-items-center rounded-xl border border-[#DFD9D2] bg-white focus:ring-2 focus:ring-[#8D5265]/30" aria-label="Next month"><ChevronRight className="size-4" /></button>
+        </div>
+      </div>
+      <div className="mt-5 grid gap-5 xl:grid-cols-[1fr_360px]">
+        <div>
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <p className="text-lg font-black">{month.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })}</p>
+            <div className="flex flex-wrap gap-2 text-[11px] font-black">
+              <span className="rounded-full border border-[#527A68]/30 bg-[#527A68]/10 px-2.5 py-1 text-[#527A68]">Available</span>
+              <span className="rounded-full border border-[#B78332]/30 bg-[#B78332]/10 px-2.5 py-1 text-[#B78332]">Partial</span>
+              <span className="rounded-full border border-[#B94A48]/30 bg-[#B94A48]/10 px-2.5 py-1 text-[#B94A48]">Unavailable</span>
+              <span className="rounded-full border border-[#8D5265]/25 bg-[#8D5265]/10 px-2.5 py-1 text-[#8D5265]">Shoot</span>
+            </div>
+          </div>
+          <div className="grid grid-cols-7 gap-1 text-center text-[10px] font-black uppercase tracking-[.08em] text-[#686164] sm:gap-2">
+            {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day) => <span key={day}>{day}</span>)}
+          </div>
+          <div className="mt-2 grid grid-cols-7 gap-1 sm:gap-2">
+            {leadingBlanks.map((_, index) => <div key={`profile-calendar-blank-${index}`} className="min-h-16 rounded-xl bg-[#F7F6F3] sm:min-h-24" />)}
+            {monthDays.map((day) => {
+              const key = dateKey(day);
+              const record = availabilityByDate.get(key);
+              const shoots = shootsByDate.get(key) ?? [];
+              const selected = key === selectedDate;
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => setSelectedDate(key)}
+                  className={`min-h-16 rounded-xl border p-2 text-left transition focus:ring-2 focus:ring-[#8D5265]/30 sm:min-h-24 ${record ? statusClass[record.status] : 'border-[#EDE8E2] bg-[#FFFEFC] text-[#221219]'} ${selected ? 'ring-2 ring-[#8D5265]/35' : ''}`}
+                >
+                  <span className="block text-sm font-black">{day.getDate()}</span>
+                  {record ? <span className="mt-1 block truncate text-[10px] font-black">{statusCopy[record.status]}</span> : null}
+                  {shoots.length ? <span className="mt-1 inline-flex max-w-full items-center gap-1 rounded-full bg-[#8D5265] px-1.5 py-0.5 text-[9px] font-black text-white"><Video className="size-3 shrink-0" />{shoots.length} shoot{shoots.length > 1 ? 's' : ''}</span> : null}
+                </button>
+              );
+            })}
+          </div>
+          {loadingMonth ? <p className="mt-4 flex items-center gap-2 text-sm font-bold text-[#686164]"><Loader2 className="size-4 animate-spin" /> Loading month calendar...</p> : null}
+        </div>
+        <aside className="rounded-2xl border border-[#EDE8E2] bg-[#fbfaf8] p-4">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-xs font-black uppercase tracking-[.12em] text-[#8D5265]">Selected date</p>
+              <h3 className="mt-1 text-xl font-black">{displayDate(selectedDate)}</h3>
+              <p className="mt-1 text-sm font-bold text-[#686164]">{selectedRecord ? statusCopy[selectedRecord.status] : 'No availability marked'}</p>
+            </div>
+            {selectedRecord ? <button type="button" onClick={clearAvailability} disabled={savingDate === selectedDate} className="grid size-10 place-items-center rounded-xl border border-[#B94A48]/30 bg-white text-[#B94A48] disabled:opacity-60" aria-label="Clear availability"><Trash2 className="size-4" /></button> : null}
+          </div>
+          <div className="mt-4 space-y-2">
+            <p className={label}>Availability</p>
+            {(['AVAILABLE', 'PARTIALLY_AVAILABLE', 'UNAVAILABLE'] as AvailabilityStatus[]).map((status) => (
+              <button
+                key={status}
+                type="button"
+                onClick={() => setSelectedStatus(status)}
+                className={`flex min-h-11 w-full items-center justify-between rounded-xl border px-3 text-sm font-black focus:ring-2 focus:ring-[#8D5265]/30 ${selectedStatus === status ? statusClass[status] : 'border-[#DFD9D2] bg-white text-[#5A2F3E]'}`}
+              >
+                {statusCopy[status]}
+                {selectedStatus === status ? <CheckCircle2 className="size-4" /> : null}
+              </button>
+            ))}
+          </div>
+          <label className="mt-4 block">
+            <span className={label}>Notes</span>
+            <textarea className={`${field} min-h-24 resize-y bg-white`} value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Notes for this date" />
+          </label>
+          <button type="button" onClick={saveAvailability} disabled={savingDate === selectedDate} className={`${btn} mt-4 w-full gap-2`}>
+            {savingDate === selectedDate ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
+            {savingDate === selectedDate ? 'Saving...' : 'Save availability'}
+          </button>
+          <div className="mt-5 border-t border-[#EDE8E2] pt-4">
+            <p className="flex items-center gap-2 text-sm font-black"><BriefcaseBusiness className="size-4 text-[#8D5265]" /> Assigned shoots</p>
+            <div className="mt-3 space-y-3">
+              {selectedShoots.length ? selectedShoots.map((shoot) => (
+                <div key={shoot.id} className="rounded-xl border border-[#EDE8E2] bg-white p-3">
+                  <p className="font-black text-[#302C2E]">{shoot.title}</p>
+                  <p className="mt-1 text-xs font-bold text-[#686164]">{shoot.project?.name ?? 'Project'} · {shoot.assignment?.role?.replaceAll('_', ' ') ?? 'Assigned crew'}</p>
+                  <p className="mt-2 flex items-center gap-1 text-xs font-bold text-[#686164]"><Clock className="size-3" /> {displayTime(shoot.startTime)}{shoot.endTime ? ` - ${displayTime(shoot.endTime)}` : ''}</p>
+                  <p className="mt-1 flex items-center gap-1 text-xs font-bold text-[#686164]"><MapPin className="size-3" /> {shoot.location || shoot.city || 'Location pending'}</p>
+                </div>
+              )) : <p className="rounded-xl border border-dashed border-[#DFD9D2] bg-white p-3 text-sm font-semibold text-[#686164]">No assigned shoot on this date.</p>}
+            </div>
+          </div>
+          {message ? <p className="mt-4 rounded-xl bg-[#F4EDEF] px-3 py-2 text-sm font-bold text-[#5A2F3E]">{message}</p> : null}
+        </aside>
+      </div>
+    </section>
+  );
+}
 
 export function AvailabilityPage() {
   const { data, setData, loading, error, reload } = useFreelancerPortal();
