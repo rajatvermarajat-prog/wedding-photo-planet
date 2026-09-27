@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { Bell, BriefcaseBusiness, CalendarDays, ClipboardList, CreditCard, Image, LayoutDashboard, LogOut, Menu, Search, UserRound, Video, WalletCards } from 'lucide-react';
 import { freelancerPortalApi } from '@/lib/api/freelancerPortal';
+import { useAuthSession } from '@/components/auth/AuthSessionProvider';
 
 const nav = [
   { href: '/freelancer/dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -24,12 +25,16 @@ const nav = [
 export function FreelancerPortalShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
+  const { logout: logoutAuthSession } = useAuthSession();
   if (pathname === '/freelancer/login' || pathname === '/freelancer/join') {
     return <>{children}</>;
   }
   const logout = async () => {
-    await freelancerPortalApi.logout();
-    router.replace('/login?returnTo=/freelancer/dashboard');
+    await Promise.allSettled([
+      freelancerPortalApi.logout(),
+      logoutAuthSession(),
+    ]);
+    router.replace('/login');
   };
 
   return (
