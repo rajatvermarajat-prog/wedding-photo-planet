@@ -543,6 +543,7 @@ export default function App() {
   ) => {
     const { persistShoots = true, forcePersistShoots = false, dataHandover } = options;
     const previousProject = projects.find((project) => project.id === updatedProject.id);
+    const notesChanged = previousProject && previousProject.specialNotesMusicPreferences !== updatedProject.specialNotesMusicPreferences;
     const movingToDelivery = updatedProject.status === 'ready_to_deliver' || updatedProject.status === 'completed';
     if (movingToDelivery) {
       const work = computeAutoProjectStatus(updatedProject);
@@ -570,6 +571,17 @@ export default function App() {
           : project));
         window.alert('Project status updated successfully.');
       })().catch((error: unknown) => window.alert(apiErrorMessage(error, 'Unable to save project status.')));
+    }
+    if (notesChanged && isPersistedProjectId(updatedProject.id)) {
+      void projectsApi.update(updatedProject.id, { notes: updatedProject.specialNotesMusicPreferences.trim() })
+        .then((dto) => {
+          const confirmed = normalizeProject(dto);
+          setProjects((prev) => prev.map((project) => project.id === updatedProject.id
+            ? { ...updatedProject, ...confirmed, shoots: updatedProject.shoots, tasks: updatedProject.tasks, payments: updatedProject.payments }
+            : project));
+          window.alert('Project notes saved successfully.');
+        })
+        .catch((error: unknown) => window.alert(apiErrorMessage(error, 'Unable to save project notes.')));
     }
     if (dataHandover) {
       // Inputs update on every keystroke. Collapse a typing burst into one

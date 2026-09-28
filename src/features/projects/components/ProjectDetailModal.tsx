@@ -167,12 +167,19 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
   const setUnitFor = (key: string, unit: StorageUnit) => setStorageUnits((current) => ({ ...current, [key]: unit }));
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showStatusMenu, setShowStatusMenu] = useState(false);
+  const [editingNotes, setEditingNotes] = useState(false);
+  const [notesDraft, setNotesDraft] = useState(project.specialNotesMusicPreferences || '');
 
   // The app-level shoot bootstrap is intentionally paginated.  A project can
   // therefore have shoots outside its first page of global results.  Hydrate
   // this workspace from the authoritative, project-scoped endpoint so its
   // Shoots tab never depends on which global page happened to load first.
   latestProjectRef.current = project;
+
+  useEffect(() => {
+    if (editingNotes) return;
+    setNotesDraft(project.specialNotesMusicPreferences || '');
+  }, [editingNotes, project.id, project.specialNotesMusicPreferences]);
 
   useEffect(() => {
     if (activeTab === 'vault' && !canViewClientAssets) setActiveTab('overview');
@@ -2223,13 +2230,63 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
 
               {/* Project Notes */}
               <div className="p-4 rounded-xl bg-white border border-slate-200 space-y-1.5 shadow-xs">
-                <h4 className="text-xs font-bold text-indigo-600 uppercase tracking-wider flex items-center gap-1.5">
-                  <Music className="w-3.5 h-3.5" />
-                  Project Notes
-                </h4>
-                <p className="text-xs text-slate-700 leading-relaxed bg-slate-50 p-3 rounded border border-slate-200 italic">
-                  {project.specialNotesMusicPreferences || 'No project notes added yet.'}
-                </p>
+                <div className="flex items-center justify-between gap-3">
+                  <h4 className="text-xs font-bold text-indigo-600 uppercase tracking-wider flex items-center gap-1.5">
+                    <Music className="w-3.5 h-3.5" />
+                    Project Notes
+                  </h4>
+                  {canEditProject && !editingNotes && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setNotesDraft(project.specialNotesMusicPreferences || '');
+                        setEditingNotes(true);
+                      }}
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[10px] font-black uppercase tracking-wider text-[#8D5265] hover:bg-rose-50"
+                    >
+                      <Pencil className="size-3.5" />
+                      Edit
+                    </button>
+                  )}
+                </div>
+                {editingNotes ? (
+                  <div className="space-y-2">
+                    <textarea
+                      value={notesDraft}
+                      onChange={(event) => setNotesDraft(event.target.value)}
+                      rows={4}
+                      className="w-full rounded border border-slate-200 bg-slate-50 p-3 text-xs font-semibold leading-relaxed text-slate-700 outline-hidden focus:border-[#8D5265] focus:ring-2 focus:ring-[#8D5265]/15"
+                      placeholder="Project notes, client preferences, music choices..."
+                    />
+                    <div className="flex justify-end gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setNotesDraft(project.specialNotesMusicPreferences || '');
+                          setEditingNotes(false);
+                        }}
+                        className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-600 hover:bg-slate-50"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          onUpdateProject({ ...project, specialNotesMusicPreferences: notesDraft.trim() });
+                          setEditingNotes(false);
+                        }}
+                        className="inline-flex items-center gap-1.5 rounded-lg bg-[#8D5265] px-3 py-2 text-xs font-black text-white shadow-sm hover:bg-[#73384d]"
+                      >
+                        <Save className="size-3.5" />
+                        Save Notes
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-xs text-slate-700 leading-relaxed bg-slate-50 p-3 rounded border border-slate-200 italic whitespace-pre-wrap">
+                    {project.specialNotesMusicPreferences || 'No project notes added yet.'}
+                  </p>
+                )}
               </div>
 
               {/* Tasks Summary */}
