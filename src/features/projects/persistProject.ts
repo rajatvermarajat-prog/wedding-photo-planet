@@ -3,6 +3,7 @@ import { projectsApi } from '@/lib/api/projects';
 import type { Project, TeamMember } from '@/types';
 import { FREELANCER_ASSIGNEE, UNASSIGNED_ASSIGNEE } from './assigneeOptions';
 import { isPersistedProjectId, normalizeProject, toBackendProjectStatus, toCreateProjectInput, toUpdateProjectInput } from './projectViewModel';
+import { projectStatusChangeSteps } from './projectStatusFlow';
 import { usersApi } from '@/lib/api/users';
 import { normalizeTeamMember } from '@/features/team/teamViewModel';
 import { loadProjectTasks, persistProjectTasks } from './persistProjectTasks';
@@ -41,7 +42,11 @@ export async function persistStudioProject(project: Project, team: TeamMember[] 
       });
     }
     const targetStatus = toBackendProjectStatus(project.status);
-    if (dto.status !== targetStatus) await projectsApi.changeStatus(base.id, { status: targetStatus });
+    if (dto.status !== targetStatus) {
+      for (const status of projectStatusChangeSteps(dto.status, project.status)) {
+        await projectsApi.changeStatus(base.id, { status });
+      }
+    }
     const [tasks, shoots] = await Promise.all([
       persistProjectTasks(base.id, project.tasks || [], previousTasks, roster),
       persistProjectShoots(base, { ...base, shoots: previousShoots }, roster),

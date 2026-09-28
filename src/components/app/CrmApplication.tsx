@@ -37,6 +37,7 @@ import { normalizeTeamMember } from '@/features/team/teamViewModel';
 import { normalizeAttendance } from '@/features/attendance/attendanceViewModel';
 import { rbacApi } from '@/lib/api/rbac';
 import { isPersistedProjectId, normalizeProject, toBackendProjectStatus } from '@/features/projects/projectViewModel';
+import { projectStatusChangeSteps } from '@/features/projects/projectStatusFlow';
 import { projectsApi } from '@/lib/api/projects';
 import { persistStudioProject } from '@/features/projects/persistProject';
 import { attachShoots, persistProjectShoots, persistSingleCrewDataHandover } from '@/features/shoots/persistShoots';
@@ -76,6 +77,7 @@ import { AccessDenied } from './CrmStatePanels';
 import { ROUTE_TABS, TAB_ROUTES } from './crmRoutes';
 import { apiErrorMessage, getEmployeeAssignmentConflict, isEmployeeAttendanceUser, leaveTypeInput, normalizeLeaveRequest, toShiftValue } from './crmAppUtils';
 import { useDateInputBounds } from './useDateInputBounds';
+import { computeAutoProjectStatus } from '@/utils/projectStatusCalculator';
 
 export default function App() {
   useDateInputBounds();
@@ -541,6 +543,14 @@ export default function App() {
   ) => {
     const { persistShoots = true, forcePersistShoots = false, dataHandover } = options;
     const previousProject = projects.find((project) => project.id === updatedProject.id);
+    const movingToDelivery = updatedProject.status === 'ready_to_deliver' || updatedProject.status === 'completed';
+    if (movingToDelivery) {
+      const work = computeAutoProjectStatus(updatedProject);
+      if (work.pendingItems > 0 || work.inProgressItems > 0) {
+        window.alert(`Abhi ${work.pendingItems + work.inProgressItems} task pending hai. Delivery me move karne se pehle saare tasks complete karo.`);
+        return;
+      }
+    }
     setProjects((prev) => prev.map((p) => (p.id === updatedProject.id ? updatedProject : p)));
     const statusChanged = previousProject && (
       previousProject.status !== updatedProject.status || previousProject.isUrgent !== updatedProject.isUrgent
@@ -550,12 +560,15 @@ export default function App() {
         let dto = await projectsApi.update(updatedProject.id, { isUrgent: Boolean(updatedProject.isUrgent) });
         const targetStatus = toBackendProjectStatus(updatedProject.status);
         if (updatedProject.status !== 'urgent' && dto.status !== targetStatus) {
-          dto = await projectsApi.changeStatus(updatedProject.id, { status: targetStatus });
+          for (const status of projectStatusChangeSteps(dto.status, updatedProject.status)) {
+            dto = await projectsApi.changeStatus(updatedProject.id, { status });
+          }
         }
         const confirmed = normalizeProject(dto);
         setProjects((prev) => prev.map((project) => project.id === updatedProject.id
           ? { ...updatedProject, ...confirmed, shoots: updatedProject.shoots, tasks: updatedProject.tasks, payments: updatedProject.payments }
           : project));
+        window.alert('Project status updated successfully.');
       })().catch((error: unknown) => window.alert(apiErrorMessage(error, 'Unable to save project status.')));
     }
     if (dataHandover) {
