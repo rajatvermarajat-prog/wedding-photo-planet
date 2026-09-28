@@ -1,9 +1,9 @@
 'use client';
 
 import React, { useEffect, useMemo, useState } from 'react';
-import { BriefcaseBusiness, CalendarDays, CheckCircle2, Eye, Loader2, MapPin, Search, SlidersHorizontal, UserPlus, X } from 'lucide-react';
+import { BriefcaseBusiness, CalendarDays, CheckCircle2, Eye, IndianRupee, Loader2, Mail, MapPin, Phone, Search, SlidersHorizontal, UserPlus, X } from 'lucide-react';
 import { ApiError } from '@/lib/api/client';
-import { BackendCrewRole, FreelancerConnection, FreelancerSearchResult, freelancersApi } from '@/lib/api/freelancers';
+import { BackendCrewRole, BackendFreelancer, FreelancerAvailabilityRecord, FreelancerConnection, FreelancerPortfolioRecord, FreelancerSearchResult, freelancersApi } from '@/lib/api/freelancers';
 import { Project } from '@/types';
 import { BTN_GHOST, BTN_PRIMARY, CARD, FIELD, LABEL } from '@/features/team/components/TeamUiKit';
 import { useToast } from '@/components/common';
@@ -11,6 +11,15 @@ import { useToast } from '@/components/common';
 const roles: BackendCrewRole[] = ['LEAD_PHOTOGRAPHER', 'CANDID_PHOTOGRAPHER', 'TRADITIONAL_PHOTOGRAPHER', 'CINEMATOGRAPHER', 'TRADITIONAL_VIDEOGRAPHER', 'DRONE_OPERATOR', 'ASSISTANT', 'LIGHT_ASSISTANT', 'LIVE_EDITOR', 'COORDINATOR', 'OTHER'];
 type AvailabilityFilter = 'AVAILABLE' | 'PARTIALLY_AVAILABLE' | 'UNAVAILABLE';
 const roleLabel = (role?: string | null) => (role || 'OTHER').replaceAll('_', ' ').toLowerCase().replace(/\b\w/g, (m) => m.toUpperCase());
+const connectionActionLabel = (status: FreelancerConnection['status']) => {
+  if (status === 'ACCEPTED') return 'Connect';
+  if (status === 'CONTACTED') return 'Request Sent';
+  if (status === 'ASSIGNED') return 'Connected';
+  if (status === 'DECLINED') return 'Declined';
+  return 'Send Request';
+};
+const canOpenConnectionDialog = (status: FreelancerConnection['status']) => status === 'INTERESTED' || status === 'ACCEPTED';
+const pipelineStatuses: FreelancerConnection['status'][] = ['INTERESTED', 'CONTACTED', 'ACCEPTED'];
 
 type Mode = 'find' | 'interested';
 
@@ -61,8 +70,8 @@ export function FreelancerMarketplaceView({ mode, projects }: Props) {
   const loadInterested = async () => {
     setLoading(true);
     try {
-      const response = await freelancersApi.listConnections({ status: 'INTERESTED', limit: 50 });
-      setConnections(response.data);
+      const response = await freelancersApi.listConnections({ limit: 100 });
+      setConnections(response.data.filter((item) => pipelineStatuses.includes(item.status)));
     } catch (error) {
       showToast(error instanceof ApiError ? error.message : 'Unable to load interested freelancers.', { variant: 'error' });
     } finally {
@@ -136,20 +145,35 @@ export function FreelancerMarketplaceView({ mode, projects }: Props) {
       ) : (
         <>
           <section className={`${CARD} p-4`}>
-            <h2 className="text-base font-black uppercase tracking-wide text-slate-900">Interested</h2>
-            <p className="text-xs font-medium text-slate-500">Freelancers marked for follow-up before project or shoot assignment.</p>
+            <h2 className="text-base font-black uppercase tracking-wide text-slate-900">Approval Pipeline</h2>
+            <p className="text-xs font-medium text-slate-500">Interested, requested and accepted freelancers stay here until they are connected or removed.</p>
           </section>
-          {loading ? <Skeleton /> : connections.length === 0 ? <Empty title="You haven't marked any freelancers as interested yet." /> : (
+          {loading ? <Skeleton /> : connections.length === 0 ? <Empty title="No freelancers waiting in the approval pipeline." /> : (
             <div className="space-y-2">
               {connections.map((connection) => (
                 <article key={connection.id} className={`${CARD} flex flex-col gap-3 p-4 md:flex-row md:items-center md:justify-between`}>
                   <div>
                     <p className="font-black text-slate-900">{connection.freelancer?.fullName || 'Freelancer'}</p>
                     <p className="text-xs font-bold text-[#8D5265]">{roleLabel(connection.freelancer?.primarySkill)} · {connection.freelancer?.city || 'Location not set'}</p>
+                    <p className="mt-1 text-xs font-medium text-slate-500">{connection.project?.name ? `Project: ${connection.project.name}` : 'No project selected yet'} · {connection.status}</p>
                     <p className="mt-1 text-xs font-medium text-slate-500">Interested on {new Date(connection.createdAt).toLocaleDateString()}</p>
                   </div>
                   <div className="flex flex-wrap gap-2">
-                    <button type="button" className={BTN_GHOST} onClick={() => setConnecting(connection)}><BriefcaseBusiness className="size-3.5" /> Connect</button>
+                    {connection.freelancer ? <button type="button" className={BTN_GHOST} onClick={() => setSelected({
+                      id: connection.freelancer!.id,
+                      code: connection.freelancer!.code,
+                      displayName: connection.freelancer!.fullName,
+                      city: connection.freelancer!.city,
+                      specialization: connection.freelancer!.primarySkill,
+                      experienceYears: null,
+                      skills: [],
+                      searchable: true,
+                      availability: null,
+                      portfolioCount: 0,
+                      portfolioPreview: [],
+                      connection,
+                    })}><Eye className="size-3.5" /> View Profile</button> : null}
+                    <button type="button" className={BTN_GHOST} disabled={!canOpenConnectionDialog(connection.status)} onClick={() => setConnecting(connection)}><BriefcaseBusiness className="size-3.5" /> {connectionActionLabel(connection.status)}</button>
                     <button type="button" className={BTN_GHOST} onClick={async () => { await freelancersApi.updateConnection(connection.id, { status: 'EXPIRED' }); setConnections((items) => items.filter((item) => item.id !== connection.id)); }}><X className="size-3.5" /> Remove</button>
                   </div>
                 </article>
@@ -159,7 +183,7 @@ export function FreelancerMarketplaceView({ mode, projects }: Props) {
         </>
       )}
       {selected && <ProfileDrawer freelancer={selected} onClose={() => setSelected(null)} onInterested={() => markInterested(selected)} busy={mutatingId === selected.id} />}
-      {connecting && <ConnectDialog connection={connecting} projects={projects} onClose={() => setConnecting(null)} onConnected={(updated) => { setConnections((items) => items.map((item) => item.id === updated.id ? updated : item)); setConnecting(null); showToast('Freelancer connected to project'); }} />}
+      {connecting && <ConnectDialog connection={connecting} projects={projects} onClose={() => setConnecting(null)} onConnected={(updated) => { setConnections((items) => items.map((item) => item.id === updated.id ? updated : item)); setConnecting(null); showToast(updated.status === 'CONTACTED' ? 'Approval request sent to freelancer' : 'Freelancer connected to project'); }} />}
     </div>
   );
 }
@@ -186,22 +210,73 @@ function FreelancerCard({ freelancer, interested, busy, onView, onInterested }: 
 }
 
 function ProfileDrawer({ freelancer, busy, onClose, onInterested }: { freelancer: FreelancerSearchResult; busy: boolean; onClose: () => void; onInterested: () => void }) {
+  const { showToast } = useToast();
+  const [details, setDetails] = useState<BackendFreelancer | null>(null);
+  const [availability, setAvailability] = useState<FreelancerAvailabilityRecord[]>([]);
+  const [portfolio, setPortfolio] = useState<FreelancerPortfolioRecord[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    void Promise.all([
+      freelancersApi.get(freelancer.id),
+      freelancersApi.availability(freelancer.id, { limit: 10 }),
+      freelancersApi.portfolio(freelancer.id),
+    ])
+      .then(([profile, availabilityResponse, portfolioItems]) => {
+        if (cancelled) return;
+        setDetails(profile);
+        setAvailability(availabilityResponse.data);
+        setPortfolio(portfolioItems);
+      })
+      .catch((error) => {
+        if (!cancelled) showToast(error instanceof ApiError ? error.message : 'Unable to load freelancer profile.', { variant: 'error' });
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [freelancer.id, showToast]);
+
+  const profile = details;
+  const name = profile?.fullName ?? freelancer.displayName;
+  const skill = profile?.primarySkill ?? freelancer.specialization;
+  const city = profile?.city ?? freelancer.city;
+  const publishedPortfolio = portfolio.filter((item) => item.isPublished);
+  const rate = Number(profile?.rate ?? 0);
+  const availabilityRows = availability.length ? availability : freelancer.availability ? [freelancer.availability as FreelancerAvailabilityRecord] : [];
+
   return (
     <div className="fixed inset-0 z-[90] flex justify-end bg-[#24171c]/60 p-3 backdrop-blur-sm">
-      <aside className="h-full w-full max-w-xl overflow-y-auto rounded-2xl bg-white p-5 shadow-2xl">
+      <aside className="h-full w-full max-w-2xl overflow-y-auto rounded-2xl bg-white p-5 shadow-2xl">
         <div className="flex items-start justify-between gap-3">
-          <div><h3 className="text-xl font-black text-slate-900">{freelancer.displayName}</h3><p className="text-sm font-bold text-[#8D5265]">{roleLabel(freelancer.specialization)} · {freelancer.city || 'Location not set'}</p></div>
+          <div><h3 className="text-2xl font-black text-slate-900">{name}</h3><p className="text-sm font-bold text-[#8D5265]">{roleLabel(skill)} · {city || 'Location not set'}</p></div>
           <button className={BTN_GHOST} onClick={onClose} aria-label="Close profile"><X className="size-4" /></button>
         </div>
-        <div className="mt-5 grid gap-4">
-          <section><h4 className="text-xs font-black uppercase tracking-wide text-slate-500">Professional</h4><p className="mt-2 text-sm font-medium text-slate-700">{freelancer.experienceYears ?? 0} years experience. Skills: {freelancer.skills.join(', ') || 'Not provided'}.</p></section>
-          <section><h4 className="text-xs font-black uppercase tracking-wide text-slate-500">Portfolio</h4><div className="mt-2 grid gap-2">{freelancer.portfolioPreview.length ? freelancer.portfolioPreview.map((item) => <div key={item.id} className="rounded-xl border border-[#eee7e2] p-3 text-sm font-bold text-slate-700">{item.title}<span className="ml-2 text-xs font-medium text-slate-400">{item.fileObject?.originalName}</span></div>) : <p className="text-sm font-medium text-slate-500">No published portfolio preview.</p>}</div></section>
-          <section><h4 className="text-xs font-black uppercase tracking-wide text-slate-500">Availability</h4><p className="mt-2 text-sm font-medium text-slate-700">{freelancer.availability ? `${freelancer.availability.status.replaceAll('_', ' ')} on ${new Date(freelancer.availability.date).toLocaleDateString()}` : 'No relevant availability record.'}</p></section>
-        </div>
-        <div className="mt-6 flex justify-end gap-2"><button className={BTN_PRIMARY} disabled={busy || Boolean(freelancer.connection)} onClick={onInterested}>{busy ? <Loader2 className="size-4 animate-spin" /> : <UserPlus className="size-4" />} Interested</button></div>
+        {loading ? <div className="mt-8 flex items-center gap-2 text-sm font-bold text-slate-500"><Loader2 className="size-4 animate-spin" /> Loading full profile...</div> : (
+          <div className="mt-5 grid gap-4">
+            <section className="grid gap-3 rounded-2xl border border-[#eee7e2] bg-[#fbfaf8] p-4 sm:grid-cols-2">
+              <InfoLine icon={<Phone className="size-4" />} label="Phone" value={profile?.phone || 'Not provided'} />
+              <InfoLine icon={<Mail className="size-4" />} label="Email" value={profile?.email || 'Not provided'} />
+              <InfoLine icon={<MapPin className="size-4" />} label="City" value={city || 'Not provided'} />
+              <InfoLine icon={<IndianRupee className="size-4" />} label="Rate" value={rate ? `₹${rate.toLocaleString('en-IN')} · ${profile?.rateType?.replaceAll('_', ' ')}` : 'Not provided'} />
+            </section>
+            <section><h4 className="text-xs font-black uppercase tracking-wide text-slate-500">Professional</h4><p className="mt-2 text-sm font-medium leading-6 text-slate-700">{profile?.experienceYears ?? freelancer.experienceYears ?? 0} years experience. Skills: {(profile?.skills?.length ? profile.skills : freelancer.skills).join(', ') || 'Not provided'}.</p>{profile?.equipmentNotes ? <p className="mt-2 whitespace-pre-wrap text-sm font-medium leading-6 text-slate-700">{profile.equipmentNotes}</p> : null}{profile?.notes ? <p className="mt-2 whitespace-pre-wrap rounded-xl bg-[#fbfaf8] p-3 text-sm font-medium leading-6 text-slate-700">{profile.notes}</p> : null}</section>
+            <section><h4 className="text-xs font-black uppercase tracking-wide text-slate-500">Portfolio</h4><div className="mt-2 grid gap-2">{publishedPortfolio.length ? publishedPortfolio.map((item) => <div key={item.id} className="rounded-xl border border-[#eee7e2] p-3 text-sm font-bold text-slate-700">{item.title}<span className="ml-2 text-xs font-medium text-slate-400">{item.category || item.fileObject?.originalName}</span>{item.description ? <p className="mt-1 text-xs font-medium text-slate-500">{item.description}</p> : null}</div>) : <p className="text-sm font-medium text-slate-500">No published portfolio preview.</p>}</div></section>
+            <section><h4 className="text-xs font-black uppercase tracking-wide text-slate-500">Availability</h4><div className="mt-2 grid gap-2">{availabilityRows.length ? availabilityRows.map((item) => <div key={item.id} className="rounded-xl border border-[#eee7e2] p-3 text-sm font-bold text-slate-700">{item.status.replaceAll('_', ' ')} · {new Date(item.date).toLocaleDateString()} {item.notes ? <span className="font-medium text-slate-500">· {item.notes}</span> : null}</div>) : <p className="text-sm font-medium text-slate-500">No relevant availability record.</p>}</div></section>
+          </div>
+        )}
+        <div className="mt-6 flex justify-end gap-2"><button className={BTN_PRIMARY} disabled={busy || Boolean(freelancer.connection)} onClick={onInterested}>{busy ? <Loader2 className="size-4 animate-spin" /> : <UserPlus className="size-4" />} {freelancer.connection ? 'Interested' : 'Mark Interested'}</button></div>
       </aside>
     </div>
   );
+}
+
+function InfoLine({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
+  return <div className="flex items-start gap-2 text-sm"><span className="mt-0.5 text-[#8D5265]">{icon}</span><div><p className="text-[11px] font-black uppercase tracking-wide text-slate-500">{label}</p><p className="font-bold text-slate-800">{value}</p></div></div>;
 }
 
 function ConnectDialog({ connection, projects, onClose, onConnected }: { connection: FreelancerConnection; projects: Project[]; onClose: () => void; onConnected: (connection: FreelancerConnection) => void }) {
@@ -212,6 +287,7 @@ function ConnectDialog({ connection, projects, onClose, onConnected }: { connect
   const [saving, setSaving] = useState(false);
   const project = projects.find((item) => item.id === projectId);
   const shoots = project?.shoots || [];
+  const requestingApproval = connection.status !== 'ACCEPTED';
   const submit = async () => {
     if (!projectId) return;
     setSaving(true);
@@ -227,14 +303,17 @@ function ConnectDialog({ connection, projects, onClose, onConnected }: { connect
   return (
     <div className="fixed inset-0 z-[95] grid place-items-center bg-[#24171c]/60 p-4 backdrop-blur-sm">
       <section className="w-full max-w-lg rounded-2xl bg-white p-5 shadow-2xl">
-        <h3 className="text-lg font-black text-slate-900">Connect Freelancer</h3>
+        <h3 className="text-lg font-black text-slate-900">{requestingApproval ? 'Send Approval Request' : 'Connect Freelancer'}</h3>
         <p className="text-sm font-medium text-slate-500">{connection.freelancer?.fullName}</p>
+        <p className="mt-2 rounded-xl bg-[#fbfaf8] px-3 py-2 text-xs font-bold text-slate-600">
+          {requestingApproval ? 'This will appear in the freelancer panel for approval. Assignment will be locked until they accept.' : 'Freelancer has accepted. You can now connect them to this project or shoot.'}
+        </p>
         <div className="mt-4 grid gap-3">
           <label><span className={LABEL}>Project</span><select className={FIELD} value={projectId} onChange={(event) => { setProjectId(event.target.value); setShootId(''); }}><option value="">Select project</option>{projects.map((item) => <option key={item.id} value={item.id}>{item.projectName || item.name || item.clientWeddingTitle}</option>)}</select></label>
           <label><span className={LABEL}>Shoot</span><select className={FIELD} value={shootId} onChange={(event) => setShootId(event.target.value)} disabled={!projectId}><option value="">Project connection only</option>{shoots.map((shoot) => <option key={shoot.id} value={shoot.id}>{shoot.title} · {shoot.date}</option>)}</select></label>
           <label><span className={LABEL}>Role</span><select className={FIELD} value={role} onChange={(event) => setRole(event.target.value as BackendCrewRole)}>{roles.map((item) => <option key={item} value={item}>{roleLabel(item)}</option>)}</select></label>
         </div>
-        <div className="mt-5 flex justify-end gap-2"><button className={BTN_GHOST} onClick={onClose}>Cancel</button><button className={BTN_PRIMARY} disabled={!projectId || saving} onClick={submit}>{saving ? <Loader2 className="size-4 animate-spin" /> : <CheckCircle2 className="size-4" />} Confirm</button></div>
+        <div className="mt-5 flex justify-end gap-2"><button className={BTN_GHOST} onClick={onClose}>Cancel</button><button className={BTN_PRIMARY} disabled={!projectId || saving} onClick={submit}>{saving ? <Loader2 className="size-4 animate-spin" /> : <CheckCircle2 className="size-4" />} {requestingApproval ? 'Send Request' : 'Confirm Connect'}</button></div>
       </section>
     </div>
   );

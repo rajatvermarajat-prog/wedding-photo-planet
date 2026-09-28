@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { AlertCircle, BriefcaseBusiness, CalendarDays, Camera, CheckCircle2, ChevronLeft, ChevronRight, Clock, Loader2, MapPin, Save, Trash2, Video } from 'lucide-react';
+import { AlertCircle, BriefcaseBusiness, CalendarDays, Camera, CheckCircle2, ChevronLeft, ChevronRight, Clock, Loader2, MapPin, Save, Trash2, Video, X } from 'lucide-react';
 import { ApiError } from '@/lib/api/client';
 import { freelancerPortalApi, AvailabilityStatus, PortalAvailability, PortalPortfolioItem, PortalShootSummary } from '@/lib/api/freelancerPortal';
 import { getFreelancerProfileCompletion } from '../profileCompletion';
@@ -665,10 +665,76 @@ export function SubscriptionPage() {
 }
 
 export function SimplePortalListPage({ kind }: { kind: 'connections' | 'assignments' | 'payments' }) {
-  const { data, loading, error, reload } = useFreelancerPortal();
+  const { data, setData, loading, error, reload } = useFreelancerPortal();
+  const [savingId, setSavingId] = useState('');
+  const [message, setMessage] = useState('');
   if (loading) return <LoadingState />;
   if (error || !data) return <ErrorState text={error || 'No data loaded.'} retry={reload} />;
   const items = kind === 'connections' ? data.freelancer.connections : kind === 'assignments' ? data.freelancer.assignments : data.freelancer.payouts;
+  const respond = async (id: string, status: 'ACCEPTED' | 'DECLINED') => {
+    setSavingId(id);
+    setMessage('');
+    try {
+      const updated = await freelancerPortalApi.respondToConnection(id, { status });
+      setData({
+        ...data,
+        freelancer: {
+          ...data.freelancer,
+          connections: data.freelancer.connections.map((item) => item.id === id ? updated : item),
+        },
+      });
+      setMessage(status === 'ACCEPTED' ? 'Project interest accepted.' : 'Project interest declined.');
+    } catch (err) {
+      setMessage(err instanceof ApiError ? err.message : 'Unable to update this connection.');
+    } finally {
+      setSavingId('');
+    }
+  };
+  if (kind === 'connections') {
+    return (
+      <div className="space-y-5">
+        <h1 className="text-3xl font-black">My Vendors</h1>
+        {message ? <p className="rounded-xl bg-[#F4EDEF] px-4 py-3 text-sm font-bold text-[#5A2F3E]">{message}</p> : null}
+        {data.freelancer.connections.length ? data.freelancer.connections.map((connection) => {
+          const canRespond = ['INTERESTED', 'CONTACTED'].includes(connection.status);
+          const statusText = connection.status === 'ACCEPTED'
+            ? 'You accepted this request. Studio can now connect you to the selected project or shoot.'
+            : connection.status === 'DECLINED'
+              ? 'You declined this request.'
+              : connection.status === 'ASSIGNED'
+                ? 'Studio connected you to this work.'
+                : 'Review this studio request and accept or decline it.';
+          return (
+            <PortalCard key={connection.id}>
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                <div>
+                  <p className="text-xs font-black uppercase tracking-[.14em] text-[#8D5265]">{connection.status.replaceAll('_', ' ')}</p>
+                  <h2 className="mt-1 text-xl font-black">{connection.project?.name ?? 'Studio interest'}</h2>
+                  <p className="mt-1 text-sm font-bold text-[#686164]">{connection.project?.projectNumber ?? 'Project not selected yet'}</p>
+                  {connection.shoot ? <p className="mt-2 text-sm font-bold text-[#686164]">{connection.shoot.title} · {new Date(connection.shoot.shootDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</p> : null}
+                  {connection.createdBy?.fullName ? <p className="mt-2 text-xs font-bold text-[#686164]">From: {connection.createdBy.fullName}</p> : null}
+                  <p className="mt-3 rounded-xl bg-[#fbfaf8] p-3 text-sm font-bold leading-6 text-[#686164]">{statusText}</p>
+                  {connection.notes ? <p className="mt-3 whitespace-pre-wrap rounded-xl bg-[#fbfaf8] p-3 text-sm font-semibold leading-6 text-[#686164]">{connection.notes}</p> : null}
+                </div>
+                {canRespond ? (
+                  <div className="flex shrink-0 flex-wrap gap-2">
+                    <button type="button" onClick={() => void respond(connection.id, 'ACCEPTED')} disabled={savingId === connection.id} className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-[#527A68] px-4 text-sm font-black text-white disabled:opacity-60">
+                      {savingId === connection.id ? <Loader2 className="size-4 animate-spin" /> : <CheckCircle2 className="size-4" />}
+                      Accept
+                    </button>
+                    <button type="button" onClick={() => void respond(connection.id, 'DECLINED')} disabled={savingId === connection.id} className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-[#B94A48]/30 bg-white px-4 text-sm font-black text-[#B94A48] disabled:opacity-60">
+                      <X className="size-4" />
+                      Decline
+                    </button>
+                  </div>
+                ) : null}
+              </div>
+            </PortalCard>
+          );
+        }) : <PortalState title="No vendor/project interests yet" text="Studio project interests will appear here. You can accept or decline them from this panel." />}
+      </div>
+    );
+  }
   return (
     <div className="space-y-5">
       <h1 className="text-3xl font-black capitalize">{kind}</h1>

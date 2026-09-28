@@ -248,7 +248,6 @@ export const FreelancerTeamManager: React.FC<FreelancerTeamManagerProps> = (prop
               <Icon className="size-3.5" />
               {label}
               {id === 'all_freelancers' && <span className="text-[10px] font-black opacity-60">({freelancers.length})</span>}
-              {id === 'interested' && <span className="text-[10px] font-black opacity-60">({freelancers.filter((f) => f.preferredTier === 'under_review').length})</span>}
             </button>
           ))}
         </nav>
