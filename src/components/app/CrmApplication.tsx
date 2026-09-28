@@ -23,6 +23,7 @@ import { Sidebar, TopHeader, TabType } from '@/components/layout';
 import { ClientsDirectoryView } from '@/features/clients/ClientsDirectoryView';
 import { LoginScreen } from '@/components/auth/LoginScreen';
 import { LoginInput } from '@/lib/api/auth';
+import { isFreelancerAccount } from '@/lib/auth/accountRouting';
 import { useProjectMutation, useProjects } from '@/hooks/useProjects';
 import { useTeam, useTeamMutation } from '@/hooks/useTeam';
 import { useAttendance } from '@/hooks/useAttendance';
@@ -36,6 +37,7 @@ import { normalizeTeamMember } from '@/features/team/teamViewModel';
 import { normalizeAttendance } from '@/features/attendance/attendanceViewModel';
 import { rbacApi } from '@/lib/api/rbac';
 import { isPersistedProjectId, normalizeProject, toBackendProjectStatus } from '@/features/projects/projectViewModel';
+import { projectStatusChangeSteps } from '@/features/projects/projectStatusFlow';
 import { projectsApi } from '@/lib/api/projects';
 import { persistStudioProject } from '@/features/projects/persistProject';
 import { attachShoots, persistProjectShoots, persistSingleCrewDataHandover } from '@/features/shoots/persistShoots';
@@ -75,6 +77,7 @@ import { AccessDenied } from './CrmStatePanels';
 import { ROUTE_TABS, TAB_ROUTES } from './crmRoutes';
 import { apiErrorMessage, getEmployeeAssignmentConflict, isEmployeeAttendanceUser, leaveTypeInput, normalizeLeaveRequest, toShiftValue } from './crmAppUtils';
 import { useDateInputBounds } from './useDateInputBounds';
+import { computeAutoProjectStatus } from '@/utils/projectStatusCalculator';
 
 export default function App() {
   useDateInputBounds();
@@ -83,6 +86,8 @@ export default function App() {
   const { currentUser, isHydrated, login, logout, refresh } = useAuthSession();
   const [restoreTimedOut, setRestoreTimedOut] = useState(false);
   const [currentPath, setCurrentPath] = useState(pathname);
+  const freelancerSessionInCrm = isFreelancerAccount(currentUser);
+  const crmUser = freelancerSessionInCrm ? null : currentUser;
 
   const [showLoginModal, setShowLoginModal] = useState<boolean>(false);
   const routeTab = ROUTE_TABS[currentPath] || (currentPath.startsWith('/projects/') ? 'projects' : undefined);
@@ -108,6 +113,11 @@ export default function App() {
     setCurrentPath(pathname);
   }, [pathname]);
 
+  useEffect(() => {
+    if (!isHydrated || !freelancerSessionInCrm) return;
+    router.replace('/freelancer/dashboard');
+  }, [freelancerSessionInCrm, isHydrated, router]);
+
   const navigateInsideCrm = useCallback((path: string) => {
     setCurrentPath(path);
     if (window.location.pathname !== path) {
@@ -126,10 +136,10 @@ export default function App() {
   const isDashboard = visibleTab === 'dashboard';
   // One aggregated read for the dashboard's counts, today's attendance and the
   // next shoots, instead of deriving them from full paginated datasets.
-  const summaryQuery = useDashboardSummary(Boolean(currentUser) && isDashboard);
+  const summaryQuery = useDashboardSummary(Boolean(crmUser) && isDashboard);
   // On the dashboard, record-level datasets only feed panels below the fold, so
   // they wait until the summary-driven view is on screen and the browser idles.
-  const secondaryReady = useDeferredLoad(Boolean(currentUser)) || !isDashboard;
+  const secondaryReady = useDeferredLoad(Boolean(crmUser)) || !isDashboard;
 
   const [projects, setProjects] = useState<Project[]>([]);
   const hydratedProjectData = useRef<unknown>(null);
@@ -147,14 +157,14 @@ export default function App() {
     'clients',
     'deliveries',
   ]);
-  const shouldLoadProjects = Boolean(currentUser) && (
+  const shouldLoadProjects = Boolean(crmUser) && (
     Boolean(routedProjectId) ||
     isNewProjectPage ||
     isScheduleShootPage ||
     isRecordPaymentPage ||
     (projectScreens.has(visibleTab) && (!isDashboard || secondaryReady))
   );
-  const shouldHydrateProjectExtras = Boolean(currentUser) && shouldLoadProjects && (
+  const shouldHydrateProjectExtras = Boolean(crmUser) && shouldLoadProjects && (
     Boolean(routedProjectId) ||
     isScheduleShootPage ||
     isRecordPaymentPage ||
@@ -166,7 +176,7 @@ export default function App() {
   );
 
   useEffect(() => {
-    if (!currentUser || projectQuery.loading || projectQuery.error) return;
+    if (!crmUser || projectQuery.loading || projectQuery.error) return;
     if (hydratedProjectData.current !== projectQuery.data) {
       hydratedProjectData.current = projectQuery.data;
       const mapped = projectQuery.data.map(normalizeProject);
@@ -211,7 +221,7 @@ export default function App() {
         }));
       })
       .catch(() => undefined);
-  }, [currentUser, projectQuery.data, projectQuery.error, projectQuery.loading, shouldHydrateProjectExtras]);
+  }, [crmUser, projectQuery.data, projectQuery.error, projectQuery.loading, shouldHydrateProjectExtras]);
   const projectMutations = useProjectMutation(projectQuery.retry);
   const [team, setTeam] = useState<TeamMember[]>([]);
   const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
@@ -225,7 +235,7 @@ export default function App() {
     currentUser?.permissions?.includes('ATTENDANCE_UPDATE') ||
     currentUser?.permissions?.includes('ATTENDANCE_MANAGE')
   );
-  const shouldLoadTeam = Boolean(currentUser) && (
+  const shouldLoadTeam = Boolean(crmUser) && (
     isNewProjectPage ||
     isScheduleShootPage ||
     Boolean(routedProjectId) ||
@@ -238,7 +248,7 @@ export default function App() {
   );
   const teamMutations = useTeamMutation(teamQuery.refresh);
   const rbacQuery = useRbac(
-    Boolean(currentUser) && (currentPath === '/team' || currentPath === '/roles-permissions'),
+    Boolean(crmUser) && (currentPath === '/team' || currentPath === '/roles-permissions'),
   );
 
   useEffect(() => {
@@ -250,7 +260,7 @@ export default function App() {
   // below the fold. Today's own status comes from the summary instead.
   const attendanceQuery = useAttendance(
     { page: 1, limit: 100 },
-    Boolean(currentUser) &&
+    Boolean(crmUser) &&
       canManageTeamAttendance &&
       secondaryReady &&
       (currentPath === '/dashboard' || currentPath === '/team'),
@@ -268,7 +278,7 @@ export default function App() {
   // Employees see their task workspace above the fold, so their tasks are
   // critical. For owners/admins tasks only feed TeamActivity further down.
   const tasksAreCritical = isEmployeeAttendanceUser(currentUser);
-  const shouldLoadTasks = Boolean(currentUser) && canViewTasks &&
+  const shouldLoadTasks = Boolean(crmUser) && canViewTasks &&
     (tasksAreCritical || secondaryReady) && (
       visibleTab === 'dashboard' || visibleTab === 'team' || visibleTab === 'roles'
     );
@@ -370,7 +380,7 @@ export default function App() {
   );
   const leaveQuery = useLeaveRequests(
     { page: 1, limit: 100 },
-    Boolean(currentUser) && secondaryReady && canUseLeave && currentPath === '/team',
+    Boolean(crmUser) && secondaryReady && canUseLeave && currentPath === '/team',
   );
 
   useEffect(() => {
@@ -384,7 +394,7 @@ export default function App() {
   const canReadFreelancers = hasPermission(currentUser, accessRoles, 'freelancers.view');
   const freelancerQuery = useFreelancers(
     { page: 1, limit: 100, sortBy: 'createdAt', sortOrder: 'desc' },
-    Boolean(currentUser) &&
+    Boolean(crmUser) &&
       canReadFreelancers &&
       (visibleTab === 'freelancers' || visibleTab === 'team' || visibleTab === 'expenses'),
   );
@@ -533,6 +543,15 @@ export default function App() {
   ) => {
     const { persistShoots = true, forcePersistShoots = false, dataHandover } = options;
     const previousProject = projects.find((project) => project.id === updatedProject.id);
+    const notesChanged = previousProject && previousProject.specialNotesMusicPreferences !== updatedProject.specialNotesMusicPreferences;
+    const movingToDelivery = updatedProject.status === 'ready_to_deliver' || updatedProject.status === 'completed';
+    if (movingToDelivery) {
+      const work = computeAutoProjectStatus(updatedProject);
+      if (work.pendingItems > 0 || work.inProgressItems > 0) {
+        window.alert(`Abhi ${work.pendingItems + work.inProgressItems} task pending hai. Delivery me move karne se pehle saare tasks complete karo.`);
+        return;
+      }
+    }
     setProjects((prev) => prev.map((p) => (p.id === updatedProject.id ? updatedProject : p)));
     const statusChanged = previousProject && (
       previousProject.status !== updatedProject.status || previousProject.isUrgent !== updatedProject.isUrgent
@@ -542,13 +561,27 @@ export default function App() {
         let dto = await projectsApi.update(updatedProject.id, { isUrgent: Boolean(updatedProject.isUrgent) });
         const targetStatus = toBackendProjectStatus(updatedProject.status);
         if (updatedProject.status !== 'urgent' && dto.status !== targetStatus) {
-          dto = await projectsApi.changeStatus(updatedProject.id, { status: targetStatus });
+          for (const status of projectStatusChangeSteps(dto.status, updatedProject.status)) {
+            dto = await projectsApi.changeStatus(updatedProject.id, { status });
+          }
         }
         const confirmed = normalizeProject(dto);
         setProjects((prev) => prev.map((project) => project.id === updatedProject.id
           ? { ...updatedProject, ...confirmed, shoots: updatedProject.shoots, tasks: updatedProject.tasks, payments: updatedProject.payments }
           : project));
+        window.alert('Project status updated successfully.');
       })().catch((error: unknown) => window.alert(apiErrorMessage(error, 'Unable to save project status.')));
+    }
+    if (notesChanged && isPersistedProjectId(updatedProject.id)) {
+      void projectsApi.update(updatedProject.id, { notes: updatedProject.specialNotesMusicPreferences.trim() })
+        .then((dto) => {
+          const confirmed = normalizeProject(dto);
+          setProjects((prev) => prev.map((project) => project.id === updatedProject.id
+            ? { ...updatedProject, ...confirmed, shoots: updatedProject.shoots, tasks: updatedProject.tasks, payments: updatedProject.payments }
+            : project));
+          window.alert('Project notes saved successfully.');
+        })
+        .catch((error: unknown) => window.alert(apiErrorMessage(error, 'Unable to save project notes.')));
     }
     if (dataHandover) {
       // Inputs update on every keystroke. Collapse a typing burst into one
@@ -949,6 +982,17 @@ export default function App() {
         <div className="flex items-center gap-3 text-sm font-semibold">
           <span className="h-5 w-5 animate-spin rounded-full border-2 border-[#b64b70] border-t-transparent" />
           Restoring your studio session…
+        </div>
+      </div>
+    );
+  }
+
+  if (freelancerSessionInCrm) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-[#2b1b21] text-[#f8e9df]">
+        <div className="flex items-center gap-3 text-sm font-semibold">
+          <span className="h-5 w-5 animate-spin rounded-full border-2 border-[#b64b70] border-t-transparent" />
+          Opening freelancer workspace…
         </div>
       </div>
     );

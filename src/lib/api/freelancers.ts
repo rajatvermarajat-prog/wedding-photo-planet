@@ -94,6 +94,24 @@ export interface FreelancerSearchResult {
   connection?: { id: string; status: string; projectId?: string | null; shootId?: string | null; createdAt: string } | null;
 }
 
+export interface FreelancerAvailabilityRecord {
+  id: string;
+  date: string;
+  status: 'AVAILABLE' | 'PARTIALLY_AVAILABLE' | 'UNAVAILABLE';
+  startTime?: string | null;
+  endTime?: string | null;
+  notes?: string | null;
+}
+
+export interface FreelancerPortfolioRecord {
+  id: string;
+  title: string;
+  description?: string | null;
+  category?: string | null;
+  isPublished: boolean;
+  fileObject?: { id: string; originalName: string; mimeType: string; sizeBytes: string | number } | null;
+}
+
 export interface FreelancerConnection {
   id: string;
   freelancerId: string;
@@ -103,7 +121,7 @@ export interface FreelancerConnection {
   notes?: string | null;
   createdAt: string;
   updatedAt: string;
-  freelancer?: { id: string; code: string; fullName: string; primarySkill: BackendCrewRole; city?: string | null };
+  freelancer?: { id: string; code: string; fullName: string; primarySkill: BackendCrewRole; city?: string | null; email?: string | null; phone?: string | null };
   project?: { id: string; projectNumber: string; name: string } | null;
   shoot?: { id: string; title: string; shootDate: string } | null;
 }
@@ -147,6 +165,10 @@ export const freelancersApi = {
   list: async (query?: FreelancerListQuery): Promise<{ data: BackendFreelancer[]; meta: ApiMeta }> =>
     apiRequest<BackendFreelancer[]>(`/freelancers${queryString(query)}`),
   get: async (id: string) => (await apiRequest<BackendFreelancer>(`/freelancers/${encodeURIComponent(id)}`)).data,
+  availability: async (id: string, query?: { from?: string; to?: string; status?: FreelancerAvailabilityRecord['status']; page?: number; limit?: number }) =>
+    apiRequest<FreelancerAvailabilityRecord[]>(`/freelancers/${encodeURIComponent(id)}/availability${queryString(query)}`),
+  portfolio: async (id: string) =>
+    (await apiRequest<FreelancerPortfolioRecord[]>(`/freelancers/${encodeURIComponent(id)}/portfolio`)).data,
   create: async (input: FreelancerInput) =>
     (await apiRequest<BackendFreelancer>('/freelancers', { method: 'POST', body: JSON.stringify(input) })).data,
   update: async (id: string, input: Partial<FreelancerInput>) =>

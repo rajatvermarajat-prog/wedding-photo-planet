@@ -39,27 +39,27 @@ export function FreelancerPortalShell({ children }: { children: React.ReactNode 
 
   return (
     <div className="min-h-screen bg-[#F7F6F3] text-[#221219] md:grid md:grid-cols-[320px_1fr]">
-      <aside className="fixed inset-y-0 left-0 z-40 hidden w-80 flex-col bg-[#2A1620] text-white md:flex">
-        <div className="flex h-full flex-col p-5">
-          <Link href="/freelancer/dashboard" className="font-[var(--font-display)] text-3xl font-black leading-tight text-[#D8BE93]">Wedding<br />Photo Planet</Link>
-          <p className="mt-4 border-b border-[#C9A876]/35 pb-6 text-[11px] font-black uppercase tracking-[.18em] text-white/45">Freelancer Panel</p>
-          <div className="mt-6 rounded-2xl bg-white/8 p-4">
+      <aside className="fixed inset-y-0 left-0 z-40 hidden w-80 flex-col overflow-hidden bg-[#2A1620] text-white md:flex">
+        <div className="flex h-full min-h-0 flex-col p-4 lg:p-5">
+          <Link href="/freelancer/dashboard" className="shrink-0 font-[var(--font-display)] text-2xl font-black leading-tight text-[#D8BE93] lg:text-3xl">Wedding<br />Photo Planet</Link>
+          <p className="mt-3 shrink-0 border-b border-[#C9A876]/35 pb-4 text-[10px] font-black uppercase tracking-[.18em] text-white/45 lg:mt-4 lg:pb-5 lg:text-[11px]">Freelancer Panel</p>
+          <div className="mt-4 shrink-0 rounded-2xl bg-white/8 p-3 lg:mt-5 lg:p-4">
             <div className="flex items-center gap-3">
-              <span className="grid size-14 place-items-center rounded-full bg-[#C9A876] text-lg font-black text-[#2A1620]">F</span>
+              <span className="grid size-12 place-items-center rounded-full bg-[#C9A876] text-lg font-black text-[#2A1620] lg:size-14">F</span>
               <div><p className="text-base font-black">Freelancer</p><p className="text-sm text-white/50">Active Panel</p></div>
             </div>
           </div>
-          <nav className="mt-7 space-y-1" aria-label="Freelancer panel">
+          <nav className="mt-5 min-h-0 flex-1 space-y-1 overflow-y-auto pr-1 pb-4 lg:mt-6" aria-label="Freelancer panel">
             {nav.slice(0, 7).map(({ href, label, icon: Icon }) => {
               const active = pathname === href || (href !== '/freelancer/dashboard' && pathname.startsWith(href));
               return (
-                <Link key={`${href}-${label}`} href={href} className={`flex min-h-12 items-center gap-3 rounded-xl border-l-3 px-4 text-base font-bold transition ${active ? 'border-[#C9A876] bg-white/10 text-white' : 'border-transparent text-white/62 hover:bg-white/8 hover:text-white'}`}>
+                <Link key={`${href}-${label}`} href={href} className={`flex min-h-11 items-center gap-3 rounded-xl border-l-3 px-4 text-sm font-bold transition lg:min-h-12 lg:text-base ${active ? 'border-[#C9A876] bg-white/10 text-white' : 'border-transparent text-white/62 hover:bg-white/8 hover:text-white'}`}>
                   <Icon className="size-5" />{label}
                 </Link>
               );
             })}
           </nav>
-          <div className="mt-auto space-y-4 border-t border-white/10 pt-6">
+          <div className="shrink-0 space-y-3 border-t border-white/10 pt-4 lg:space-y-4 lg:pt-5">
             <div className="flex items-center justify-between text-sm text-white/55"><span>Access</span><span className="flex items-center gap-1 text-[#D8BE93]"><span className="size-2 rounded-full bg-emerald-400" />Active</span></div>
             <button onClick={logout} className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-white/8 text-base font-bold text-white/75 transition hover:bg-white/12"><LogOut className="size-5" />Logout</button>
           </div>
@@ -77,7 +77,7 @@ export function FreelancerPortalShell({ children }: { children: React.ReactNode 
             <Link href="/freelancer/notifications" className="grid size-11 place-items-center rounded-full border border-[#EDE8E2] bg-white" aria-label="Notifications"><Bell className="size-4" /></Link>
           </div>
         </header>
-        <main className="px-4 py-6 md:px-8">{children}</main>
+        <main className="px-4 py-6 pb-24 md:px-8 md:pb-6">{children}</main>
       </div>
       <nav className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-5 border-t border-[#DFD9D2] bg-white md:hidden">
         {nav.slice(0, 5).map(({ href, label, icon: Icon }) => {

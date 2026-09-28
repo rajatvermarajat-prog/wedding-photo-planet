@@ -76,6 +76,11 @@ export interface PortalConnection {
   notes?: string | null;
   projectId?: string | null;
   shootId?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+  project?: { id: string; projectNumber: string; name: string } | null;
+  shoot?: { id: string; title: string; shootDate: string } | null;
+  createdBy?: { id: string; fullName: string } | null;
 }
 
 export interface PortalAssignment {
@@ -288,6 +293,8 @@ export const freelancerPortalApi = {
     portalRequest<PortalAvailability>(`/availability/${encodeURIComponent(date)}`, { method: 'PATCH', body: JSON.stringify(input) }),
   deleteAvailability: (date: string) =>
     portalRequest<void>(`/availability/${encodeURIComponent(date)}`, { method: 'DELETE' }),
+  respondToConnection: (id: string, input: { status: 'ACCEPTED' | 'DECLINED'; notes?: string | null }) =>
+    portalRequest<PortalConnection>(`/connections/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(input) }),
   createPortfolioItem: (input: { fileObjectId: string; title: string; description?: string; category?: string; sortOrder?: number; isPublished?: boolean }) =>
     portalRequest<PortalPortfolioItem>('/portfolio', { method: 'POST', body: JSON.stringify(input) }),
   updatePortfolioItem: (id: string, input: Partial<PortalPortfolioItem>) =>
